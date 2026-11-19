@@ -48,7 +48,7 @@ Node 22 or newer. To use the backend instead of demo data, open
   duplicates, Open311 export.
 - **Look** (redesign 2026-11-19, mockup on the team canvas): navy sidebar, neutral surfaces, one
   accent (a darker celeste), status colors only in dots and pins, Inter with a 12/13/14/16/20/28 px
-  scale, 1 px borders and no shadows, map tiles shown in grayscale so the points stand out. Tokens
+  scale, 1 px borders and no shadows, map tiles in their original colors. Tokens
   in `src/styles/tokens.css`. Provisional, to agree with `app/`.
 - **KPI cards** show the change against the previous period and an 8-week trend line, rebuilt from
   each case's history (`src/domain/trends.js`).

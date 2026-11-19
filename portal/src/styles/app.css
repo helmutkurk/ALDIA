@@ -488,10 +488,6 @@ svg {
   inset: 0;
   background: #eef1f4;
 }
-.map .leaflet-tile-pane {
-  filter: grayscale(1) brightness(1.06) contrast(0.82);
-  opacity: 0.85;
-}
 .leaflet-container {
   font-family: var(--font);
 }
