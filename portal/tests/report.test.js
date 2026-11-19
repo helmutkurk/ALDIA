@@ -51,6 +51,7 @@ describe('report page', () => {
     expect(mapFactory).toHaveBeenCalledWith(
       expect.any(window.HTMLElement),
       item,
+      { api: expect.any(Object), signal: expect.any(AbortSignal) },
     );
     page.destroy();
     expect(map.destroy).toHaveBeenCalledOnce();

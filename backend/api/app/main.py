@@ -12,7 +12,7 @@ from app.config import Settings
 from app.db import Database
 from app.dependencies import Services
 from app.middleware import UniformCORSMiddleware, UploadLimitMiddleware
-from app.routes import exports, health, open311, reports, stats
+from app.routes import exports, health, open311, reports, stats, triage
 from app.services.storage import PhotoStorage
 from app.services.verifier_client import VerifierClient
 
@@ -47,7 +47,7 @@ def create_app(
         UniformCORSMiddleware,
         allow_origins=config.allowed_origins,
         allow_methods=["GET", "POST"],
-        allow_headers=["Content-Type"],
+        allow_headers=["Content-Type", "X-Staff-Token", "Idempotency-Key"],
     )
 
     @app.exception_handler(RequestValidationError)
@@ -64,6 +64,10 @@ def create_app(
     @app.exception_handler(HTTPException)
     async def http_error(_request: Request, exc: HTTPException) -> JSONResponse:
         codes = {
+            401: ("unauthorized", "Se requiere un token válido."),
+            403: ("forbidden", "Permisos insuficientes."),
+            409: ("invalid_transition", "Cambio de estado no permitido."),
+            503: ("staff_unavailable", "Acceso de personal no configurado."),
             404: ("not_found", "Recurso no encontrado."),
             413: ("upload_too_large", "La foto supera el tamaño permitido."),
             422: ("validation_error", "Solicitud inválida."),
@@ -104,5 +108,6 @@ def create_app(
     app.include_router(stats.router)
     app.include_router(exports.router)
     app.include_router(open311.router)
+    app.include_router(triage.router)
     app.include_router(reports.router)
     return app

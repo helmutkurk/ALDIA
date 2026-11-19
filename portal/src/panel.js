@@ -1,4 +1,13 @@
-import { safePhotoUrl } from './api.js';
+import {
+  STATES,
+  GROUPS,
+  stateLabel,
+  reportState,
+  STATE_GROUPS,
+} from './states.js';
+import { SORTS, filtersHash } from './filters.js';
+import { ui } from './i18n.js';
+import { createPhoto } from './photo.js';
 import { CATEGORIES, categoryLabel } from './categories.js';
 import { filterReports } from './state.js';
 import { formatDate, RESOLUTIONS, STATUSES, statusLabel, t } from './i18n.js';
@@ -26,7 +35,7 @@ function statusBadge(report) {
 /** Shared report details for Leaflet popups. All API fields remain text nodes.
  * @param {import('./api.js').Report} report
  */
-export function createReportDetails(report) {
+export function createReportDetails(report, photoOptions = {}) {
   const details = element('article', 'report-details');
   const heading = element('h2', '', categoryLabel(report.category));
   heading.tabIndex = -1;
@@ -37,28 +46,27 @@ export function createReportDetails(report) {
   );
   const link = element('a', 'detail-link', t.viewReport);
   link.href = `#/reports/${report.id}`;
-  details.append(heading, statusBadge(report), resolution, link);
-  const photoUrl = safePhotoUrl(report.photo_url);
-  if (photoUrl) {
-    const image = document.createElement('img');
-    image.className = 'report-photo';
-    image.alt = t.photoAlt(categoryLabel(report.category));
-    image.loading = 'lazy';
-    image.decoding = 'async';
-    image.src = photoUrl;
-    image.addEventListener(
-      'error',
-      () => image.replaceWith(element('p', 'muted', t.photoUnavailable)),
-      { once: true },
-    );
-    details.append(image);
-  } else details.append(element('p', 'muted', t.photoUnavailable));
+  const state = reportState(report);
+  details.append(
+    heading,
+    statusBadge(report),
+    resolution,
+    element(
+      'span',
+      `state-chip state-chip--${STATE_GROUPS[state]}`,
+      stateLabel(state),
+    ),
+    link,
+  );
+  details.append(createPhoto(report, photoOptions));
   const date = element('p', 'captured-date', `${t.capturedAt}: `);
   const time = document.createElement('time');
   time.dateTime = report.captured_at;
   time.textContent = formatDate(report.captured_at);
   date.append(time);
   details.append(date);
+  if (report.public_note)
+    details.append(element('p', 'public-note', report.public_note));
   if (report.note) details.append(element('p', 'report-note', report.note));
   details.append(element('h3', '', t.verification));
   if (!report.verification) {
@@ -107,14 +115,19 @@ export function createReportDetails(report) {
  * @param {HTMLElement} root
  * @param {{onFiltersChange: (filters: import('./state.js').Filters) => void, onSelect: (id: string) => void, onRetry: () => void}} callbacks
  */
-export function createPanel(root, { onFiltersChange, onSelect, onRetry }) {
+export function createPanel(
+  root,
+  { onFiltersChange, onSelect, onRetry, onPage = () => {}, getScope },
+) {
   root.setAttribute('aria-labelledby', 'portal-title');
   const header = element('header', 'panel-header');
   header.append(element('a', 'brand', t.appName));
   header.querySelector('a').href = '#/';
   const dashboard = element('a', 'dashboard-link', t.dashboard);
   dashboard.href = '#/panel';
-  header.append(dashboard);
+  const triage = element('a', '', ui.triage);
+  triage.href = '#/triage';
+  header.append(dashboard, triage);
   const title = element('h1', '', t.portalTitle);
   title.id = 'portal-title';
   header.append(title, element('p', 'muted', t.introduction));
@@ -155,15 +168,93 @@ export function createPanel(root, { onFiltersChange, onSelect, onRetry }) {
     t.allResolutions,
     RESOLUTIONS.map((id) => ({ id, label: t.resolutions[id] })),
   );
-  const onChange = () =>
-    onFiltersChange({
+  const group = select(
+    'state-group-filter',
+    ui.stateGroup,
+    ui.allGroups,
+    GROUPS.map((id) => ({ id, label: ui.groups[id] })),
+  );
+  const stateInput = select(
+    'state-filter',
+    ui.state,
+    ui.allStates,
+    STATES.map((id) => ({ id, label: stateLabel(id) })),
+  );
+  const sort = select(
+    'sort-filter',
+    ui.sort,
+    ui.sorts.newest,
+    SORTS.filter((id) => id !== 'newest').map((id) => ({
+      id,
+      label: ui.sorts[id],
+    })),
+  );
+  const controls = {
+    category,
+    status,
+    resolution,
+    state_group: group,
+    state: stateInput,
+    sort,
+  };
+  for (const [name, label, type] of [
+    ['created_from', ui.from, 'date'],
+    ['created_to', ui.to, 'date'],
+    ['assignee', ui.assignee, 'text'],
+    ['include_old', ui.includeOld, 'checkbox'],
+  ]) {
+    const labelNode = element('label', 'filter-field', label);
+    const input = element('input');
+    input.type = type;
+    input.name = name;
+    if (name === 'assignee') input.maxLength = 60;
+    labelNode.append(input);
+    filters.append(labelNode);
+    controls[name] = input;
+  }
+  const chips = element('div', 'filter-chips');
+  const onChange = (event) => {
+    if (
+      event.target === group &&
+      stateInput.value &&
+      STATE_GROUPS[stateInput.value] !== group.value
+    )
+      stateInput.value = '';
+    if (
+      event.target === stateInput &&
+      stateInput.value &&
+      group.value &&
+      STATE_GROUPS[stateInput.value] !== group.value
+    )
+      group.value = STATE_GROUPS[stateInput.value];
+    const next = {
       category: category.value,
       status: status.value,
       resolution: resolution.value,
-    });
-  category.addEventListener('change', onChange);
-  status.addEventListener('change', onChange);
-  resolution.addEventListener('change', onChange);
+    };
+    for (const [key, input] of Object.entries(controls)) {
+      const value =
+        input.type === 'checkbox' ? (input.checked ? 'true' : '') : input.value;
+      if (value) next[key] = value;
+    }
+    onFiltersChange(next);
+  };
+  filters.addEventListener('change', onChange, true);
+  filters.append(element('p', 'muted', ui.defaultWindow));
+  const pagination = element('nav', 'pagination');
+  pagination.setAttribute('aria-label', ui.page(1, 0));
+  const previousPage = element('button', '', ui.previous);
+  previousPage.type = 'button';
+  const nextPage = element('button', '', ui.next);
+  nextPage.type = 'button';
+  const pageLabel = element('span');
+  previousPage.addEventListener('click', () =>
+    onPage(Math.max(0, (previous?.offset ?? 0) - 25)),
+  );
+  nextPage.addEventListener('click', () =>
+    onPage((previous?.offset ?? 0) + 25),
+  );
+  pagination.append(previousPage, pageLabel, nextPage);
   const results = element('section', 'results');
   results.setAttribute('aria-labelledby', 'reports-title');
   const reportsTitle = element('h2', '', t.reports);
@@ -177,13 +268,13 @@ export function createPanel(root, { onFiltersChange, onSelect, onRetry }) {
   list.id = 'reports-list';
   list.tabIndex = -1;
   list.setAttribute('aria-labelledby', 'reports-title');
-  const limitHint = element('p', 'limit-hint', t.limitHint);
+  const limitHint = element('p', 'limit-hint');
   limitHint.hidden = true;
   const retry = element('button', 'retry-button', t.retry);
   retry.type = 'button';
   retry.addEventListener('click', onRetry);
   results.append(reportsTitle, announcement, message, list, limitHint);
-  root.replaceChildren(header, filters, results);
+  root.replaceChildren(header, filters, chips, results, pagination);
   /** @type {Readonly<import('./state.js').State>|undefined} */
   let previous;
   /** @type {Map<string, HTMLButtonElement>} */
@@ -194,6 +285,47 @@ export function createPanel(root, { onFiltersChange, onSelect, onRetry }) {
     category.value = state.filters.category;
     status.value = state.filters.status;
     resolution.value = state.filters.resolution;
+    for (const [key, input] of Object.entries(controls)) {
+      if (input.type === 'checkbox')
+        input.checked = state.filters[key] === 'true';
+      else input.value = state.filters[key] ?? '';
+    }
+    const active = Object.entries(state.filters).filter(
+      ([key, value]) => value && key !== 'bbox',
+    );
+    chips.replaceChildren(element('p', '', ui.activeFilters(active.length)));
+    for (const [key, value] of active) {
+      const label =
+        key === 'state'
+          ? stateLabel(value)
+          : key === 'state_group'
+            ? ui.groups[value]
+            : key === 'category'
+              ? categoryLabel(value)
+              : key === 'sort'
+                ? ui.sorts[value]
+                : key === 'include_old'
+                  ? ui.includeOld
+                  : value;
+      const chip = element('button', '', `${label} ×`);
+      chip.type = 'button';
+      chip.setAttribute('aria-label', ui.removeFilter(label));
+      chip.addEventListener('click', () => {
+        const next = { ...state.filters };
+        delete next[key];
+        onFiltersChange(next);
+      });
+      chips.append(chip);
+    }
+    pageLabel.textContent = ui.page(
+      Math.floor((state.offset ?? 0) / 25) + 1,
+      state.total,
+    );
+    previousPage.disabled = !(state.offset > 0);
+    nextPage.disabled =
+      (state.offset ?? 0) + 25 >= state.total || state.phase !== 'success';
+    dashboard.href = filtersHash('#/panel', getScope?.() ?? state.filters);
+    triage.href = filtersHash('#/triage', getScope?.() ?? state.filters);
     const reports = filterReports(state.reports, state.filters);
     announcement.textContent =
       state.phase === 'loading' || state.phase === 'idle'
@@ -241,13 +373,21 @@ export function createPanel(root, { onFiltersChange, onSelect, onRetry }) {
         button.replaceChildren(
           element('strong', 'report-category', categoryLabel(report.category)),
           statusBadge(report),
+          element(
+            'span',
+            `state-chip state-chip--${STATE_GROUPS[reportState(report)]}`,
+            stateLabel(reportState(report)),
+          ),
           element('span', 'report-date', formatDate(report.captured_at)),
         );
         if (!previousButtons.has(report.id))
           button.addEventListener('click', () => onSelect(report.id));
         buttons.set(report.id, button);
         const link = element('a', 'detail-link', t.viewReport);
-        link.href = `#/reports/${report.id}`;
+        link.href = filtersHash(
+          `#/reports/${report.id}`,
+          getScope?.() ?? state.filters,
+        );
         item.append(button, link);
         list.append(item);
       }
@@ -263,9 +403,7 @@ export function createPanel(root, { onFiltersChange, onSelect, onRetry }) {
   return {
     render,
     destroy() {
-      category.removeEventListener('change', onChange);
-      status.removeEventListener('change', onChange);
-      resolution.removeEventListener('change', onChange);
+      filters.removeEventListener('change', onChange, true);
       retry.removeEventListener('click', onRetry);
       root.replaceChildren();
     },

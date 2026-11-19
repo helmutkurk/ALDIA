@@ -137,17 +137,18 @@ describe('page coordination', () => {
     panelElement.querySelector('.report-button').click();
     const state = app.store.getState();
     const link = panelElement.querySelector('.detail-link');
-    expect(link.getAttribute('href')).toBe(`#/reports/${report().id}`);
+    expect(link.getAttribute('href')).toContain(`#/reports/${report().id}?`);
+    expect(link.getAttribute('href')).toContain('resolution=open');
     link.focus();
     panelElement.scrollTop = 120;
-    route(`#/reports/${report().id}`);
+    route(link.getAttribute('href'));
     await Promise.resolve();
     expect(workspaceElement.hidden).toBe(true);
     expect(pageElement.textContent).toContain('Bache');
     expect(api.getReport).toHaveBeenCalledWith(report().id, {
       signal: expect.any(AbortSignal),
     });
-    route('#/');
+    route(pageElement.querySelector('.back-link').getAttribute('href'));
     expect(workspaceElement.hidden).toBe(false);
     expect(pageElement.hidden).toBe(true);
     expect(map.destroy).not.toHaveBeenCalled();
@@ -159,13 +160,13 @@ describe('page coordination', () => {
   });
 
   it('passes the visible area and all current filters to dashboard stats and CSV', async () => {
-    const { api, map } = setup(true);
+    const { api, map, panelElement } = setup(true);
     app.store.setFilters({
       category: 'pothole',
       status: 'verified',
       resolution: 'fixed',
     });
-    route('#/panel');
+    route(panelElement.querySelector('.dashboard-link').getAttribute('href'));
     await Promise.resolve();
     const filters = {
       bbox: map.getBbox(),
@@ -176,7 +177,10 @@ describe('page coordination', () => {
     expect(api.getStats).toHaveBeenCalledWith(filters, {
       signal: expect.any(AbortSignal),
     });
-    expect(api.getCsvUrl).toHaveBeenCalledWith(filters);
+    expect(api.getCsvUrl).toHaveBeenCalledWith({
+      ...filters,
+      delimiter: 'comma',
+    });
   });
 
   it('loads initial deep links and aborts a report request when going back', async () => {

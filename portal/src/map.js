@@ -1,4 +1,6 @@
 import L from 'leaflet';
+import { reportState, STATE_GROUPS, stateLabel } from './states.js';
+import { ui } from './i18n.js';
 import { categoryLabel } from './categories.js';
 import { createReportDetails } from './panel.js';
 import { statusLabel, t } from './i18n.js';
@@ -12,7 +14,14 @@ const CENTER = [14.6349, -90.5069];
  */
 export function createReportMap(
   container,
-  { onBoundsChange, onSelect, center = CENTER, zoom = 13 },
+  {
+    onBoundsChange,
+    onSelect,
+    onCluster = () => {},
+    detailsFactory = createReportDetails,
+    center = CENTER,
+    zoom = 13,
+  },
 ) {
   container.setAttribute('role', 'region');
   container.setAttribute('aria-label', t.mapLabel);
@@ -67,6 +76,11 @@ export function createReportMap(
   tiles.on('tileload', onTileLoad);
   /** @type {Map<string, import('leaflet').Marker>} */
   const markers = new Map();
+  const clusters = [];
+  const clearClusters = () => {
+    clusters.forEach((marker) => marker.remove());
+    clusters.length = 0;
+  };
   let openedId = null;
   let focusReturn = null;
   let refreshing = false;
@@ -115,6 +129,54 @@ export function createReportMap(
         Math.min(90, bounds.getNorth()),
       ];
     },
+    getZoom: () => map.getZoom(),
+    setViewBounds(bounds) {
+      map.fitBounds(
+        [
+          [bounds[1], bounds[0]],
+          [bounds[3], bounds[2]],
+        ],
+        { animate: false },
+      );
+    },
+    /** Cluster markers contain counts only; singleton identities are hydrated through detail reads.
+     * @param {object[]} items @param {object[]} [reports] */
+    renderClusters(items, reports = []) {
+      clearClusters();
+      this.renderReports(reports);
+      for (const cluster of items) {
+        if (
+          cluster.count === 1 &&
+          reports.some((report) => cluster.ids?.includes(report.id))
+        )
+          continue;
+        const bubble = document.createElement('span');
+        bubble.className = 'cluster-count';
+        bubble.textContent = String(cluster.count);
+        const label = ui.cluster(cluster.count);
+        const marker = L.marker([cluster.lat, cluster.lon], {
+          icon: L.divIcon({
+            html: bubble,
+            className: 'cluster-marker',
+            iconSize: [44, 44],
+          }),
+          keyboard: true,
+          title: label,
+          alt: label,
+        }).addTo(map);
+        marker.getElement().setAttribute('aria-label', label);
+        marker.on('click', () => {
+          if (map.getZoom() < map.getMaxZoom())
+            map.setView(
+              [cluster.lat, cluster.lon],
+              Math.min(map.getMaxZoom(), map.getZoom() + 2),
+              { animate: false },
+            );
+          else onCluster(cluster);
+        });
+        clusters.push(marker);
+      }
+    },
     /** @param {ReadonlyArray<import('./api.js').Report>} reports */
     renderReports(reports) {
       const restoreId = openedId;
@@ -131,12 +193,12 @@ export function createReportMap(
       markers.clear();
       for (const report of reports) {
         const pin = document.createElement('span');
-        pin.className = `status-pin status-pin--${report.status}`;
-        pin.dataset.letter = t.markerLetters[report.status];
+        pin.className = `status-pin status-pin--${report.status} state-pin--${STATE_GROUPS[reportState(report)]}`;
+        pin.dataset.letter = ui.groupLetters[STATE_GROUPS[reportState(report)]];
         pin.setAttribute('aria-hidden', 'true');
         const label = t.selectReport(
           categoryLabel(report.category),
-          statusLabel(report),
+          `${stateLabel(reportState(report))}. ${statusLabel(report)}`,
         );
         const marker = L.marker([report.latitude, report.longitude], {
           icon: L.divIcon({
@@ -151,7 +213,7 @@ export function createReportMap(
           keyboard: true,
         }).addTo(map);
         marker.getElement().setAttribute('aria-label', label);
-        marker.bindPopup(() => createReportDetails(report), {
+        marker.bindPopup(() => detailsFactory(report), {
           maxWidth: 320,
           minWidth: 220,
           autoPan: true,
@@ -242,10 +304,11 @@ export function createReportMap(
 /** A compact location map using the same tile, attribution and keyboard behavior.
  * @param {HTMLElement} container @param {import('./api.js').Report} report
  */
-export function createLocationMap(container, report) {
+export function createLocationMap(container, report, photoOptions = {}) {
   const map = createReportMap(container, {
     onBoundsChange() {},
     onSelect() {},
+    detailsFactory: (item) => createReportDetails(item, photoOptions),
     center: [report.latitude, report.longitude],
     zoom: 16,
   });

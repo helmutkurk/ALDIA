@@ -30,6 +30,7 @@ class ApiClient {
 
   /// Absolute URL of a photo path such as `/api/reports/<id>/photo`.
   String photoUrl(String photoPath) {
+    if (Uri.parse(photoPath).hasScheme) return photoPath;
     final uri = Uri.parse(_baseUrl);
     return uri.replace(path: photoPath, query: null).toString();
   }
@@ -38,8 +39,14 @@ class ApiClient {
     LatLng? southWest,
     LatLng? northEast,
     int limit = 100,
+    String? state,
+    String? category,
   }) async {
-    final query = <String, String>{'limit': '$limit'};
+    final query = <String, String>{
+      'limit': '$limit',
+      'state': ?state,
+      'category': ?category,
+    };
     if (southWest != null && northEast != null) {
       query['bbox'] =
           '${southWest.longitude},${southWest.latitude},${northEast.longitude},${northEast.latitude}';
@@ -50,6 +57,46 @@ class ApiClient {
         (jsonDecode(body) as Map<String, dynamic>)['items'] as List<dynamic>;
     return items
         .map((e) => Report.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<List<Report>> nearbyReports({
+    required LatLng position,
+    required String category,
+  }) async {
+    final uri = Uri.parse('$_baseUrl/reports/nearby').replace(
+      queryParameters: {
+        'lat': '${position.latitude}',
+        'lon': '${position.longitude}',
+        'category': category,
+        'radius_m': '150',
+      },
+    );
+    final decoded = jsonDecode(await _send(() => _client.get(uri)));
+    final items = decoded is List
+        ? decoded
+        : (decoded as Map<String, dynamic>)['items'] as List;
+    return items
+        .map((e) => Report.fromJson(Map<String, dynamic>.from(e as Map)))
+        .toList();
+  }
+
+  Future<List<ReportCluster>> clusters({
+    required LatLng southWest,
+    required LatLng northEast,
+    required double zoom,
+  }) async {
+    final uri = Uri.parse('$_baseUrl/reports/clusters').replace(
+      queryParameters: {
+        'bbox':
+            '${southWest.longitude},${southWest.latitude},${northEast.longitude},${northEast.latitude}',
+        'zoom': '${zoom.round().clamp(0, 20)}',
+      },
+    );
+    final body =
+        jsonDecode(await _send(() => _client.get(uri))) as Map<String, dynamic>;
+    return (body['clusters'] as List)
+        .map((e) => ReportCluster.fromJson(Map<String, dynamic>.from(e as Map)))
         .toList();
   }
 
@@ -67,6 +114,7 @@ class ApiClient {
     required LatLng position,
     required DateTime capturedAt,
     String? note,
+    String? idempotencyKey,
   }) async {
     final request =
         http.MultipartRequest('POST', Uri.parse('$_baseUrl/reports'))
@@ -81,6 +129,9 @@ class ApiClient {
               filename: filename,
             ),
           );
+    if (idempotencyKey != null) {
+      request.headers['Idempotency-Key'] = idempotencyKey;
+    }
     if (note != null && note.trim().isNotEmpty) {
       request.fields['note'] = note.trim();
     }

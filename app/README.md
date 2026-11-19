@@ -6,10 +6,32 @@ Contract: `../documentation/api-contract.md`. Setup for Android Studio and Xcode
 
 ## Flow
 
-1. **Home**: map and list of nearby reports (pin color = verification status), button "Reportar", "Mis reportes".
-2. **Report** in four steps: location (GPS or tap on the map), category, live photo, note. The result screen shows
-   the verification checks; a rejected photo can be retaken without losing location and category.
-3. **Detail**: photo, verification status, handling state (`open`, `acknowledged`, `fixed`) and checks.
+1. **Home**: map and list of nearby reports. The map asks `GET /api/reports/clusters` for the visible viewport and falls
+   back to plain reports (also when a filter is active, since clusters have no filters). Pins show the state as icon plus
+   text; tapping one opens a summary sheet. Filters by state and category. "Continuar borrador" banner when a draft exists.
+2. **Report** wizard: photo (live camera), place (GPS, accuracy warning, manual pin), category, duplicates
+   (`GET /api/reports/nearby`, skipped when empty or offline), details, review and send, result with one message per
+   failed verifier check. Every step saves a draft; sending offline queues the report ("Esperando red").
+3. **Mis reportes**: outbox ("Por enviar", retry now, delete with one confirmation), drafts, then sent reports.
+   The empty state invites the first report.
+4. **Detail**: photo, state chips (icon plus text), timeline from `events` (public notes only), a hint when
+   `duplicate_of` is set, similar nearby reports, verifier checks.
+
+Citizen wording for the 11 contract states lives in one table, `lib/core/citizen_states.dart`; a missing `state`
+(v0.1 server) is derived from `status` and `resolution`.
+
+Outbox and drafts: JSON files plus photos in app-private documents (`path_provider`). The outbox retries with
+exponential backoff when connectivity returns and on app resume; each report carries one persisted `Idempotency-Key`.
+
+Accessibility: 48 dp targets, semantic labels and headings, state never by color alone, text scale 200 % tested
+(`test/widgets/large_text_test.dart`), page and sheet transitions skipped when the system reduces motion.
+
+## Pending: login por teléfono y push
+
+Both need backend work (phone-code auth, push tokens). `AuthService` and `NotificationsService`
+(`lib/services/identity_services.dart`) are interfaces with no-op implementations; nothing calls a server yet.
+Also pending: "Enviar para revisión manual" is only a UI state (the report is saved on the device; no endpoint),
+and the follow-up "was it fixed?" question.
 
 ## Run
 
@@ -33,14 +55,14 @@ mise exec -- flutter test
 
 ```
 lib/
-  main.dart            composition root (real services)
-  app.dart             MaterialApp, providers (dependencies are injected, tests replace them)
-  core/                config, theme (tokens), categories, strings (Spanish)
-  data/                report model, ApiClient, ReportRepository, MyReportsStore
-  services/            LocationService, PhotoService (live camera only; gallery in iOS debug)
-  features/            home, report (flow controller + screens), detail, mine
-  widgets/             status chips, checks list, report tile
-test/                  model, API client, flow controller and widget tests (offline)
+  main.dart            composition root (real services, outbox sender)
+  app.dart             MaterialApp, providers, outbox start and retry on resume
+  core/                config, theme, categories, citizen_states (state wording table), strings (Spanish)
+  data/                report model, ApiClient, ClustersApi, ReportRepository, MyReportsStore
+  services/            location, live camera, connectivity, Auth/Notifications (no-op)
+  features/            home, report (wizard), detail, mine, drafts, outbox
+  widgets/             state chips, checks list, report tile, reduced-motion route
+test/                  model, API, wizard, drafts, outbox, home, detail, mine and large-text tests (offline)
 android/, ios/         platform projects (permissions: camera, location, internet)
 .idea/runConfigurations/  shared Android Studio run configurations
 ```

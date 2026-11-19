@@ -117,3 +117,98 @@ says it did not classify). `mode` is `stub` or `model`; a stub result is never p
 | verifier | `MAX_AGE_SECONDS` | `600` |
 | portal | `VITE_API_BASE_URL` | `/api` |
 | app | `--dart-define=API_BASE_URL=...` | `http://10.0.2.2:8000/api` (Android emulator) |
+
+## v0.2 additions: case states, staff actions, triage, clustering (inspired by the FixMyStreet study)
+
+Written from our own behavior spec (clean-room, see `documentation/research/reference-fixmystreet-seeclickfix.md`).
+Everything below is **additive**: v0.1 fields and endpoints keep working.
+
+### Case state machine
+
+`state` is the municipality's handling state. `status` (pending/verified/rejected) stays the verifier verdict.
+
+| `state` | group (`state_group`) | meaning |
+|---|---|---|
+| `pendiente_verificacion` | `pending` | created, verifier not answered yet (system) |
+| `rechazado_verificador` | `closed` | verifier rejected the photo (system); staff may override |
+| `nuevo` | `open` | verified, not yet looked at |
+| `en_revision` | `open` | being reviewed, usually assigned |
+| `programado` | `in_work` | work scheduled |
+| `en_proceso` | `in_work` | work in progress |
+| `resuelto` | `resolved` | fixed (sets `resolved_at`) |
+| `no_procede` | `closed` | rejected by staff, reason required |
+| `fuera_de_competencia` | `closed` | not the municipality's job, reason required |
+| `duplicado` | `closed` | duplicate of `duplicate_of`, reason optional |
+| `oculto` | `hidden` | moderated, hidden from the public list; restores to the previous state |
+
+Creation sets `pendiente_verificacion`; verifier pass moves to `nuevo`, verifier fail to `rechazado_verificador`;
+unreachable verifier keeps `pendiente_verificacion` (`status` stays `pending`). Legal transitions (everything else is `409`):
+
+- `rechazado_verificador` → `nuevo` (supervisor override, `internal_note` required)
+- `nuevo` → `en_revision`
+- `en_revision` → `programado`, `en_proceso`, `no_procede`, `fuera_de_competencia`, `duplicado`
+- `programado` → `en_proceso`, `no_procede`
+- `en_proceso` → `resuelto`
+- `resuelto` → `en_revision` (reopen)
+- `no_procede`, `fuera_de_competencia`, `duplicado` → `en_revision` (reason required)
+- open states may move backwards to an earlier open state; any state → `oculto`; `oculto` → previous state.
+- closing states (`no_procede`, `fuera_de_competencia`) and any forward skip need a non-empty `public_note` or `internal_note`.
+
+`resolution` (v0.1) is now derived: `open` for pending/open groups, `acknowledged` for `in_work`, `fixed` for `resuelto`,
+`closed` for the other closed states. `closed` is a new allowed value.
+
+### Report object additions
+
+`state`, `state_group`, `state_changed_at`, `verified_at` (null until the verifier answers), `resolved_at`, `closed_at`,
+`assignee` (string or null), `duplicate_of` (uuid or null), `public_note` (last public message, or null).
+`GET /api/reports/{id}` also returns `events`: `[{"at", "actor_role": "system|operator|supervisor", "from_state", "to_state", "public_note"}]`
+(oldest first); internal notes appear only with a staff token. Reports in state `oculto` are excluded from the public
+list and stats and return `404` on the detail endpoint without a staff token.
+
+### Staff authentication (v0.2 stopgap)
+
+Write endpoints and internal notes need the header `X-Staff-Token` equal to env `STAFF_TOKEN` (min 32 chars,
+constant-time compare, no default: if unset, staff endpoints answer `503`). One shared token = one role `operator`; a
+second token `SUPERVISOR_TOKEN` (optional) gives role `supervisor` for overrides, reopen from closed states and
+`oculto`. This is replaced by phone-code login before any real deployment; the portal keeps the token in memory only.
+
+### New endpoints
+
+| Method and path | Purpose |
+|---|---|
+| `POST /api/reports/{id}/transition` | staff. Body `{"to": state, "public_note"?: str(<=280), "internal_note"?: str(<=500), "duplicate_of"?: uuid}`. Validates the table above, stores an event, returns the report. |
+| `POST /api/reports/{id}/assign` | staff. Body `{"assignee": str(<=60) or null}`; stores an event-free assignment record (`assigned_at`). |
+| `GET /api/reports/{id}/nearby` | open reports of the same category within 100 m created in the last 30 days (excludes itself), nearest first, max 10, with thumbnail url. For duplicate suggestions. |
+| `GET /api/reports/clusters` | `bbox` (required), `zoom` (0-20). Grid-clustered pins: `{"clusters": [{"lat","lon","count","ids"?: [first 5 ids]}], "total"}`. At zoom >= 17 returns single reports. Max 500 items. Light payload (no photos). |
+| `GET /api/queue` | staff-friendly triage list: `?tab=review|rejected`; `review` = state `nuevo` and no assignee, oldest `verified_at` first, each with `age_hours`; `rejected` = state `rechazado_verificador`. Same pagination as the list. |
+
+### List, stats and export changes
+
+- `GET /api/reports` new filters: `state`, `state_group`, `assignee`, `created_from`, `created_to` (ISO dates),
+  `sort` (`newest` default, `oldest`, `updated`, `age_in_state`), `limit` (max 100 when paginating), `offset`. Response adds
+  `"limit"` and `"offset"` echo fields. Default window without `created_from`: last 30 days unless `include_old=true`.
+- `GET /api/stats` adds (same filters, municipality day boundaries `America/Guatemala`):
+  `recibidos`, `rechazados_verificador`, `abiertos`, `resueltos`, `cerrados_sin_solucion`, `tasa_resolucion` (resueltos created in
+  the period / (recibidos - duplicados - fuera_de_competencia), null if the denominator is 0), `resolucion_horas`
+  `{"median","p90","mean","n"}` (resolved only, `resolved_at - verified_at`), `primera_respuesta_horas` `{"median","p90","n"}`,
+  `antiguedad_abiertos` `{"0-2","3-7","8-30",">30"}` (days since `verified_at`), `sla_cumplido` (share of resolved within category SLA,
+  null when none) and `vencidos` (open and older than the category SLA), `by_state`, `by_state_group`, `weekly`
+  `[{"week": "2026-W47", "recibidos": 0, "resueltos": 0}]`. Category SLA hours live next to the categories
+  (`backend/api/app/categories.py`): accessibility 720, sidewalk 720, pothole 240, graffiti 1440, open_drain 72, street_light 168.
+- `GET /api/reports.csv` adds `delimiter=comma|semicolon` (default comma), writes a UTF-8 BOM, new columns
+  `id,created_at,verified_at,category,state,state_changed_at,resolved_at,latitude,longitude,assignee,verifier_status,duplicates_count,days_open,link`
+  (no personal data); still capped and formula-injection safe for text cells only. Hidden reports are excluded.
+- Open311 view: `status` is `closed` for groups `resolved` and `closed`, else `open`.
+
+### Categories
+
+`GET /api/categories` adds `sla_hours` and `group` (`"movilidad"`, `"espacio_publico"`, `"servicios"`) per item.
+
+### App support (v0.2)
+
+- `POST /api/reports` accepts an `Idempotency-Key` header (a UUID generated by the app per report). A repeated key within 24 hours
+  returns the original report with `200` and creates nothing, so retries after a timeout never duplicate a report.
+- `GET /api/reports/nearby?lat=&lon=&category=&radius_m=150` (public, same rules as `/{id}/nearby`; `radius_m` 20-500, default 150):
+  open verified reports of that category created in the last 30 days, nearest first, max 10, each with a thumbnail url. The app
+  calls it before the details step to avoid duplicates. Declare it before the `/{id}` route.
+- Each event in `events` also carries `public_note` so the citizen timeline can show official messages.

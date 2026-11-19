@@ -14,6 +14,7 @@ Map<String, dynamic> reportJson({
   String id = '11111111-1111-4111-8111-111111111111',
   String status = 'verified',
   bool withVerification = true,
+  List<Map<String, dynamic>>? checks,
 }) => {
   'id': id,
   'category': 'pothole',
@@ -29,9 +30,11 @@ Map<String, dynamic> reportJson({
       ? {
           'passed': status == 'verified',
           'mode': 'stub',
-          'checks': [
-            {'name': 'freshness', 'passed': true, 'detail': 'age 5 s'},
-          ],
+          'checks':
+              checks ??
+              [
+                {'name': 'freshness', 'passed': true, 'detail': 'age 5 s'},
+              ],
         }
       : null,
 };
@@ -55,6 +58,23 @@ class FakeLocation implements LocationService {
   Future<LatLng?> currentPosition() async => value;
 }
 
+/// Location fake with the richer diagnostics interface (issues, accuracy).
+class FakeDiagnosticLocation implements LocationService, LocationDiagnostics {
+  FakeDiagnosticLocation(this.fix);
+
+  LocationFix fix;
+  int settingsOpened = 0;
+
+  @override
+  Future<LatLng?> currentPosition() async => fix.position;
+
+  @override
+  Future<LocationFix> locate() async => fix;
+
+  @override
+  Future<void> openSettings() async => settingsOpened++;
+}
+
 class FakePhotos implements PhotoService {
   @override
   Future<CapturedPhoto?> takePhoto() async => CapturedPhoto(
@@ -65,15 +85,28 @@ class FakePhotos implements PhotoService {
 }
 
 /// Repository backed by a MockClient that answers like the real API.
+///
+/// [nearby] answers `GET /reports/nearby`; [failNearby] makes it fail. Every
+/// request is recorded in [requests].
 ReportRepository fakeRepository({
   MemoryStore? store,
   String createdStatus = 'verified',
   bool failCreate = false,
+  List<Map<String, dynamic>> nearby = const [],
+  bool failNearby = false,
+  List<http.BaseRequest>? requests,
+  bool Function()? failCreateWhen,
+  List<Map<String, dynamic>>? createdChecks,
 }) {
   final client = MockClient((http.Request request) async {
     final path = request.url.path;
+    requests?.add(request);
+    if (request.method == 'GET' && path.endsWith('/reports/nearby')) {
+      if (failNearby) return http.Response('{}', 500);
+      return http.Response(jsonEncode({'items': nearby}), 200);
+    }
     if (request.method == 'POST' && path.endsWith('/reports')) {
-      if (failCreate) {
+      if (failCreate || (failCreateWhen?.call() ?? false)) {
         return http.Response(
           jsonEncode({
             'error': {'code': 'server_error', 'message': 'boom'},
@@ -81,7 +114,10 @@ ReportRepository fakeRepository({
           500,
         );
       }
-      return http.Response(jsonEncode(reportJson(status: createdStatus)), 201);
+      return http.Response(
+        jsonEncode(reportJson(status: createdStatus, checks: createdChecks)),
+        201,
+      );
     }
     if (request.method == 'GET' && path.endsWith('/reports')) {
       return http.Response(

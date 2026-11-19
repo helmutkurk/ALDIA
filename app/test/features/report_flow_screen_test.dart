@@ -1,0 +1,213 @@
+import 'package:aldia_app/core/strings.dart';
+import 'package:aldia_app/data/report_repository.dart';
+import 'package:aldia_app/features/report/report_flow_screen.dart';
+import 'package:aldia_app/services/location_service.dart';
+import 'package:aldia_app/services/photo_service.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:provider/provider.dart';
+
+import '../support/fakes.dart';
+import '../support/offline_tiles.dart';
+
+Widget host(ReportRepository repository, {double textScale = 1}) =>
+    MultiProvider(
+      providers: [
+        Provider<ReportRepository>.value(value: repository),
+        Provider<LocationService>.value(
+          value: FakeLocation(const LatLng(14.61, -90.52)),
+        ),
+        Provider<PhotoService>.value(value: FakePhotos()),
+        Provider<TileProvider>.value(value: OfflineTileProvider()),
+      ],
+      child: MaterialApp(
+        home: Builder(
+          builder: (context) => MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.linear(textScale)),
+            child: const ReportFlowScreen(),
+          ),
+        ),
+      ),
+    );
+
+/// The wizard is a lazy list and the map would swallow drags, so scroll the
+/// page through its controller until the text is built, then bring it on screen.
+Future<void> reveal(WidgetTester tester, String text) async {
+  final finder = find.text(text);
+  final position = tester
+      .state<ScrollableState>(find.byType(Scrollable).first)
+      .position;
+  position.jumpTo(0);
+  await tester.pump();
+  for (var i = 0; i < 40 && finder.evaluate().isEmpty; i++) {
+    position.jumpTo(position.pixels + 200);
+    await tester.pump();
+  }
+  expect(finder, findsOneWidget);
+  await tester.ensureVisible(finder);
+  await tester.pumpAndSettle();
+}
+
+Future<void> tapText(WidgetTester tester, String text) async {
+  await reveal(tester, text);
+  await tester.tap(find.text(text));
+  await tester.pumpAndSettle();
+}
+
+void main() {
+  testWidgets('wizard works at text scale 2.0 without overflow on every step', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 740);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(host(fakeRepository(), textScale: 2));
+    await tester.pumpAndSettle();
+
+    await reveal(tester, S.takePhoto);
+    await tapText(tester, S.takePhoto);
+    await reveal(tester, S.retakePhoto);
+    await tapText(tester, S.usePhoto);
+
+    await reveal(tester, S.confirmLocation);
+    await tapText(tester, S.confirmLocation);
+
+    await reveal(tester, S.chooseCategory);
+    await tapText(tester, 'Bache');
+    await tapText(tester, S.next);
+
+    // No nearby reports: duplicates are skipped and details follow.
+    await reveal(tester, S.noteLabel);
+    await tapText(tester, S.next);
+
+    await reveal(tester, S.send);
+    await tester.scrollUntilVisible(
+      find.textContaining('KB'),
+      150,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.textContaining('KB'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('tap targets are at least 48 dp tall on the photo step', (
+    tester,
+  ) async {
+    await tester.pumpWidget(host(fakeRepository()));
+    await tester.pumpAndSettle();
+    final size = tester.getSize(
+      find.widgetWithText(OutlinedButton, S.takePhoto),
+    );
+    expect(size.height, greaterThanOrEqualTo(48));
+    expect(
+      tester.getSize(find.widgetWithText(FilledButton, S.usePhoto)).height,
+      greaterThanOrEqualTo(48),
+    );
+  });
+
+  testWidgets('the step heading is a header for screen readers', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    await tester.pumpWidget(host(fakeRepository()));
+    await tester.pumpAndSettle();
+    expect(
+      tester.getSemantics(find.text(S.stepPhoto).last),
+      isSemantics(label: S.stepPhoto, isHeader: true, isFocused: true),
+    );
+    handle.dispose();
+  });
+
+  testWidgets('nearby duplicates are listed with both choices', (tester) async {
+    tester.view.physicalSize = const Size(800, 3000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      host(
+        fakeRepository(
+          nearby: [reportJson(id: 'aaaa1111-1111-4111-8111-111111111111')],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tapText(tester, S.takePhoto);
+    await tapText(tester, S.usePhoto);
+    await tapText(tester, S.confirmLocation);
+    await tapText(tester, 'Bache');
+    await tapText(tester, S.next);
+
+    expect(find.text(S.stepDuplicates), findsWidgets);
+    expect(find.text(S.followReport), findsOneWidget);
+    expect(find.text(S.differentProblem), findsOneWidget);
+  });
+
+  testWidgets(
+    'a rejected result explains each failed check and offers the fixes',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 3000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        host(
+          fakeRepository(
+            createdStatus: 'rejected',
+            createdChecks: [
+              {'name': 'freshness', 'passed': false, 'detail': 'old'},
+              {'name': 'category', 'passed': false, 'detail': 'no'},
+              {'name': 'place', 'passed': true, 'detail': 'ok'},
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tapText(tester, S.takePhoto);
+      await tapText(tester, S.usePhoto);
+      await tapText(tester, S.confirmLocation);
+      await tapText(tester, 'Bache');
+      await tapText(tester, S.next);
+      await tapText(tester, S.next);
+      await tapText(tester, S.send);
+
+      expect(find.textContaining('(prueba)'), findsWidgets);
+      expect(find.text(S.freshnessReason), findsOneWidget);
+      expect(find.text(S.freshnessFix), findsOneWidget);
+      expect(find.text(S.categoryReason('Bache')), findsOneWidget);
+      expect(find.text(S.categoryFix), findsOneWidget);
+      expect(find.text(S.placeReason), findsNothing);
+      expect(find.text(S.retakePhoto), findsOneWidget);
+      expect(find.text(S.changeCategory), findsOneWidget);
+      // Easiest fix first: category before freshness.
+      expect(
+        tester.getTopLeft(find.text(S.categoryReason('Bache'))).dy,
+        lessThan(tester.getTopLeft(find.text(S.freshnessReason)).dy),
+      );
+      // Fewer than three attempts: no manual review yet.
+      expect(find.text(S.manualReview), findsNothing);
+
+      await tapText(tester, S.retakePhoto);
+      expect(find.text(S.takePhoto), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'a pending result is explained as saved and awaiting verification',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 3000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(host(fakeRepository(createdStatus: 'pending')));
+      await tester.pumpAndSettle();
+      await tapText(tester, S.takePhoto);
+      await tapText(tester, S.usePhoto);
+      await tapText(tester, S.confirmLocation);
+      await tapText(tester, 'Bache');
+      await tapText(tester, S.next);
+      await tapText(tester, S.next);
+      await tapText(tester, S.send);
+      expect(find.text(S.pendingHelp), findsOneWidget);
+    },
+  );
+}

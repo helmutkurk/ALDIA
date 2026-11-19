@@ -1,12 +1,14 @@
 # Aldia portal
 
-A plain JavaScript portal for exploring citizen reports on a Leaflet map. Isa owns
-this folder. UI copy is Spanish; code and documentation are English. ES modules
-and JSDoc keep the starter approachable without a framework or TypeScript.
+A plain JavaScript municipal portal with Leaflet, ES modules and JSDoc. Isa owns
+this folder. UI copy is Spanish; code and documentation are English. The binding
+API contract is `../documentation/api-contract.md`, including its additive v0.2
+section. The portal is original work based on our own clean-room behavior notes;
+no FixMyStreet source, CSS, templates or translations are used.
 
 ## Install and develop
 
-Use the latest Node.js 24 release (`.nvmrc`), then run from `portal/`:
+Use Node.js 24 (`.nvmrc`), then run from `portal/`:
 
 ```sh
 nvm use
@@ -15,155 +17,197 @@ npm run dev
 ```
 
 Open <http://localhost:5173>. The map starts in Guatemala City at
-`[14.6349, -90.5069]`. Vite proxies `/api` to `http://localhost:8000`; run the API
-separately. There are no bundled mock reports or photographs.
+`[14.6349, -90.5069]`. Vite proxies `/api` to `http://localhost:8000`.
+Run the API separately; development and production include no bundled reports or
+photographs. Tests use synthetic fixtures and mocked fetch.
 
-`.env.example` lists optional public configuration names. For `VITE_API_BASE_URL`, leave it
-unset to use `/api`. If needed, define it as a URL including the API prefix, such
-as `https://api.example.org/api`, before starting Vite or building. Do not put
-secrets in Vite variables: they are public browser configuration. An explicitly
-empty value selects the origin root (`/reports`). No environment file is needed
-for the default setup.
+`.env.example` lists optional **public** build-time names. Unset
+`VITE_API_BASE_URL` uses `/api`; an explicitly empty value uses the origin root.
+A separate origin must include the API prefix (for example,
+`https://api.example.org/api`) and requires a matching API CORS allowlist and
+explicit nginx CSP `connect-src`/`img-src` entries. Staff CORS must allow the
+`X-Staff-Token` and `Content-Type` headers and POST requests. Never put a staff
+or supervisor token in a Vite variable: build-time values are public.
 
-For a separate API origin, configure its CORS allowlist. The supplied nginx CSP
-uses the same-origin `/api` proxy; a separate origin also needs explicit additions
-to `connect-src` and `img-src` before deployment. Docker uses the default proxy
-and does not copy environment files into either image stage.
+## Pages and staff mode
 
-## Pages and place search
+- `#/`: place search, filter controls, active-filter chips and result count,
+  independently paginated list (25 reports), clustered viewport map. Clicking a
+  pin or selecting a list item opens the side panel without changing route.
+  Cluster counts zoom in; at maximum zoom their identified reports appear in the
+  side panel. Singletons use their municipal state group, a letter and an
+  accessible text label: open red, in work orange, resolved green, closed grey,
+  pending outlined. The list is the keyboard alternative to the map.
+- `#/reports/<uuid>`: full photograph and modal enlargement, verifier verdict and
+  reasons, municipal state, timestamps in 24-hour Guatemala time, coordinates,
+  location map, assignee, chronological events and nearby duplicate suggestions.
+  Previous/next follows server ordering within the current viewport and filters,
+  fetching adjacent pages as necessary. A direct link may require scanning list
+  pages to locate its position; a report outside the filter has no neighbor.
+- `#/triage`: staff queue tabs **Por revisar** and **Rechazadas por verificador**,
+  server ordering and pagination, age badges, assignment and legal transitions.
+  Tabs support arrow keys, Home and End. Operators cannot override rejection;
+  supervisors must supply an internal reason.
+- `#/panel`: server metrics, sample sizes, percentages, null/no-sample values,
+  age buckets, exact category × state-group distribution, category median
+  durations, weekly received/resolved SVG lines and an equivalent table.
+  Category cross-tabs use separately filtered stats requests; the portal never
+  derives population statistics from the current list page. CSV has a comma or
+  semicolon selector and retains the same scope. Downloads use fetch with the
+  staff header when active, then a temporary object URL.
 
-The portal is written from scratch. Only the page structure and flows described in
-`../documentation/research/reference-fixmystreet-seeclickfix.md` inform the design;
-no FixMyStreet code, templates or CSS are reused. API v0.1 is binding.
+**Modo personal** is reachable on every route. Paste the operator or supervisor
+token, select the requested role and activate it. The requested role controls
+which actions are offered; it does not grant permissions. The API validates the
+token and permission for every action. Without a token, the portal is read-only.
+Assignment accepts a cuadrilla/responsible name (60 characters), or blank to clear.
+Public notes are limited to 280 characters and internal notes to 500.
 
-- `#/`: place search above the filters, alongside the map and nearby report list.
-  Selecting a list button locates its marker; **Ver reporte completo** on a list
-  item or popup opens the report page.
-- `#/reports/<uuid>`: large photo, category, verification and resolution chips,
-  captured time in `America/Guatemala`, note, pass/fail checks, location map and
-  **Volver al mapa**. The original map stays mounted: center, zoom, filters,
-  reports, selection, panel scroll and keyboard focus survive the round trip.
-  Direct links fetch `GET /api/reports/{id}`; failures offer retry.
-- `#/panel`: `GET /api/stats` with the current map bounds and category, verification
-  and resolution filters. Native HTML meters styled with CSS show all contract
-  categories/states, including zero values, with explicit text counts. The
-  **Descargar CSV** link sends the identical filters to `GET /api/reports.csv`,
-  without the list's 500-item limit. Change filters/area on the map, then reopen
-  the dashboard. No municipality, status history or editing is invented: the
-  contract exposes current states only.
+`src/states.js` mirrors all 11 states, group membership, explicit transition
+edges, backward moves among active states and supervisor-only actions. Only
+listed targets are offered. Closing without solution and reopening a closed
+case require a public or internal reason; skipping from `en_revision` to
+`en_proceso` also requires a reason. Duplicate closure has an optional reason
+and a required master UUID. Hide restoration comes from the latest hide event;
+without that history the portal cannot guess a legal restore target. Unlisted
+forward skips are not offered. HTTP 409 explains a conflict/illegal transition;
+401/403 explain credentials/permissions and 503 explains unavailable staff setup.
+
+## Shared filters, ordering and map performance
+
+Hash query parameters carry category, verifier status, legacy resolution,
+municipal group/state, created-date bounds, assignee, sort and `include_old=true`,
+as well as the map bbox. Unknown fields, credentials and malformed values are
+discarded. Report, dashboard and back links retain this scope. Filters apply to
+list, stats and CSV; they are also sent to the cluster endpoint. Clearing a chip
+removes its filter. Without `created_from` the API applies the default last 30
+days unless **Incluir antiguos** is checked. Day boundaries belong to the API
+(`America/Guatemala`), not the browser's timezone.
+
+List pagination uses server offsets in increments of 25. The server supplies
+stable tie-breaking for `newest`, `oldest`, `updated` and `age_in_state`; the
+portal preserves the returned order. Changing filters or map area resets the
+page. Map and filter reads debounce for 300 ms. Requests have 15-second
+deadlines, cancellation and generation guards; late responses cannot replace a
+newer route or scope. A failed map pin fetch does not discard a successful list.
+
+The cluster contract currently provides only coordinates, count and optional
+first-five IDs. Singleton details are hydrated with at most six concurrent reads
+to obtain their states; list-page reports are reused when available. There is no
+client-side attempt to reconstruct a population of pins from one list page.
+
+## Contract gaps and explicit limits
+
+- There is no role/session introspection endpoint. The role selector is a UI hint;
+  the API remains the security boundary.
+- `/reports/clusters` documents only bbox and zoom, not support for the other
+  list filters. It must honor those supplied filters for map/list parity. To
+  avoid singleton hydration, it should return a guaranteed report ID and group
+  (or specify its high-zoom singleton shape). Optional IDs mean some pins may
+  only be rendered as count bubbles. If a maximum-zoom cluster exceeds its five
+  supplied IDs, the portal explicitly identifies the incomplete member list;
+  exact expansion needs a cluster-members endpoint or complete IDs.
+- Nearby response wrapping and thumbnail path are not specified. The portal
+  expects a report array with optional `thumbnail_url`; safe report `/photo`
+  and `/thumbnail` URLs on the configured API are accepted. Assignment accepts
+  a report/object success or HTTP 204 because its response body is unspecified.
+- The API cannot express exact list drill-downs for every dashboard number:
+  multi-group open cases, verified-at presence, resolution/closure timestamp
+  periods, first-response durations, SLA, age buckets and weekly periods lack
+  corresponding filters. Exact category/group/rejected links work; unsupported
+  metric counts remain text, with visible explanations. Their values are never
+  replaced with a different metric merely to create a link.
+- Zone tables and SLA calendars/pauses, bulk actions, category editing, reporter
+  aliases, addresses, private identity, repair photos and notification delivery
+  are outside the v0.2 API. No substitute data or unsupported write calls are
+  invented.
+- The server still owns CSV BOM, columns, cap, hidden-report exclusion and
+  formula-injection handling. The browser passes the selected delimiter/filters.
+
+## Security and accessibility
+
+Tokens live only in a tab-local JavaScript closure. They never enter localStorage,
+sessionStorage, URLs, logs or the build. Activation clears the password input;
+logout, pagehide, reload and closing the tab discard the token. Changing staff
+mode clears private detail content and map results before reloading the view.
+All API requests use `X-Staff-Token` when active, `cache: no-store`,
+`credentials: omit` and reject redirects. Staff photos load through authenticated
+fetch with cancellable, short-lived object URLs; public photos use their safe
+API URL. Photo object URLs are revoked when their view closes. A shared token is a temporary PoC mechanism; use only synthetic
+or consented photos until real authentication is deployed.
+
+API strings use `textContent`, never `innerHTML`. Photo URLs must match an
+approved UUID photo/thumbnail endpoint on the configured API origin/prefix.
+Missing photos show a text fallback. There are no inline script/event handlers;
+nginx CSP allows `blob:` images for authenticated staff photos; scripts remain self-only. Leaflet needs inline **styles** for positioning.
+Token headers are not sent to geocoder/tile requests.
+
+Native controls, explicit labels, live status/error messages, visible focus,
+state text and marker letters support keyboard and assistive-technology users.
+On mobile the list appears first and a map toggle reveals the map. Map flights
+and CSS transitions honor `prefers-reduced-motion`. SVG graphs have text/table
+alternatives. All UI copy lives in `src/i18n.js`, state colors in
+`src/styles/tokens.css`; category labels mirror the contract.
+
+## Place search and map services
 
 `VITE_GEOCODER_URL` defaults to
-`https://nominatim.openstreetmap.org/search`. A configured endpoint must accept
-Nominatim-compatible `q`, `format=json`, `limit=5` and `countrycodes=gt,co,mx`
-parameters and return an array of `display_name`, `lat` and `lon` strings. Set the
-variable before starting Vite/building; custom external origins must also be
-allowed explicitly in nginx `connect-src`. A same-origin proxy URL can retain
-one browser build while its upstream provider changes operationally.
+`https://nominatim.openstreetmap.org/search`. A custom provider must accept
+Nominatim-compatible `q`, `format=json`, `limit=5`, `countrycodes=gt,co,mx` and
+return `display_name`, `lat`, `lon`. External origins need explicit nginx
+`connect-src` permission; a same-origin proxy can change its upstream without
+rebuilding the browser application.
 
-**The public Nominatim service is for light use only.** Follow the
+Public Nominatim is for light use only. Follow the
 [Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/):
-no autocomplete, at most one request per second **across the entire application**,
-identification by Referer or User-Agent, attribution and caching. Searches here
-require **Buscar** or Enter, debounce 500 ms, and start at least one second apart
-per mounted search. Typing does not issue requests. Repeated queries are cached
-in memory (up to 100), requests time out after 15 seconds, and stale/cancelled
-responses are ignored. Results are native buttons reachable with Tab and arrow
-keys; Enter/Space selects, Escape dismisses them. Map flights honor reduced motion.
-The visible OpenStreetMap credit links to its copyright/attribution page.
+no autocomplete, at most one request per second **across the application**,
+identification, attribution and caching. Searches require Buscar/Enter, debounce
+500 ms, start at least one second apart per mounted search, cache up to 100
+queries in memory and time out after 15 seconds. Results support Tab, arrows,
+Enter/Space and Escape. Browser requests retain their origin Referer under
+`strict-origin-when-cross-origin`; do not override the forbidden User-Agent.
+Before multi-user deployment use a proxy with a shared limiter/cache, a
+self-hosted instance or another suitable provider: a browser cannot enforce the
+aggregate service limit across tabs/users. A proxy must preserve identification
+and attribution.
 
-Browser requests use the browser's User-Agent and an origin Referer under
-`strict-origin-when-cross-origin`; do not suppress that Referer or try to set a
-forbidden User-Agent header. Public HTTP(S) hosting is required for a meaningful
-Referer. A browser-side limiter cannot enforce the aggregate limit across tabs or
-users: before multi-user deployment, point `VITE_GEOCODER_URL` at a proxy with a
-shared limiter/cache, a self-hosted instance or a suitable provider. Do not use the
-public server for autocomplete, bulk queries or production-scale traffic. A proxy
-must send an identifying User-Agent/Referer and preserve attribution.
+Tiles use the [standard OSM endpoint](https://operations.osmfoundation.org/policies/tiles/)
+with visible attribution and origin Referer. There is no offline download or
+prefetch. Review provider capacity before scaling.
 
-## Commands
+## Checks and browser review
 
 ```sh
-npm test                 # One Vitest run (API, state, contract, DOM, Leaflet, routes, pages, geocoder)
-npm run test:watch       # Watch tests while editing
-npm run lint             # ESLint flat configuration, zero warnings
-npm run format           # Apply Prettier
-npm run format:check     # Check formatting
-npm run build            # Production files in dist/
-npm run preview          # Local production preview on port 5173
-npm run check            # lint + format:check + test + build
+npm run check           # ESLint, Prettier, all Vitest tests, production build
+npm run test:watch
+npm run dev
 ```
 
-Dependencies have exact direct version pins and `package-lock.json` is included.
-Use `npm ci` for reproducible installs. When deliberately updating the stack, use
-`npm install --save-exact` (and `--save-dev` for tooling); let npm update the lock.
-The category test reads `../documentation/api-contract.md`, so run the full test
-suite from this monorepo rather than a detached copy of `portal/`.
-
-For a manual browser review (desktop, mobile, keyboard and failure states), run
-`sh tests/browser-review.sh` outside the Codex sandbox. It starts Vite and prints
-the review steps; open the URL in your browser. Browser rendering and container
-execution require a connected browser and a running Docker daemon respectively.
-
-## Reports and safety
-
-- Queries use the current bounds in `west,south,east,north` order, optional
-  `category`, `status` and `resolution`, and `limit=500`. Movement and filter changes debounce
-  for 300 ms. Older requests are aborted and late responses ignored. Requests
-  time out after 15 seconds, including response body parsing.
-- The API returns newest first; the portal preserves that order. The list and
-  map show up to 500 reports. If `total` exceeds the visible count, the panel
-  explains the limit and suggests narrowing the area or filters. No pagination
-  is implied by the count.
-- `src/categories.js` and `src/styles/tokens.css` mirror the binding documents.
-  The category test catches contract drift. Unknown categories/statuses/resolutions and
-  malformed responses produce a recoverable error instead of a partial map.
-- Stub results say **“Verificado (prueba)”** (or the corresponding status), and
-  popups explicitly state that this is not real verification. Captured times are
-  formatted in Spanish in `America/Guatemala`, with the timezone stated in the UI.
-- API strings use `textContent`, never `innerHTML`. Photo URLs must match a UUID
-  photo endpoint on the configured API origin/prefix. Unavailable photos have a
-  text fallback. CSP permits only local scripts, same-origin API/photos, OSM
-  tiles and Nominatim search; Leaflet needs inline styles for positioning. Event handlers use listeners.
-- Keyboard users can skip to the report list, operate native filter controls,
-  focus markers, and close popups with Escape. Statuses also have text, not only
-  color. List selection preserves focus; flying respects reduced-motion settings.
-- On desktop, the map fills the height alongside the scrollable panel. On small
-  screens, the map occupies the upper 45% and the panel scrolls below it.
-- The v0 contract has no authentication. Use synthetic or consented photos only.
-
-The tiny dictionary in `src/i18n.js` contains UI copy and date formatting;
-category labels mirror the contract in `src/categories.js`. Vite inserts the document title and
-no-JavaScript fallback from this dictionary. API-provided notes, check details and error
-messages remain literal data and may be in the language returned by the API.
-
-The map uses the standard [OSM tile endpoint and attribution](https://operations.osmfoundation.org/policies/tiles/).
-There is no prefetch or offline tile download. The referrer policy retains the
-origin on tile requests. Review OSM's service policy and capacity before scaling.
+Tests use fake timers and mocked fetch; no live API, geocoder or photos are
+required. `tests/browser-review.sh` prints the desktop/mobile review checklist
+and starts Vite. Run browser review outside the Codex sandbox, with the API
+running separately, or use an external connected browser.
 
 ## Docker
 
-Build with `portal/` as the context. Both build and runtime are multi-stage;
-nginx runs as UID/GID 101, listens on 8080, and resolves `api:8000` through Docker
-DNS when a request arrives.
+Build with `portal/` as the context. nginx runs as UID/GID 101 on port 8080:
 
 ```sh
 docker build -t aldia-portal .
-# Attach to the same Docker network as the API service named/aliased "api".
 docker run --rm --name aldia-portal --network aldia -p 8080:8080 aldia-portal
 ```
 
-Open <http://localhost:8080>. Requests under `/api/` retain that prefix and query
-string when proxied to `http://api:8000/api/`. nginx sets a 10 MB request ceiling
-(the API still enforces its own upload limit), SPA fallback, gzip, and security
-headers. Built assets cache for a year with expiry; `index.html` must revalidate.
-The build context excludes local environment files, dependencies and build output.
-
-To validate the container independently of a running API:
+The container joins the network of the API named `api`. `/api/` retains its
+prefix and query string when proxied to `http://api:8000/api/`; Docker DNS is
+resolved per request. nginx supplies a 10 MB request ceiling (the API enforces
+its own upload limit), SPA fallback, gzip and security headers. Hashed assets
+cache for one year, index.html revalidates. Docker excludes environment files,
+local dependencies and build output. The default image needs no environment
+file.
 
 ```sh
 docker run --rm aldia-portal nginx -t
 curl -I http://localhost:8080/
-curl -I http://localhost:8080/a/client/route
 curl -i http://localhost:8080/api/health
 ```
 
@@ -171,33 +215,35 @@ curl -i http://localhost:8080/api/health
 
 ```text
 portal/
-├── index.html              # Spanish document, responsive viewport, entry point
-├── public/favicon.svg
 ├── src/
-│   ├── main.js             # Retained map, route composition, request coordination
-│   ├── router.js           # Hash routes, UUID validation, history listener
-│   ├── report.js           # Report page, safe details, location map, retry
-│   ├── dashboard.js        # Filtered stats, accessible bars, CSV link
-│   ├── geocoder.js         # Explicit place search, debounce, rate limit, cache
-│   ├── api.js              # Fetch, response validation, contract-shaped errors
-│   ├── map.js              # Leaflet tiles, markers, popup and keyboard behavior
-│   ├── panel.js            # Filters, list, live states, safe popup DOM
-│   ├── state.js            # Small store and pure filter function
-│   ├── categories.js       # Contract category IDs and labels
-│   ├── i18n.js             # Spanish UI dictionary and date formatting
+│   ├── main.js          # Retained workspace, scope, clusters, route coordination
+│   ├── router.js        # UUID/hash routes and history listeners
+│   ├── filters.js       # Whitelisted public filters and shareable hash codec
+│   ├── states.js        # 11-state table, groups, role targets, note requirements
+│   ├── staff.js         # Tab-memory session and credential panel
+│   ├── actions.js       # Legal state transitions, reasons, duplicate/assignment forms
+│   ├── triage.js        # Queue tabs, age and pagination
+│   ├── report.js        # Full details, modal photo, timeline and nearby duplicates
+│   ├── dashboard.js     # API metrics, samples, SVG/tables, authenticated CSV download
+│   ├── api.js           # Validated fetch, auth header, deadlines and endpoint methods
+│   ├── photo.js         # Safe public images/authenticated staff blobs and cleanup
+│   ├── map.js           # Leaflet viewport, clusters, pins and keyboard behavior
+│   ├── panel.js         # Safe details, filters, chips and paginated report list
+│   ├── state.js         # Immutable report/filter/pagination store
+│   ├── geocoder.js      # Explicit searches, caching, rate limit and cancellation
+│   ├── categories.js    # Contract category IDs and Spanish labels
+│   ├── i18n.js          # Spanish copy and Guatemala date formatting
 │   └── styles/
-│       ├── tokens.css      # Shared design tokens
-│       └── app.css         # Full-height layout and responsive/accessibility styles
-├── tests/                  # Synthetic fixtures and Vitest/jsdom tests
-├── vite.config.js          # Port 5173, API proxy, test environment
-├── eslint.config.js        # Flat ESLint configuration
-├── .prettierrc
-├── .prettierignore
-├── .nvmrc                  # Node 24
-├── .env.example            # Optional public API/geocoder configuration names
-├── package.json
+│       ├── tokens.css   # Shared colors and handling-group tokens
+│       └── app.css      # Responsive surfaces, charts and accessibility
+├── tests/               # Synthetic data, Vitest/jsdom and browser review checklist
+├── index.html
+├── public/favicon.svg
+├── vite.config.js
+├── eslint.config.js
+├── package.json         # Exact dependency versions; no new dependencies for v0.2
 ├── package-lock.json
-├── .dockerignore
+├── .env.example         # Public API/geocoder names; never staff credentials
 ├── Dockerfile
 └── nginx.conf
 ```

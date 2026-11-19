@@ -19,8 +19,7 @@ abstract class PhotoService {
   Future<CapturedPhoto?> takePhoto();
 }
 
-/// Live camera only. The gallery is allowed in debug builds so the iOS simulator
-/// (which has no camera) can be tested; release builds never accept old photos.
+/// Live camera only, including debug and simulator builds.
 class CameraPhotoService implements PhotoService {
   CameraPhotoService({ImagePicker? picker}) : _picker = picker ?? ImagePicker();
 
@@ -28,13 +27,10 @@ class CameraPhotoService implements PhotoService {
 
   @override
   Future<CapturedPhoto?> takePhoto() async {
-    final source = kDebugMode && defaultTargetPlatform == TargetPlatform.iOS
-        ? ImageSource.gallery
-        : ImageSource.camera;
     final file = await _picker.pickImage(
-      source: source,
-      maxWidth: 1920,
-      imageQuality: 85,
+      source: ImageSource.camera,
+      maxWidth: 1280,
+      imageQuality: 70,
     );
     if (file == null) return null;
     return CapturedPhoto(

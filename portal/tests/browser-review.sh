@@ -7,25 +7,30 @@ Open http://localhost:5173 in your browser with the API running separately.
 Use synthetic/consented reports only.
 
 Review at 1280x800 and 390x844:
-- Map and panel fill the viewport without horizontal overflow.
-- All three filters, list selection, marker details and the photo thumbnail work.
-- Type a place: no request until Buscar/Enter. Repeated submits debounce 500 ms;
-  request starts stay at least a second apart. Repeating a query uses the cache.
-- Place results work with Tab, arrows and Enter/Space; Escape dismisses them.
-- A selected place moves the map. Attribution remains visible.
-- Open Ver reporte completo from the list and a popup, and open a UUID deep link.
-- Report photo, Guatemala date, both states, checks and location map are visible.
-- Back/forward and Volver al mapa retain map position, filters and selection.
-- Panel de reportes shows category/status/resolution bars and numeric counts.
-- Descargar CSV sends the same bbox and filters as the stats request, no limit.
-- Try a missing UUID and unknown route, then recover using retry/back.
-- On slow connections navigate away during detail/stats/search loading: no stale UI.
-- Stub verification is visibly distinguished from real verification.
-- Tab through filters/list/markers; Escape closes a popup and restores focus.
-- Pan quickly and change filters; only the latest area's results remain.
-- Check loading, empty and API-offline states, then retry after recovery.
-- Disable tile requests: the report list should remain usable.
-- Enable reduced motion: selecting a report should avoid animated flight.
+- Desktop map/list layout; mobile list-first layout and map toggle; no overflow.
+- All filters, active chips and count; URL hash reflects edits and browser history.
+- Default 30 days, include-old toggle, server pagination and sort ordering.
+- Move the map after changing pages: the list returns to page one.
+- Cluster count click zooms; maximum zoom shows identified members/limitation.
+- Pin/list selection opens a side panel without navigation; state labels/letters.
+- Modo personal works on every route; token input clears after activation.
+- Public view has no actions; operator and supervisor offer different targets.
+- Every legal transition, closing reason, forward skip note, duplicate master UUID.
+- Supervisor rejection override requires internal note; failed actions explain 409/401/503.
+- Assignment, clearing assignment, queue tabs, age badges and pagination.
+- Detail photograph, modal zoom/Escape/focus, missing-photo fallback and timeline.
+- Previous/next within filter, including across a server page boundary.
+- Nearby duplicate thumbnails and selection of a master report.
+- Dashboard counts, percentages/nulls, n, age buckets, category/group distribution.
+- Weekly solid/dashed SVG lines and equivalent table, category medians.
+- CSV comma/semicolon download keeps all filters and uses staff header when active.
+- Logout/pagehide immediately removes internal notes and staff-only controls.
+- Place search requires Buscar/Enter, 500ms debounce and 1s rate limit; cache.
+- Place results work with Tab/arrows/Enter/Space/Escape; attribution remains visible.
+- All controls work by keyboard with visible focus; map has the list alternative.
+- Reduced motion prevents animated flights; charts retain textual values.
+- Slow/offline API, failed tiles, stale responses and retry states stay recoverable.
+- Stub verification is explicitly identified as a test, not real verification.
 
 Stop the server with Ctrl+C when the review is complete.
 STEPS

@@ -59,7 +59,7 @@ describe('accessible panel', () => {
     const { root, store, onSelect } = setup();
     store.setReports({ items: [report()], total: 501 });
     expect(root.textContent).toContain('1 de 501 reportes');
-    expect(root.textContent).toContain('500 reportes');
+    expect(root.textContent).toContain('Página 1 de 21');
     expect(root.textContent).toContain('Verificado (prueba)');
     const button = root.querySelector('.report-button');
     button.focus();
