@@ -238,6 +238,91 @@ describe('municipal dashboard', () => {
     expect(root.querySelector('img')).toBeNull();
   });
 
+  it('draws the band, the all-time chart with end numbers, sparklines and the top five', async () => {
+    const root = document.createElement('section');
+    const weeks = [
+      { week: '2026-W44', recibidos: 2, resueltos: 0 },
+      { week: '2026-W45', recibidos: 5, resueltos: 1 },
+      { week: '2026-W46', recibidos: 8, resueltos: 1 },
+      { week: '2026-W47', recibidos: 12, resueltos: 4 },
+    ];
+    const api = {
+      getStats: vi.fn(async () =>
+        municipalStats({
+          total: 27,
+          recibidos: 27,
+          resueltos: 6,
+          by_category: {
+            pothole: 10,
+            graffiti: 7,
+            sidewalk: 4,
+            street_light: 3,
+            open_drain: 2,
+            accessibility: 1,
+          },
+          weekly: weeks,
+        }),
+      ),
+      getCsvUrl: vi.fn(() => '/api/reports.csv'),
+    };
+    page = createDashboard(root, { api, filters: {} });
+    await flushAll();
+    expect(root.classList.contains('page--dashboard')).toBe(true);
+    expect(root.querySelector('.dash-band h1').textContent).toBe(
+      'Panel de reportes',
+    );
+    // Two cumulative lines; sparklines use paths so the chart keeps exactly two polylines.
+    expect(root.querySelectorAll('svg polyline')).toHaveLength(2);
+    const ends = [...root.querySelectorAll('.chart-total')].map(
+      (node) => node.textContent,
+    );
+    expect(ends[0]).toContain('27');
+    expect(ends[0]).toContain('reportes recibidos');
+    expect(ends[1]).toContain('6');
+    const cumulative = root
+      .querySelector('.weekly-line--recibidos')
+      .getAttribute('points')
+      .split(' ');
+    expect(cumulative).toHaveLength(4);
+    // Last-week block: only series the contract provides (no invented "updates").
+    const sparks = [...root.querySelectorAll('.spark-item')];
+    expect(
+      sparks.map((node) => node.querySelector('.spark-label').textContent),
+    ).toEqual(['Recibidos', 'Resueltos']);
+    expect(sparks[0].querySelector('.spark-value').textContent).toBe('12');
+    expect(sparks[0].querySelector('svg').getAttribute('aria-label')).toContain(
+      '2, 5, 8, 12',
+    );
+    expect(root.textContent).not.toContain('actualizaciones');
+    const top = [...root.querySelectorAll('.top-categories li a')].map(
+      (node) => node.textContent,
+    );
+    expect(top).toHaveLength(5);
+    expect(top[0]).toBe('Bache: 10');
+    expect(top.join(' ')).not.toContain('Accesibilidad');
+    expect(root.querySelector('.zone-link').hash).toBe('#/');
+    expect(root.querySelector('.metric-cards')).not.toBeNull();
+    page.destroy();
+    expect(root.classList.contains('page--dashboard')).toBe(false);
+  });
+
+  it('shows an empty chart message and keeps the page usable without weekly data', async () => {
+    const root = document.createElement('section');
+    const api = {
+      getStats: vi.fn(async () =>
+        municipalStats({ weekly: [], by_category: {}, total: 0, recibidos: 0 }),
+      ),
+      getCsvUrl: vi.fn(() => '/api/reports.csv'),
+    };
+    page = createDashboard(root, { api, filters: {} });
+    await flushAll();
+    expect(root.textContent).toContain('No hay semanas con datos');
+    expect(root.querySelector('.top-categories').textContent).toContain(
+      'No hay reportes por categoría',
+    );
+    expect(root.querySelector('svg polyline')).toBeNull();
+  });
+
   it('ignores late statistics after disposal', async () => {
     let resolve;
     const root = document.createElement('section');

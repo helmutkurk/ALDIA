@@ -16,8 +16,9 @@ function setup(routed = false) {
   const mapElement = document.createElement('div');
   const workspaceElement = document.createElement('div');
   const pageElement = document.createElement('section');
+  const headerElement = document.createElement('header');
   workspaceElement.append(panelElement, mapElement);
-  document.body.append(workspaceElement, pageElement);
+  document.body.append(headerElement, workspaceElement, pageElement);
   let callbacks;
   const map = {
     getBbox: vi.fn(() => [-91, 14, -90, 15]),
@@ -44,6 +45,7 @@ function setup(routed = false) {
     api,
     ...(routed
       ? {
+          headerElement,
           pageElement,
           workspaceElement,
           locationMapFactory: () => ({ destroy: vi.fn() }),
@@ -54,7 +56,15 @@ function setup(routed = false) {
       return map;
     },
   });
-  return { panelElement, callbacks, map, api, workspaceElement, pageElement };
+  return {
+    panelElement,
+    callbacks,
+    map,
+    api,
+    workspaceElement,
+    pageElement,
+    headerElement,
+  };
 }
 
 describe('map and request coordination', () => {
@@ -160,13 +170,13 @@ describe('page coordination', () => {
   });
 
   it('passes the visible area and all current filters to dashboard stats and CSV', async () => {
-    const { api, map, panelElement } = setup(true);
+    const { api, map, headerElement } = setup(true);
     app.store.setFilters({
       category: 'pothole',
       status: 'verified',
       resolution: 'fixed',
     });
-    route(panelElement.querySelector('.dashboard-link').getAttribute('href'));
+    route(headerElement.querySelector('.dashboard-link').getAttribute('href'));
     await Promise.resolve();
     const filters = {
       bbox: map.getBbox(),
@@ -193,5 +203,50 @@ describe('page coordination', () => {
     expect(workspaceElement.hidden).toBe(false);
     await vi.advanceTimersByTimeAsync(300);
     expect(api.getReports).toHaveBeenCalledOnce();
+  });
+});
+
+describe('site header', () => {
+  it('offers the four destinations, keeps the scope and marks the current page', async () => {
+    const { headerElement, panelElement } = setup(true);
+    const labels = [...headerElement.querySelectorAll('nav a, nav button')].map(
+      (node) => node.textContent,
+    );
+    expect(labels).toEqual(['Mapa', 'Triaje', 'Panel', 'Modo personal']);
+    expect(headerElement.querySelector('nav').getAttribute('aria-label')).toBe(
+      'Principal',
+    );
+    expect(
+      headerElement.querySelector('.map-link').getAttribute('aria-current'),
+    ).toBe('page');
+    app.store.setFilters({ category: 'pothole', status: '', resolution: '' });
+    expect(headerElement.querySelector('.triage-link').hash).toContain(
+      'category=pothole',
+    );
+    route('#/panel');
+    expect(
+      headerElement
+        .querySelector('.dashboard-link')
+        .getAttribute('aria-current'),
+    ).toBe('page');
+    expect(
+      headerElement.querySelector('.map-link').hasAttribute('aria-current'),
+    ).toBe(false);
+    route('#/');
+    panelElement.querySelector('.staff-panel').open = false;
+    headerElement.querySelector('.staff-link').click();
+    expect(panelElement.querySelector('.staff-panel').open).toBe(true);
+    expect(document.activeElement.id).toBe('staff-token');
+  });
+
+  it('toggles between list and map with a text label', () => {
+    const { panelElement, map } = setup();
+    const toggle = document.querySelector('.map-toggle');
+    expect(toggle.textContent).toBe('Ver mapa');
+    toggle.click();
+    expect(toggle.textContent).toBe('Ver lista');
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(map.invalidateSize).toHaveBeenCalled();
+    expect(panelElement).toBeTruthy();
   });
 });

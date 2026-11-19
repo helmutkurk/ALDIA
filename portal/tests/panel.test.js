@@ -71,6 +71,56 @@ describe('accessible panel', () => {
   });
 });
 
+describe('list layout', () => {
+  it('shows the reference filters first and the rest in a disclosure', () => {
+    const { root } = setup();
+    const main = [...root.querySelectorAll('.filters-main label')].map(
+      (node) => node.textContent,
+    );
+    expect(main).toEqual([
+      'Estado',
+      'Categoría',
+      'Ordenar',
+      'Incluir reportes antiguos',
+    ]);
+    expect(
+      root.querySelector(
+        '.filters-more #state-filter, .filters-more #status-filter',
+      ),
+    ).not.toBeNull();
+  });
+
+  it('prints a range count and a decorative lazy thumbnail per row', () => {
+    const { root, store } = setup();
+    store.setReports({
+      items: [report(), report({ id: '12345678-1234-4234-8234-123456789abd' })],
+      total: 86,
+    });
+    expect(root.querySelector('.result-count').textContent).toBe(
+      '1 a 2 de 86 reportes',
+    );
+    const row = root.querySelector('.report-button');
+    expect(row.querySelector('.report-category').textContent).toBe('Bache');
+    expect(row.querySelector('.report-date')).not.toBeNull();
+    expect(row.querySelector('.state-chip').textContent).toBe('Nuevo');
+    const thumb = row.querySelector('img.row-thumbnail');
+    expect(thumb.loading).toBe('lazy');
+    expect(thumb.alt).toBe('');
+    thumb.dispatchEvent(new window.Event('error'));
+    expect(row.querySelector('img')).toBeNull();
+    expect(row.querySelector('p')).toBeNull();
+  });
+
+  it('never creates an image from a hostile photo URL', () => {
+    const { root, store } = setup();
+    store.setReports({
+      items: [report({ photo_url: 'javascript:alert(1)' })],
+      total: 1,
+    });
+    expect(root.querySelector('img')).toBeNull();
+  });
+});
+
 describe('popup content', () => {
   it('renders API strings as literal text and blocks unsafe image URLs', () => {
     const node = createReportDetails(
