@@ -109,6 +109,8 @@ Append one block per iteration to `documentation/log/<hostname>.md`: time, item,
 Order rule: finish 1 and 2 first; run 3 and 4 in parallel next; then 5 and 6; 7 whenever a slot is free. After each job: the
 orchestrator runs the checks of the touched areas, commits on develop, pushes, appends the log.
 
+- **Job 13, last (rename on this computer):** Rename on this computer, LAST (it moves the working directory of every session): `mv ~/Projects/ciudadCheck ~/Projects/aldia`, rename `~/Projects/backups/ciudadCheck-*` to `aldia-*`, update Claude project memory pointers and vault notes that name the old project (vault renames only through the Obsidian API, skill `hks-mantener-vault`), then Helmut restarts Claude from `~/Projects/aldia` local machine
+
 ## Goals by hour (targets)
 
 - 21:00-23:20: jobs 1, 2 (then 3, 4) with Codex.
@@ -116,4 +118,3 @@ orchestrator runs the checks of the touched areas, commits on develop, pushes, a
 - 01:51-07:00: Codex window 2 and Claude window 3: jobs 6, 7, polish from the browser findings, final release PR `develop` → `main`.
 - 07:00: summary in the log and by email (`hks-ausente`); `main` = `develop`.
 
-| 13 | Rename on this computer, LAST (it moves the working directory of every session): `mv ~/Projects/ciudadCheck ~/Projects/aldia`, rename `~/Projects/backups/ciudadCheck-*` to `aldia-*`, update Claude project memory pointers and vault notes that name the old project (vault renames only through the Obsidian API, skill `hks-mantener-vault`), then Helmut restarts Claude from `~/Projects/aldia` | local machine | last, after release |

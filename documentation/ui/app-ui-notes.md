@@ -48,7 +48,7 @@ Detail: photo, citizen state + verifier verdict, public timeline, nearby reports
 7. **Cards, inbox and profile.** Large-photo cards include a status word beside its dot, category, coordinates, note,
    date/reference and independent semantic follow/share targets. No address is invented: reports have no street field.
    Hearts, state baselines, up to 100 inbox items and visibility preference persist through `shared_preferences`.
-   Refreshing personal reports or opening their detail records a changed state once; first observation stays quiet.
+   Refreshing personal/followed reports or opening their detail records a changed state once; first observation stays quiet.
    Android/iOS share through native sheets (WhatsApp if installed); Linux opens the WhatsApp URL, with clipboard fallback.
    `PUBLIC_PORTAL_URL` supplies public links. Profile clearly labels phone access as pending and name visibility as local.
    Confirmed deletion clears drafts/photos, outbox, personal ids, follows/notices/preferences; server reports remain public.
@@ -70,7 +70,14 @@ Detail: photo, citizen state + verifier verdict, public timeline, nearby reports
 - Existing wizard/controller/outbox/draft/navigation/accessibility tests were updated; focused geocoder rate/cache,
   explicit-search, local inbox persistence and synthetic-camera checks were added. Tests use offline tiles and fakes.
 - Linux platform generated with Flutter; unrelated generated metadata, lockfile and analyzer changes were restored.
-- Final validation results and observed desktop limits are recorded below after running the checks.
+- Final checks: `dart format lib test` completed; `flutter analyze --no-pub` clean; `flutter test --no-pub` **98/98 passed**;
+  `flutter build linux --debug --no-pub` passed with the local API URL and `DEV_FAKE_CAMERA=true`.
+  Commands ran through `mise exec -- env PATH=/tmp/aldia-flutter-sdk/bin:$PATH PUB_CACHE=/tmp/aldia-pub-cache`
+  because the installed SDK/cache is read-only in this sandbox.
+- `flutter run -d linux` built and attached successfully; the Aldia landing and five-tab bar were visually observed.
+  Temporary XDG config/data/documents directories keep demo storage inside `/tmp`. GTK/dconf and Mesa printed sandbox
+  warnings; rendering still worked. An unavailable API exposed a lazy-list unhandled error, now fixed and hot-restarted.
+  `http://localhost:8000/api/health` was unreachable during the desktop check, so real API submission could not be verified.
 - No physical Android/iOS verification or native share-sheet compilation on this Linux machine. Contrast ratios have
   not been measured. Public Nominatim/OSM and actual WhatsApp handoff are not exercised by unit/widget tests.
 

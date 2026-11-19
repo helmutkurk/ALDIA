@@ -22,7 +22,7 @@ Status colors (functional only, muted, always with text):
 | Status group | Hex | Word |
 |---|---|---|
 | open | `#B45309` | Abierto / Nuevo / En revisión |
-| in work | `#1D4ED8` is NOT used; use `#4B5563` with a hatched or outlined marker | Programado / En proceso |
+| in work | `#4B5563` with an outlined marker | Programado / En proceso |
 | resolved | `#15803D` | Resuelto |
 | closed | `#6B7280` | Cerrado / No procede / Duplicado |
 | rejected or error | `#B91C1C` | Rechazado |
