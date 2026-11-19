@@ -3,7 +3,9 @@ import { t } from './src/i18n.js';
 
 const proxy = { '/api': 'http://localhost:8000' };
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+  // The one-command local stack receives configuration from its parent only.
+  envDir: mode === 'local-stack' ? false : undefined,
   plugins: [
     {
       name: 'spanish-document-copy',
@@ -23,4 +25,4 @@ export default defineConfig({
     clearMocks: true,
     restoreMocks: true,
   },
-});
+}));

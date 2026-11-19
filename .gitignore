@@ -24,6 +24,7 @@ CLAUDE.local.md
 *.jsonl
 backend/data/
 backend/verifier/photos/
+/.local/
 
 # OS and editors
 .DS_Store

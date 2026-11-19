@@ -50,6 +50,18 @@ Ports bind to `127.0.0.1`. A phone on the LAN cannot reach them; see section 4.3
 
 ### 2.2 Without Docker (SQLite, verified)
 
+The managed local stack now starts with one command:
+
+```bash
+make dev-all             # seeded verifier, migrated SQLite API and portal; Ctrl-C stops all
+make dev-status          # another terminal
+make dev-stop
+make dev-all SMOKE=1      # real curl assertions, including staff actions with inherited ephemeral tokens
+```
+
+See [dev-setup.md](dev-setup.md#without-docker) for `.local/` data/logs, token handling and the optional browser capture.
+The three-terminal setup below remains a manual alternative with its own database and credentials.
+
 Use three terminals, from the repo root.
 
 ```bash

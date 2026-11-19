@@ -1,68 +1,81 @@
 # Citizen app UI notes
 
-Scope: `app/` (Flutter, Spanish Guatemala). Restyle of the existing flows; no behavior, API or dependency changes.
-
-## Principles taken from public reference material
-
-Sources: the public App Store listing of SeeClickFix and its public description of features. The two Google Play pages
-and the developer documentation (`dev.seeclickfix.com`, HTTP 403) could not be read, so no screenshot captions or API
-fields were used. Only ideas, in our own words; no text, icon, asset or color was copied, nothing was decompiled.
-
-- A reporting app has few top-level places. Bottom navigation with three destinations is enough (map, list, my items).
-- Starting a report is the one primary action and is always reachable, not hidden in a menu.
-- A report is photo first, then place, then category, then optional details; each step is short and answers one question.
-- Looking for an existing report before filing a new one reduces duplicates; show nearby reports on a map.
-- Public requests are scannable cards: a picture, what it is, where it stands, how old it is.
-- Anonymous use is possible; an account is not a precondition for helping.
-- Reviews of the reference app complain about required fields off screen and unreadable errors: keep required
-  input visible and errors specific, with a fix (already the wording in `strings.dart`).
+Scope: `app/`, Spanish (Guatemala). Updated 2026-11-19 for the seven binding tasks in `app-reference-seeclickfix.md`.
+Only reference principles are used; no SeeClickFix/FixMyStreet assets, text, colors or source code were copied.
+Aldia retains the teal palette and spacing/target tokens in `lib/core/theme.dart`.
 
 ## Screen map
 
 ```
-First run only: Onboarding (3 slides: what Aldia is / live photo rule / privacy; "Omitir" always visible)
-Home (shell) ── AppBar: Aldia, filters (map and list only)
- ├─ Mapa        clusters or pins (icon + state text), tap opens summary sheet
- ├─ Lista       compact report cards, pull to refresh, empty state, "quitar filtros"
- ├─ Mis reportes  por enviar, borradores, enviados; empty state with "Hacer mi primer reporte"
- ├─ Banner "Continuar borrador" (map and list tabs)
- └─ Reportar (extended button, centered above the bar, on every tab)
-      Wizard: Foto > Ubicación > Categoría > Duplicados > Detalles > Revisar > Resultado
-Detail: photo, state chips, timeline, similar reports, checks
+First run: skippable onboarding (3 slides)
+Shell: Inicio | Avisos | (+) Reportar | Mis reportes | Perfil
+ Inicio: branded landing, resolved count, Explorar mi ciudad, Reportar un problema
+ Explorar: dark teal bar, filters, MAPA / LISTA with accent underline
+ MAPA: viewport clusters/pins, summary sheet, zoom, locate, overlay/layer control
+ LISTA: large-photo cards, status dot + word, location, note, date/id, heart/share
+ Avisos: locally observed state changes, refresh, offline stored inbox
+ Mis reportes: outbox, saved drafts, sent/followed reports (existing behavior)
+ Perfil: phone placeholder, name-visibility preference, language/version, local data deletion
+Wizard: Ubicación > Categoría > Duplicados > Foto en vivo > Detalles > Revisar/enviar > Resultado
+Detail: photo, citizen state + verifier verdict, public timeline, nearby reports, checks
 ```
 
-## Decisions
+## Seven tasks implemented in order
 
-- Navigation: `NavigationBar` (Mapa / Lista / Mis reportes); tabs are built on first visit and kept alive
-  (`IndexedStack`) so the map camera and list scroll survive tab changes.
-- Report card (`widgets/report_tile.dart`): 72 dp rounded thumbnail, category, `StateChip` (icon + text, tonal fill),
-  age. Thumbnail falls back to the category icon.
-- Category step: full-width 64 dp rows with icon, label and check; selected row has a thicker border and tonal fill.
-- Wizard progress: one "Paso x de 6" line plus a progress bar instead of the full list of step names.
-- Empty states (`widgets/empty_state.dart`): icon, one sentence, optional help and one action.
-- Onboarding: three slides, skippable, no permission request, shown once (`shared_preferences`, key `onboarding_seen`).
-  The app shell only receives `showOnboarding` and `onOnboardingDone`, so tests do not touch storage.
-- Tokens (`lib/core/theme.dart`): brand colors unchanged (`documentation/design-tokens.md`); new `AldiaSpace` scale
-  (4, 8, 12, 16, 24, 32), 48 dp target, 88 dp bottom clearance for the report button.
-- Dark mode: `buildDarkTheme()` from the same seed through `ColorScheme`; `ThemeMode.system`. Widgets use scheme
-  roles (`primary`, `errorContainer`, `surfaceContainerLowest`...) instead of fixed colors. The portal tokens file
-  is unchanged; dark mode is app-only for now.
-- Motion: page and sheet transitions and the navigation indicator are skipped when the system asks to reduce
-  motion; onboarding uses `jumpToPage` in that case.
-- Low-end Android: no new packages, no shadows or blur, no animation beyond the Material defaults; lazy tabs.
-- Text scale 2.0: cards wrap, the draft banner scrolls inside a 30 % height cap, the empty state scrolls.
+1. **Wizard and summary.** Location first, category, nearby suggestions, mandatory live photo, optional note, review/send.
+   Every editing step repeats a camera icon, place (address when selected, coordinates otherwise) and chosen category.
+   Progress and focusable semantic headings remain. Old drafts restore by step name and retain their idempotency key;
+   incomplete old photo-first drafts return to the first missing prerequisite.
+2. **Location.** Explicit address search, GPS, accent pin, zoom, layer visibility and coordinate inputs. The full-width
+   **CONFIRMAR UBICACIÓN** control is in the bottom safe area. GPS failure explains manual recovery; accuracy warnings
+   remain visible. The chosen address is saved only in the local draft.
+   `GeocoderService` is injectable; tests use a fake. Nominatim requires Search/Enter, debounces 450 ms, serializes at
+   1 request/second, caches results, identifies Aldia, requests Spanish and restricts `countrycodes=gt,co,mx`.
+   Attribution is visible. No autocomplete: the [public service policy](https://operations.osmfoundation.org/policies/nominatim/)
+   forbids it. This is single-device demo geocoding; a multi-user rollout needs a centrally limited, remotely switchable
+   proxy/provider. A failed search leaves manual placement available.
+3. **Categories.** Search plus group headers from `GET /api/categories`, with contract defaults while offline.
+   Selectable rows wrap, expose selection semantics and retain 64 dp minimum height.
+4. **Nearby.** Existing nearby endpoint; photo cards with citizen state and local heart, plus **Seguir este reporte**
+   to finish without a new upload. Empty/offline suggestions show a non-blocking explanation instead of hiding the step.
+5. **Photo and review.** Circular camera target, required live capture, preview and retake. No gallery or skip link.
+   Note, review edits, upload-size estimate, public-photo warning and verifier recovery wording remain.
+   `DEV_FAKE_CAMERA=true` draws a labeled 640×480 synthetic PNG only in non-mobile debug; release and mobile never fake.
+6. **Landing and navigation.** Five destinations; the central circled plus opens the wizard without replacing the
+   selected tab. Home offers the two large actions and a count from `/api/stats` (failure shows an unavailable marker).
+   The counter reflects the API's default period, so the UI makes no all-time claim. Explore has MAPA/LISTA tabs.
+   Visited shell tabs retain state, map camera and list position. Draft banner remains available from Inicio/Explorar.
+7. **Cards, inbox and profile.** Large-photo cards include a status word beside its dot, category, coordinates, note,
+   date/reference and independent semantic follow/share targets. No address is invented: reports have no street field.
+   Hearts, state baselines, up to 100 inbox items and visibility preference persist through `shared_preferences`.
+   Refreshing personal reports or opening their detail records a changed state once; first observation stays quiet.
+   Android/iOS share through native sheets (WhatsApp if installed); Linux opens the WhatsApp URL, with clipboard fallback.
+   `PUBLIC_PORTAL_URL` supplies public links. Profile clearly labels phone access as pending and name visibility as local.
+   Confirmed deletion clears drafts/photos, outbox, personal ids, follows/notices/preferences; server reports remain public.
 
-## Skill files read for this work
+## Preserved behavior and accessibility
 
-Read only (no installer or network script run): `impeccable/reference/new-work.md`, `craft-floor.md`, `polish.md`,
-`audit.md` (web audit; its native counterpart was not read), `emil/mobile-native/SKILL.md` (web-specific, used only
-for the "test on real hardware" rule) and `anthropics-skills/hks-frontend-design/SKILL.md`. Applied: inherit the
-established identity instead of inventing a new one, check empty/loading/error states, spacing and type scale, tonal
-contrast, copy that names the action and the recovery. The onboarding reference (`onboard.md`) was not opened;
-the slide count and skip rule come from the task brief.
+- Draft autosave, outbox persistence/retry and Idempotency-Key are unchanged; the local inbox cannot make an accepted
+  upload retry. The existing 11-state citizen wording and honest stub-verification wording are retained.
+- Semantic headings, state text alongside color, distinct card/action targets, 48 dp controls and scrollable 200% text
+  layouts. Bottom confirmation stays reachable while the map/form scrolls. Reduced motion disables routes/sheets,
+  navigation indicators and Explore tab animation. No new packages, fonts or copied assets.
+- Light/dark `ColorScheme` and Aldia tokens. Cards wrap text instead of truncating descriptions. Public map pin labels
+  retain the existing compact label treatment, with the complete state in semantics and in cards.
+- Phone-code login and push still need backend integration. The existing manual-review action saves locally; it does
+  not claim to submit a server review.
 
-## Not verified
+## Validation and limits
 
-- Contrast ratios were not measured; dark colors come from `ColorScheme.fromSeed`.
-- No device or emulator run, no screenshots. Tests are golden-free widget tests.
-- Store pages and API docs listed above were unreachable.
+- Existing wizard/controller/outbox/draft/navigation/accessibility tests were updated; focused geocoder rate/cache,
+  explicit-search, local inbox persistence and synthetic-camera checks were added. Tests use offline tiles and fakes.
+- Linux platform generated with Flutter; unrelated generated metadata, lockfile and analyzer changes were restored.
+- Final validation results and observed desktop limits are recorded below after running the checks.
+- No physical Android/iOS verification or native share-sheet compilation on this Linux machine. Contrast ratios have
+  not been measured. Public Nominatim/OSM and actual WhatsApp handoff are not exercised by unit/widget tests.
+
+## Design guidance used
+
+`hks-disciplina-de-trabajo`, `hks-flujo-codigo`, `hks-flutter` (responsive layout guidance) and `hks-diseno-interfaz`
+(`impeccable/reference/new-work.md`, `craft-floor.md`) informed the implementation. The user's specified screen structure
+and existing Aldia identity determined the design. No new design direction, assets or package installation was needed.
