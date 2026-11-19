@@ -279,6 +279,14 @@ describe('municipal dashboard', () => {
     expect(ends[0]).toContain('27');
     expect(ends[0]).toContain('reportes recibidos');
     expect(ends[1]).toContain('6');
+    expect(root.querySelector('.all-time-chart').textContent).toContain(
+      'Recibidos: 27',
+    );
+    expect(root.querySelector('.all-time-chart').textContent).toContain(
+      'Resueltos: 6',
+    );
+    expect(root.querySelector('.weekly-dot--recibidos').tagName).toBe('circle');
+    expect(root.querySelector('.weekly-dot--resueltos').tagName).toBe('rect');
     const cumulative = root
       .querySelector('.weekly-line--recibidos')
       .getAttribute('points')
@@ -290,6 +298,8 @@ describe('municipal dashboard', () => {
       sparks.map((node) => node.querySelector('.spark-label').textContent),
     ).toEqual(['Recibidos', 'Resueltos']);
     expect(sparks[0].querySelector('.spark-value').textContent).toBe('12');
+    expect(sparks[0].querySelector('.spark-dot').tagName).toBe('circle');
+    expect(sparks[1].querySelector('.spark-dot').tagName).toBe('rect');
     expect(sparks[0].querySelector('svg').getAttribute('aria-label')).toContain(
       '2, 5, 8, 12',
     );
@@ -440,6 +450,21 @@ describe('v0.3 category charts', () => {
     const frequency = root.querySelector('.category-frequency');
     expect(repair.querySelectorAll('svg')).toHaveLength(3);
     expect(frequency.querySelectorAll('svg')).toHaveLength(3);
+    const chartFills = [
+      ...frequency.querySelectorAll('.category-chart-bar'),
+    ].map((bar) => bar.getAttribute('fill'));
+    expect(chartFills[0]).toBe('var(--primary)');
+    expect(chartFills[1]).toMatch(/^url\(#chart-pattern-\d+-diagonal\)$/);
+    expect(chartFills[2]).toBe('var(--surface)');
+    // Pattern references must resolve even with several SVGs on a routed page.
+    const ids = [...root.querySelectorAll('pattern')].map(
+      (pattern) => pattern.id,
+    );
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const bar of root.querySelectorAll('.category-chart-bar')) {
+      const id = /^url\(#(.+)\)$/.exec(bar.getAttribute('fill'))?.[1];
+      if (id) expect(root.querySelector(`[id="${id}"]`)).not.toBeNull();
+    }
     const tableRows = (section) =>
       [...section.querySelectorAll('tbody tr')].map((row) =>
         [...row.children].map((cell) => cell.textContent),

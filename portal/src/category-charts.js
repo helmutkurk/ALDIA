@@ -1,4 +1,5 @@
 /** Accessible v0.3 category charts. All numeric values come from GET /api/stats. */
+import { chartPatterns } from './chart-patterns.js';
 import { CATEGORIES } from './categories.js';
 import { t } from './i18n.js';
 import { element } from './panel.js';
@@ -65,6 +66,13 @@ function chartRow(label, description, segments) {
     viewBox: '0 0 640 32',
     class: 'category-chart-svg',
   });
+  const patterns = chartPatterns(svg);
+  const fills = {
+    repair: patterns.solid,
+    resueltos: patterns.solid,
+    abiertos: patterns.diagonal,
+    cerrados: patterns.outline,
+  };
   const target = svgNode('g', {
     tabindex: 0,
     role: 'img',
@@ -81,6 +89,8 @@ function chartRow(label, description, segments) {
         width,
         height: 32,
         class: `category-chart-bar category-chart-bar--${kind}`,
+        fill: fills[kind],
+        stroke: 'var(--primary)',
       }),
     );
     x += width;

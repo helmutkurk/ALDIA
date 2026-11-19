@@ -36,6 +36,18 @@ select {
 }
 button {
   cursor: pointer;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--text-muted);
+  border-radius: var(--radius-sm);
+}
+button:where(:hover:not(:disabled)) {
+  background: var(--background);
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
 }
 a {
   color: var(--primary-dark);
@@ -46,8 +58,8 @@ a {
   background: var(--primary-dark);
 }
 :focus-visible {
-  outline: 3px solid var(--primary-dark);
-  outline-offset: 3px;
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 [hidden] {
   display: none !important;
@@ -135,7 +147,8 @@ select {
 }
 button:disabled {
   cursor: default;
-  opacity: 0.65;
+  color: var(--text-muted);
+  background: var(--background);
 }
 .retry-button {
   margin-top: 1rem;
@@ -146,8 +159,8 @@ button:disabled {
   background: var(--primary);
   font-weight: 650;
 }
-.retry-button:hover,
-.retry-button:active {
+.retry-button:hover:not(:disabled),
+.retry-button:active:not(:disabled) {
   background: var(--primary-dark);
 }
 .error-message {
@@ -172,7 +185,7 @@ button:disabled {
   min-height: var(--header-height);
   padding: 0 1.25rem;
   color: var(--on-primary);
-  background: var(--primary-dark);
+  background: var(--primary);
 }
 .site-header :focus-visible {
   outline-color: var(--on-primary);
@@ -433,7 +446,7 @@ label.filter-field {
   background: var(--surface);
   color: var(--text);
 }
-.pagination button:hover:not(:disabled) {
+.pagination button:where(:hover:not(:disabled)) {
   background: var(--background);
 }
 
@@ -470,7 +483,8 @@ label.filter-field {
   background: var(--state-open);
 }
 .state-chip--in_work::before {
-  background: var(--state-work);
+  background: var(--surface);
+  border: 2px solid var(--state-work);
 }
 .state-chip--resolved::before {
   background: var(--state-resolved);
@@ -489,7 +503,7 @@ label.filter-field {
 }
 .status-badge--pending::before,
 .legend-dot--pending {
-  background: var(--accent);
+  background: var(--state-open);
 }
 .status-badge--rejected::before,
 .legend-dot--rejected {
@@ -621,8 +635,7 @@ label.filter-field {
   scrollbar-color: var(--text-muted) var(--background);
 }
 
-/* Pins: 36 px teardrop filled by state group, white inner ring and a dark outer
-   outline so it separates from any tile colour. The letter repeats the state. */
+/* Neutral graphite pins: status letters, white ring and dark outer outline. */
 .status-pin {
   display: grid;
   place-items: center;
@@ -634,7 +647,8 @@ label.filter-field {
   border: 3px solid var(--surface);
   box-shadow:
     0 0 0 2px var(--text),
-    0 4px 10px rgb(15 23 42 / 35%);
+    0 4px 10px rgb(17 24 39 / 35%);
+  background: var(--primary);
   color: transparent;
   font-size: 0;
 }
@@ -651,35 +665,13 @@ label.filter-field {
   font-size: 12px;
   font-weight: 800;
 }
-.status-pin--verified {
-  background: var(--success);
-}
-.status-pin--rejected {
-  background: var(--danger);
-}
-.status-pin--pending {
-  background: var(--accent);
-}
-.state-pin--open {
-  background: var(--state-open);
-}
-.state-pin--in_work {
-  background: var(--state-work);
-}
-.state-pin--resolved {
-  background: var(--state-resolved);
-}
-.state-pin--closed,
-.state-pin--hidden {
-  background: var(--state-closed);
-}
+.state-pin--in_work,
 .state-pin--pending {
-  background: var(--state-pending);
-  border: 3px dashed var(--text);
+  border-style: dashed;
 }
 .report-marker:focus-visible .status-pin {
-  outline: 3px solid var(--primary-dark);
-  outline-offset: 4px;
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 .cluster-count {
   display: grid;
@@ -690,7 +682,7 @@ label.filter-field {
   border: 3px solid var(--surface);
   box-shadow:
     0 0 0 2px var(--text),
-    0 4px 10px rgb(15 23 42 / 35%);
+    0 4px 10px rgb(17 24 39 / 35%);
   color: var(--on-primary);
   background: var(--primary-dark);
   font-weight: 800;
@@ -785,7 +777,7 @@ label.filter-field {
   border: 0;
   border-radius: var(--radius-sm);
 }
-.search-button:hover {
+.search-button:hover:not(:disabled) {
   background: var(--primary);
 }
 .place-search p,
@@ -919,7 +911,7 @@ label.filter-field {
   max-height: 95dvh;
 }
 .photo-dialog::backdrop {
-  background: rgb(15 23 42 / 80%);
+  background: rgb(17 24 39 / 80%);
 }
 .photo-dialog img {
   display: block;
@@ -983,7 +975,7 @@ label.filter-field {
 .dash-band {
   padding: 1.25rem max(1rem, calc((100% - 64rem) / 2)) 1.75rem;
   color: var(--on-primary);
-  background: var(--primary-dark);
+  background: var(--primary);
 }
 .dash-band a {
   color: var(--on-primary);
@@ -997,7 +989,7 @@ label.filter-field {
 }
 .dash-scope {
   max-width: 48rem;
-  color: #ccfbf1;
+  color: var(--on-primary);
 }
 .dash-body {
   max-width: 64rem;
@@ -1097,7 +1089,8 @@ label.filter-field {
 .spark--resueltos .spark-line {
   stroke: var(--series-resolved);
 }
-.weekly-line--resueltos {
+.weekly-line--resueltos,
+.spark--resueltos .spark-line {
   stroke-dasharray: 9 6;
 }
 .weekly-dot--recibidos,
@@ -1419,21 +1412,9 @@ label.filter-field {
 .category-chart-track {
   fill: var(--background);
 }
-.category-chart-bar--repair {
-  fill: var(--primary);
-}
-.category-chart-bar--resueltos {
-  fill: var(--state-resolved);
-}
-.category-chart-bar--abiertos {
-  fill: var(--state-open);
-}
-.category-chart-bar--cerrados {
-  fill: var(--state-closed);
-}
 .category-chart-svg [tabindex]:focus-visible {
-  outline: 2px solid var(--text);
-  outline-offset: 3px;
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 .category-chart-legend {
   display: flex;
@@ -1447,13 +1428,18 @@ label.filter-field {
   width: 0.75rem;
   height: 0.75rem;
   margin-inline-end: 0.35rem;
-  background: var(--state-closed);
+  background: var(--surface);
+  border: 1px solid var(--primary);
 }
 .category-chart-legend .category-legend--resueltos::before {
-  background: var(--state-resolved);
+  background: var(--primary);
 }
 .category-chart-legend .category-legend--abiertos::before {
-  background: var(--state-open);
+  background: repeating-linear-gradient(
+    135deg,
+    var(--primary) 0 1px,
+    var(--surface) 1px 4px
+  );
 }
 .category-chart-tip {
   position: absolute;

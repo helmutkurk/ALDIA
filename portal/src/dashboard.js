@@ -2,7 +2,7 @@ import { CATEGORIES } from './categories.js';
 import { RESOLUTIONS, STATUSES, t, staffError } from './i18n.js';
 import { element } from './panel.js';
 import { filtersHash } from './filters.js';
-import { GROUP_COLORS } from './states.js';
+import { chartPatterns } from './chart-patterns.js';
 import { categoryCharts } from './category-charts.js';
 
 const groups = Object.keys(t.dash.groups);
@@ -175,7 +175,7 @@ export function createDashboard(root, { api, filters }) {
       resueltos: cumulative(weeks, 'resueltos'),
     };
     const max = Math.max(1, ...series.recibidos, ...series.resueltos);
-    const [left, right, top, bottom] = [44, 620, 16, 204];
+    const [left, right, top, bottom] = [44, 440, 16, 204];
     const x = (i) =>
       weeks.length === 1
         ? (left + right) / 2
@@ -226,6 +226,7 @@ export function createDashboard(root, { api, filters }) {
       label.textContent = weeks[index].week;
       svg.append(label);
     }
+    let previousLabelY;
     for (const key of ['recibidos', 'resueltos']) {
       const line = svgNode('polyline', {
         points: series[key].map((value, i) => `${x(i)},${y(value)}`).join(' '),
@@ -254,6 +255,20 @@ export function createDashboard(root, { api, filters }) {
               class: 'weekly-dot weekly-dot--resueltos',
             }),
       );
+      let labelY = Math.max(28, y(end));
+      if (
+        previousLabelY !== undefined &&
+        Math.abs(labelY - previousLabelY) < 22
+      )
+        labelY = previousLabelY + 22;
+      previousLabelY = labelY;
+      const directLabel = svgNode('text', {
+        x: x(weeks.length - 1) + 12,
+        y: labelY,
+        class: 'chart-tick',
+      });
+      directLabel.textContent = `${t.dash[key]}: ${quantity(end)}`;
+      svg.append(directLabel);
     }
     const figure = element('div', 'chart-figure');
     figure.append(svg);
@@ -347,7 +362,17 @@ export function createDashboard(root, { api, filters }) {
           }),
         );
       const [cx, cy] = point(values.at(-1), values.length - 1);
-      spark.append(svgNode('circle', { cx, cy, r: 4, class: 'spark-dot' }));
+      spark.append(
+        key === 'recibidos'
+          ? svgNode('circle', { cx, cy, r: 4, class: 'spark-dot' })
+          : svgNode('rect', {
+              x: cx - 3.5,
+              y: cy - 3.5,
+              width: 7,
+              height: 7,
+              class: 'spark-dot',
+            }),
+      );
       const item = element('li', `spark-item spark-item--${key}`);
       item.append(
         spark,
@@ -431,6 +456,15 @@ export function createDashboard(root, { api, filters }) {
           0,
         ),
       );
+      const patterns = chartPatterns(stack);
+      const fills = {
+        pending: patterns.outline,
+        open: patterns.diagonal,
+        in_work: patterns.horizontal,
+        resolved: patterns.solid,
+        closed: patterns.dots,
+        hidden: patterns.cross,
+      };
       let x = 0;
       for (const group of visibleGroups) {
         const rect = document.createElementNS(
@@ -441,7 +475,8 @@ export function createDashboard(root, { api, filters }) {
         rect.setAttribute('x', String(x));
         rect.setAttribute('width', String(width));
         rect.setAttribute('height', '24');
-        rect.setAttribute('fill', GROUP_COLORS[group]);
+        rect.setAttribute('fill', fills[group]);
+        rect.setAttribute('stroke', 'var(--primary)');
         stack.append(rect);
         x += width;
       }

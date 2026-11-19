@@ -22,7 +22,13 @@ Review at 1280x800 and 390x844:
 - Previous/next within filter, including across a server page boundary.
 - Nearby duplicate thumbnails and selection of a master report.
 - Dashboard counts, percentages/nulls, n, age buckets, category/group distribution.
-- Weekly solid/dashed SVG lines and equivalent table, category medians.
+- Graphite header/actions, white cards and warm-gray background; neutral favicon/theme.
+- Neutral pins with status letters/outlines and cluster counts; full status words in details/list.
+- Weekly solid/circle and dashed/square series, direct labels and equivalent table.
+- Sparklines keep solid/circle and dashed/square encodings with named values.
+- Category stacks use graphite/hatching/outlined fills matching the legend and written counts.
+- Detailed group patterns stay visible; no broken SVG references after routing/filter changes.
+- KPI strip and category medians stay legible; check 2px focus rings including dark bands.
 - CSV comma/semicolon download keeps all filters and uses staff header when active.
 - Logout/pagehide immediately removes internal notes and staff-only controls.
 - Place search requires Buscar/Enter, 500ms debounce and 1s rate limit; cache.
