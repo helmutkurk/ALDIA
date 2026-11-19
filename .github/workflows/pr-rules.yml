@@ -1,0 +1,41 @@
+name: PR rules
+
+# Enforces the branch model in CONTRIBUTING.md: names, titles and allowed targets.
+# User-controlled values are passed through env vars, never interpolated into the script.
+
+on:
+  pull_request:
+    branches: [main, develop]
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check branch flow, branch name and title
+        env:
+          BASE: ${{ github.base_ref }}
+          HEAD: ${{ github.head_ref }}
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -eu
+          fail() { echo "::error::$1"; exit 1; }
+
+          if [ "$BASE" = "main" ]; then
+            case "$HEAD" in
+              develop|hotfix/*) ;;
+              *) fail "PRs into main come only from develop (sprint release) or hotfix/*. Open your PR against develop." ;;
+            esac
+            printf '%s' "$TITLE" | grep -Eq '^(release|fix|hotfix)(\([a-z0-9._-]+\))?: .+' \
+              || fail "Release PR title must look like: release: sprint N"
+          else
+            printf '%s' "$HEAD" | grep -Eq '^(feat|fix|docs|chore|refactor|test|ci|hotfix)/[a-z0-9._-]+$' \
+              || fail "Branch name must be <type>/<area>-<topic> (feat|fix|docs|chore|refactor|test|ci|hotfix), lowercase."
+            printf '%s' "$TITLE" | grep -Eq '^(feat|fix|docs|chore|refactor|test|ci)(\([a-z0-9._-]+\))?!?: .+' \
+              || fail "PR title must follow Conventional Commits, for example: feat(portal): report page"
+          fi
+          echo "PR rules OK"

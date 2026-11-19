@@ -28,6 +28,6 @@ backend/verifier/photos/
 # OS and editors
 .DS_Store
 Thumbs.db
-.idea/
+/.idea/
 .vscode/
 *.swp
