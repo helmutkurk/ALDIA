@@ -1,0 +1,61 @@
+Aldia - Proprietary License. All Rights Reserved.
+
+Copyright (c) 2026 Helmut Kurk Sierra, Isabel Sagastume, Fernando Mayo and
+Lorenz Hermannstädter (the "Authors"). All rights reserved.
+
+This repository and everything in it (source code, documentation, designs,
+data, research, text and images; together the "Work") is proprietary. It is
+published only so that the Authors and the people they invite can read and
+collaborate on it. No license is granted except as stated in section 1.
+
+1. WHAT YOU MAY DO
+   - View the Work in a web browser.
+   - Use the functions that GitHub's Terms of Service give every user of a
+     public repository, namely viewing it and forking it on GitHub for the
+     sole purpose of viewing it or proposing changes to the Authors through a
+     pull request.
+   - Collaborators named by the Authors may work on the Work for the Authors
+     as the Authors direct.
+
+2. WHAT YOU MAY NOT DO
+   Without the prior written permission of ALL the Authors, you may not:
+   a. copy, reproduce, download for use, mirror or republish the Work or any
+      part of it;
+   b. use, run, deploy, host, operate or integrate the Work or any part of it,
+      for any purpose, including personal, internal, educational, research,
+      governmental or non-profit purposes;
+   c. use the Work or any part of it for any commercial purpose, including
+      selling, licensing, offering it as a service, using it in a product,
+      pilot or tender, or using it to obtain a contract, funding or any other
+      commercial advantage;
+   d. modify, translate, adapt or create derivative works of the Work;
+   e. distribute, sublicense, rent, lend or otherwise make the Work available
+      to third parties;
+   f. use the Work, its text, images or data to train, fine-tune, evaluate or
+      benchmark machine learning or artificial intelligence models;
+   g. remove or alter this notice or any copyright notice;
+   h. use the names "Aldia" or the Authors' names to endorse or promote any
+      product or service.
+
+3. THIRD-PARTY COMPONENTS
+   The Work depends on third-party open-source software and map data (for
+   example Flutter, FastAPI, Leaflet, OpenStreetMap contributors). Those
+   components remain under their own licenses, which this license does not
+   change. Names and references to third-party products (for example
+   FixMyStreet and SeeClickFix) belong to their owners; no code from them is
+   included.
+
+4. NO WARRANTY
+   THE WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED. THE AUTHORS ARE NOT LIABLE FOR ANY CLAIM, DAMAGE OR OTHER
+   LIABILITY ARISING FROM THE WORK OR ITS USE.
+
+5. TERMINATION
+   Any breach of this license ends the permissions in section 1 immediately.
+   The Authors may enforce their rights under copyright law and any other
+   applicable law.
+
+6. CONTACT
+   To request permission, open an issue in this repository or contact the
+   Authors. A permission is valid only if it is written and signed by all the
+   Authors.

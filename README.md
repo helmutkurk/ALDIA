@@ -35,4 +35,8 @@ Branches: `main` (stable) and `develop` (work). Open feature branches from `deve
 Never commit secrets, environment files or personal photos. Install the git hooks once per clone:
 `bash scripts/install-githooks.sh`.
 
-No license has been chosen yet. All rights stay with the authors until the team decides.
+## License
+
+Proprietary, all rights reserved ([LICENSE](LICENSE)). The code and documents are visible for collaboration only:
+nobody may copy, run, modify, redistribute or use them, and especially not commercially, without the written permission
+of all the authors.
