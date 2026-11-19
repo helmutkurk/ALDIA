@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
 import 'data/api_client.dart';
@@ -12,8 +15,11 @@ import 'services/connectivity_service.dart';
 import 'services/location_service.dart';
 import 'services/photo_service.dart';
 
-void main() {
+const _onboardingKey = 'onboarding_seen';
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
   final client = http.Client();
   final repository = ReportRepository(
     api: ApiClient(client: client),
@@ -49,6 +55,8 @@ void main() {
       outbox: outbox,
       connectivity: connectivity,
       clusters: HttpClustersApi(client: client),
+      showOnboarding: !(prefs.getBool(_onboardingKey) ?? false),
+      onOnboardingDone: () => unawaited(prefs.setBool(_onboardingKey, true)),
     ),
   );
 }

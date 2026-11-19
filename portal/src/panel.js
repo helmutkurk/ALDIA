@@ -117,23 +117,34 @@ export function createReportDetails(report, photoOptions = {}) {
  */
 export function createPanel(
   root,
-  { onFiltersChange, onSelect, onRetry, onPage = () => {}, getScope },
+  {
+    onFiltersChange,
+    onSelect,
+    onRetry,
+    onPage = () => {},
+    getScope,
+    api,
+    signal,
+  },
 ) {
   root.setAttribute('aria-labelledby', 'portal-title');
   const header = element('header', 'panel-header');
-  header.append(element('a', 'brand', t.appName));
-  header.querySelector('a').href = '#/';
-  const dashboard = element('a', 'dashboard-link', t.dashboard);
-  dashboard.href = '#/panel';
-  const triage = element('a', '', ui.triage);
-  triage.href = '#/triage';
-  header.append(dashboard, triage);
   const title = element('h1', '', t.portalTitle);
   title.id = 'portal-title';
-  header.append(title, element('p', 'muted', t.introduction));
+  header.append(
+    title,
+    element('p', 'panel-place', `${ui.panelBanner} · ${t.city}`),
+  );
   const filters = element('fieldset', 'filters');
   filters.append(element('legend', 'sr-only', t.filters));
-  function select(id, label, allLabel, options) {
+  // The four filters of the reference layout stay visible; the rest sit in a disclosure.
+  const mainFilters = element('div', 'filters-main');
+  const moreFilters = element('details', 'filters-more');
+  moreFilters.append(element('summary', '', ui.moreFilters));
+  const moreBody = element('div', 'filters-more-body');
+  moreFilters.append(moreBody);
+  filters.append(mainFilters, moreFilters);
+  function select(id, label, allLabel, options, target = moreBody) {
     const group = element('div', 'filter-field');
     const labelNode = element('label', '', label);
     labelNode.htmlFor = id;
@@ -147,7 +158,7 @@ export function createPanel(
       input.append(node);
     }
     group.append(labelNode, input);
-    filters.append(group);
+    target.append(group);
     return input;
   }
   const category = select(
@@ -155,6 +166,7 @@ export function createPanel(
     t.category,
     t.allCategories,
     CATEGORIES,
+    mainFilters,
   );
   const status = select(
     'status-filter',
@@ -170,9 +182,10 @@ export function createPanel(
   );
   const group = select(
     'state-group-filter',
-    ui.stateGroup,
+    ui.statusFilter,
     ui.allGroups,
     GROUPS.map((id) => ({ id, label: ui.groups[id] })),
+    mainFilters,
   );
   const stateInput = select(
     'state-filter',
@@ -188,7 +201,9 @@ export function createPanel(
       id,
       label: ui.sorts[id],
     })),
+    mainFilters,
   );
+  mainFilters.prepend(group.parentElement);
   const controls = {
     category,
     status,
@@ -201,15 +216,19 @@ export function createPanel(
     ['created_from', ui.from, 'date'],
     ['created_to', ui.to, 'date'],
     ['assignee', ui.assignee, 'text'],
-    ['include_old', ui.includeOld, 'checkbox'],
+    ['include_old', ui.includeOldLong, 'checkbox'],
   ]) {
-    const labelNode = element('label', 'filter-field', label);
+    const labelNode = element(
+      'label',
+      name === 'include_old' ? 'filter-field filter-check' : 'filter-field',
+      label,
+    );
     const input = element('input');
     input.type = type;
     input.name = name;
     if (name === 'assignee') input.maxLength = 60;
     labelNode.append(input);
-    filters.append(labelNode);
+    (name === 'include_old' ? mainFilters : moreBody).append(labelNode);
     controls[name] = input;
   }
   const chips = element('div', 'filter-chips');
@@ -240,7 +259,7 @@ export function createPanel(
     onFiltersChange(next);
   };
   filters.addEventListener('change', onChange, true);
-  filters.append(element('p', 'muted', ui.defaultWindow));
+  filters.append(element('p', 'muted filters-hint', ui.defaultWindow));
   const pagination = element('nav', 'pagination');
   pagination.setAttribute('aria-label', ui.page(1, 0));
   const previousPage = element('button', '', ui.previous);
@@ -257,7 +276,7 @@ export function createPanel(
   pagination.append(previousPage, pageLabel, nextPage);
   const results = element('section', 'results');
   results.setAttribute('aria-labelledby', 'reports-title');
-  const reportsTitle = element('h2', '', t.reports);
+  const reportsTitle = element('h2', 'sr-only', t.reports);
   reportsTitle.id = 'reports-title';
   const announcement = element('p', 'result-count');
   announcement.setAttribute('role', 'status');
@@ -324,15 +343,19 @@ export function createPanel(
     previousPage.disabled = !(state.offset > 0);
     nextPage.disabled =
       (state.offset ?? 0) + 25 >= state.total || state.phase !== 'success';
-    dashboard.href = filtersHash('#/panel', getScope?.() ?? state.filters);
-    triage.href = filtersHash('#/triage', getScope?.() ?? state.filters);
     const reports = filterReports(state.reports, state.filters);
     announcement.textContent =
       state.phase === 'loading' || state.phase === 'idle'
         ? t.loading
         : state.phase === 'error'
           ? ''
-          : t.count(reports.length, state.total);
+          : reports.length
+            ? ui.range(
+                (state.offset ?? 0) + 1,
+                (state.offset ?? 0) + reports.length,
+                state.total,
+              )
+            : t.count(reports.length, state.total);
     message.replaceChildren();
     if (state.phase === 'error') {
       const alert = element('div', 'error-message');
@@ -370,15 +393,24 @@ export function createPanel(
           'aria-label',
           t.selectReport(categoryLabel(report.category), statusLabel(report)),
         );
+        const thumb = createPhoto(report, {
+          api,
+          signal,
+          thumbnail: true,
+          quiet: true,
+          className: 'row-thumbnail',
+        });
+        thumb.classList.add('report-thumb');
         button.replaceChildren(
           element('strong', 'report-category', categoryLabel(report.category)),
-          statusBadge(report),
+          element('span', 'report-date', formatDate(report.captured_at)),
           element(
             'span',
             `state-chip state-chip--${STATE_GROUPS[reportState(report)]}`,
             stateLabel(reportState(report)),
           ),
-          element('span', 'report-date', formatDate(report.captured_at)),
+          statusBadge(report),
+          thumb,
         );
         if (!previousButtons.has(report.id))
           button.addEventListener('click', () => onSelect(report.id));

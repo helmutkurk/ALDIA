@@ -158,7 +158,7 @@ export function createReportMap(
           icon: L.divIcon({
             html: bubble,
             className: 'cluster-marker',
-            iconSize: [44, 44],
+            iconSize: [48, 48],
           }),
           keyboard: true,
           title: label,
@@ -204,9 +204,9 @@ export function createReportMap(
           icon: L.divIcon({
             html: pin,
             className: 'report-marker',
-            iconSize: [32, 40],
-            iconAnchor: [16, 36],
-            popupAnchor: [0, -34],
+            iconSize: [44, 54],
+            iconAnchor: [22, 50],
+            popupAnchor: [0, -46],
           }),
           title: label,
           alt: label,

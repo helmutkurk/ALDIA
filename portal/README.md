@@ -31,7 +31,11 @@ or supervisor token in a Vite variable: build-time values are public.
 
 ## Pages and staff mode
 
-- `#/`: place search, filter controls, active-filter chips and result count,
+- All routes share the slim header from `src/header.js` (Mapa, Triaje, Panel, Modo
+  personal). UI rationale and unverified points: `../documentation/ui/portal-ui-notes.md`.
+- `#/`: place search, filter controls (Estado, Categoría, Ordenar and the old-reports
+  checkbox visible, others under "Más filtros"), count line `1 a 25 de 86 reportes`,
+  rows with state chip and lazy thumbnail, active-filter chips and result count,
   independently paginated list (25 reports), clustered viewport map. Clicking a
   pin or selecting a list item opens the side panel without changing route.
   Cluster counts zoom in; at maximum zoom their identified reports appear in the
@@ -48,7 +52,9 @@ or supervisor token in a Vite variable: build-time values are public.
   server ordering and pagination, age badges, assignment and legal transitions.
   Tabs support arrow keys, Home and End. Operators cannot override rejection;
   supervisors must supply an internal reason.
-- `#/panel`: server metrics, sample sizes, percentages, null/no-sample values,
+- `#/panel`: title band, cumulative received/resolved chart with end numbers, last-week
+  sparklines (received, resolved; the API has no daily or updates series), top 5
+  categories, then server metrics, sample sizes, percentages, null/no-sample values,
   age buckets, exact category × state-group distribution, category median
   durations, weekly received/resolved SVG lines and an equivalent table.
   Category cross-tabs use separately filtered stats requests; the portal never

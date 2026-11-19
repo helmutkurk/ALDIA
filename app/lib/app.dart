@@ -11,6 +11,7 @@ import 'data/clusters_api.dart';
 import 'data/report_repository.dart';
 import 'features/drafts/draft_store.dart';
 import 'features/home/home_screen.dart';
+import 'features/onboarding/onboarding_screen.dart';
 import 'features/outbox/outbox_service.dart';
 import 'services/connectivity_service.dart';
 import 'services/location_service.dart';
@@ -29,6 +30,8 @@ class AldiaApp extends StatefulWidget {
     this.connectivity,
     this.clusters,
     this.tileProvider,
+    this.showOnboarding = false,
+    this.onOnboardingDone,
   });
 
   final ReportRepository repository;
@@ -42,11 +45,19 @@ class AldiaApp extends StatefulWidget {
   /// Map tiles source. Tests inject an offline provider.
   final TileProvider? tileProvider;
 
+  /// Shows the three first-run slides before Home.
+  final bool showOnboarding;
+
+  /// Called once when the slides end or are skipped (to remember it).
+  final VoidCallback? onOnboardingDone;
+
   @override
   State<AldiaApp> createState() => _AldiaAppState();
 }
 
 class _AldiaAppState extends State<AldiaApp> with WidgetsBindingObserver {
+  late bool _onboarding = widget.showOnboarding;
+
   @override
   void initState() {
     super.initState();
@@ -59,6 +70,11 @@ class _AldiaAppState extends State<AldiaApp> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  void _finishOnboarding() {
+    setState(() => _onboarding = false);
+    widget.onOnboardingDone?.call();
   }
 
   @override
@@ -95,6 +111,8 @@ class _AldiaAppState extends State<AldiaApp> with WidgetsBindingObserver {
       child: MaterialApp(
         title: S.appName,
         theme: buildTheme(),
+        darkTheme: buildDarkTheme(),
+        themeMode: ThemeMode.system,
         debugShowCheckedModeBanner: false,
         locale: const Locale('es', 'GT'),
         localizationsDelegates: const [
@@ -103,7 +121,9 @@ class _AldiaAppState extends State<AldiaApp> with WidgetsBindingObserver {
           GlobalCupertinoLocalizations.delegate,
         ],
         supportedLocales: const [Locale('es', 'GT'), Locale('es')],
-        home: const HomeScreen(),
+        home: _onboarding
+            ? OnboardingScreen(onDone: _finishOnboarding)
+            : const HomeScreen(),
       ),
     );
   }

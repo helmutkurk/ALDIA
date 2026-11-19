@@ -58,14 +58,16 @@ iOS builds and the iOS simulator need a Mac with Xcode; they do not run on Linux
    registers a real identifier).
 5. Pick a simulator and press Run, or `flutter run -d <simulator id>`.
 
-The camera is not available in the iOS simulator; use a real phone to test the live photo, or the gallery fallback in
-debug builds.
+The camera is not available in the iOS simulator and the app takes live photos only (no gallery fallback), so the photo
+step needs a real phone. Test steps, demo data and QA scripts: [testing.md](testing.md).
 
 ### Checks before every push
 
 ```bash
 make check              # api, verifier, portal and app: lint + tests (+ build for the portal)
 ```
+
+Demo data: `make seed` creates synthetic reports (see [testing.md](testing.md), section 2.4).
 
 ## Tests per area
 

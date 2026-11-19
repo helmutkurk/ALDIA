@@ -4,10 +4,19 @@ import { t } from './i18n.js';
 
 /** Safe image element. Staff images use authenticated fetch; object URLs live only
  * until the owning view is cancelled so modal clones remain usable meanwhile.
- * @param {object} report @param {{api?: object, signal?: AbortSignal, thumbnail?: boolean}} [options]
+ * @param {object} report @param {{api?: object, signal?: AbortSignal, thumbnail?: boolean, className?: string, quiet?: boolean}} [options]
  */
-export function createPhoto(report, { api, signal, thumbnail = false } = {}) {
+export function createPhoto(
+  report,
+  { api, signal, thumbnail = false, className, quiet = false } = {},
+) {
   const fallback = () => {
+    if (quiet) {
+      const empty = document.createElement('span');
+      empty.className = 'thumb-missing';
+      empty.setAttribute('aria-hidden', 'true');
+      return empty;
+    }
     const message = document.createElement('p');
     message.className = 'muted';
     message.textContent = t.photoUnavailable;
@@ -18,8 +27,10 @@ export function createPhoto(report, { api, signal, thumbnail = false } = {}) {
   );
   if (!url) return fallback();
   const image = document.createElement('img');
-  image.className = thumbnail ? 'nearby-thumbnail' : 'report-photo';
-  image.alt = t.photoAlt(categoryLabel(report.category));
+  image.className =
+    className ?? (thumbnail ? 'nearby-thumbnail' : 'report-photo');
+  // A quiet thumbnail repeats text the row already carries, so it is decorative.
+  image.alt = quiet ? '' : t.photoAlt(categoryLabel(report.category));
   image.loading = 'lazy';
   image.decoding = 'async';
   let objectUrl;

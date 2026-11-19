@@ -13,6 +13,7 @@ import { GROUPS } from './states.js';
 import { parseFilters, filtersHash } from './filters.js';
 import { createStaffSession, createStaffPanel } from './staff.js';
 import { createStaffActions } from './actions.js';
+import { createSiteHeader } from './header.js';
 import { createTriage } from './triage.js';
 import { ui, staffError, t } from './i18n.js';
 
@@ -26,6 +27,7 @@ export function createPortal({
   mapFactory = createReportMap,
   pageElement,
   workspaceElement,
+  headerElement,
   locationMapFactory,
   staff = createStaffSession(),
 }) {
@@ -274,6 +276,7 @@ export function createPortal({
       createReportDetails(report, { api, signal: controller?.signal }),
   });
   const panel = createPanel(panelElement, {
+    api,
     onFiltersChange(filters) {
       store.setFilters(filters);
       syncHash();
@@ -293,15 +296,37 @@ export function createPortal({
   });
   panelElement.querySelector('.panel-header').after(staffRoot);
   panelElement.querySelector('.results').before(side);
-  const toggle = element('button', 'map-toggle', ui.mapToggle);
+  const toggle = element('button', 'map-toggle', ui.showMap);
   toggle.type = 'button';
   toggle.setAttribute('aria-expanded', 'false');
+  toggle.setAttribute('aria-label', ui.mapToggle);
   toggle.addEventListener('click', () => {
     const shown = mapElement.parentElement.classList.toggle('map-visible');
     toggle.setAttribute('aria-expanded', String(shown));
+    toggle.textContent = shown ? ui.showList : ui.showMap;
     if (shown) map.invalidateSize?.();
+    else panelElement.scrollTo?.(0, 0);
   });
-  panelElement.querySelector('.panel-header').after(toggle);
+  // Phones show the list first; the toggle lives outside the scrolling panel.
+  panelElement.after(toggle);
+  const header = headerElement
+    ? createSiteHeader(headerElement, {
+        onStaff() {
+          const details = staffRoot.querySelector('details');
+          if (details) details.open = true;
+          // On phones the list may hide the panel behind the map view.
+          mapElement.parentElement.classList.remove('map-visible');
+          toggle.setAttribute('aria-expanded', 'false');
+          toggle.textContent = ui.showMap;
+          staffRoot.scrollIntoView?.({ block: 'start' });
+          const input = staffRoot.querySelector('input');
+          (input && !input.closest('[hidden]')
+            ? input
+            : staffRoot.querySelector('summary')
+          )?.focus();
+        },
+      })
+    : null;
   const searchRoot = element('div');
   panelElement.querySelector('.panel-header').after(searchRoot);
   const search = createPlaceSearch(searchRoot, {
@@ -310,6 +335,7 @@ export function createPortal({
   let previousReports, previousFilters;
   const unsubscribe = store.subscribe((state) => {
     panel.render(state);
+    header?.update(query());
     if (
       state.reports !== previousReports ||
       state.filters !== previousFilters
@@ -336,6 +362,7 @@ export function createPortal({
       return;
     }
     currentRoute = route.name;
+    header?.setRoute(route.name);
     page?.destroy();
     page = null;
     const wasActive = active;
@@ -343,6 +370,7 @@ export function createPortal({
     if (wasActive && !active) returnFocus = document.activeElement;
     workspaceElement.hidden = !active;
     pageElement.hidden = active;
+    toggle.hidden = !active;
     if (active) panelElement.querySelector('.panel-header').after(staffRoot);
     else pageElement.before(staffRoot);
     if (active) {
@@ -422,6 +450,8 @@ export function createPortal({
       sideActions?.destroy();
       unsubscribeStaff();
       unsubscribe();
+      header?.destroy();
+      toggle.remove();
       router?.destroy();
       page?.destroy();
       search.destroy();
@@ -470,6 +500,7 @@ function mount() {
     panelElement,
     workspaceElement: document.querySelector('#around'),
     pageElement: document.querySelector('#page'),
+    headerElement: document.querySelector('#site-header'),
   });
   // Vite HMR should not leave live listeners, timers or a second Leaflet map.
   if (import.meta.hot)

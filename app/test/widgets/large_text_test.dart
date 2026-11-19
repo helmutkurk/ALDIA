@@ -5,6 +5,7 @@ import 'package:aldia_app/features/drafts/draft_record.dart';
 import 'package:aldia_app/features/home/home_screen.dart';
 import 'package:aldia_app/features/mine/my_reports_screen.dart';
 import 'package:aldia_app/features/outbox/outbox_service.dart';
+import 'package:aldia_app/widgets/report_tile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
@@ -50,10 +51,10 @@ void main() {
     await tester.ensureVisible(find.text(S.navList));
     await tester.tap(find.text(S.navList));
     await tester.pumpAndSettle();
-    expect(find.byType(ListTile), findsWidgets);
+    expect(find.byType(ReportTile), findsWidgets);
 
-    await tester.ensureVisible(find.text(S.filtersLabel));
-    await tester.tap(find.text(S.filtersLabel));
+    await tester.ensureVisible(find.byTooltip(S.filtersLabel));
+    await tester.tap(find.byTooltip(S.filtersLabel));
     await tester.pumpAndSettle();
     expect(find.text(S.apply), findsOneWidget);
   });
