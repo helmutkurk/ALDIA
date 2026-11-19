@@ -94,6 +94,7 @@ Append one block per iteration to `documentation/log/<hostname>.md`: time, item,
 |---|---|---|---|
 | 1 | `job-dev-local.md`: one-command local stack + smoke script + fixes | scripts, backend, portal | running (Codex) |
 | 2 | `job-app-ui-parity.md`: app UI parity + Linux desktop run | app | running (Codex) |
+| 2c | `job-neutral-palette.md`: apply the neutral tokens of documentation/design-tokens.md to app (theme.dart, status chips, pins) and portal (tokens.css, pins, charts), remove teal/amber everywhere, check contrast | app, portal | queued (after job 2) |
 | 3 | `job-android-apk-ci.md`: CI job that builds a debug APK artifact and the Linux build | .github, app | queued |
 | 4 | `job-stats-v03.md`: contract v0.3 stats from the harvest + portal charts (with "ver tabla") | backend/api, portal | queued |
 | 5 | `job-staff-auth.md`: real staff users, roles, session cookie | backend/api, portal | queued |
@@ -114,3 +115,5 @@ orchestrator runs the checks of the touched areas, commits on develop, pushes, a
 - 23:20-01:51: Claude window 2: browser verification (job 8), fixes, jobs 5 and 6 reviewed, release PR to main if CI is green.
 - 01:51-07:00: Codex window 2 and Claude window 3: jobs 6, 7, polish from the browser findings, final release PR `develop` → `main`.
 - 07:00: summary in the log and by email (`hks-ausente`); `main` = `develop`.
+
+| 13 | Rename on this computer, LAST (it moves the working directory of every session): `mv ~/Projects/ciudadCheck ~/Projects/aldia`, rename `~/Projects/backups/ciudadCheck-*` to `aldia-*`, update Claude project memory pointers and vault notes that name the old project (vault renames only through the Obsidian API, skill `hks-mantener-vault`), then Helmut restarts Claude from `~/Projects/aldia` | local machine | last, after release |
