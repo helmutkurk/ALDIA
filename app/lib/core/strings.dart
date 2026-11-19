@@ -7,6 +7,22 @@ class S {
   static const tagline =
       'Reporta problemas de tu calle con una foto verificada';
 
+  static const onboardingSkip = 'Omitir';
+  static const onboardingStart = 'Empezar';
+  static const onboardingTitles = [
+    'Reporta lo que ves en tu calle',
+    'La foto se toma en el momento',
+    'Tu privacidad',
+  ];
+  static const onboardingBodies = [
+    'Baches, aceras, luminarias y más. Envías una foto y el punto en el mapa; el municipio da seguimiento.',
+    'Toma la foto desde la acera, justo donde está el problema. No se aceptan fotos de la galería ni de personas.',
+    'La foto y el punto del reporte son públicos. No necesitas cuenta; no pedimos tu nombre ni tu teléfono.',
+  ];
+  static String onboardingPage(int current, int total) =>
+      'Página $current de $total';
+  static const emptyNearbyHelp =
+      'Si ves un problema, sé la primera persona en reportarlo.';
   static const navMap = 'Mapa';
   static const navList = 'Lista';
   static const myReports = 'Mis reportes';

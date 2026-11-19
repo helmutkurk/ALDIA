@@ -7,6 +7,8 @@ import '../../core/categories.dart';
 import '../../core/strings.dart';
 import '../../data/report.dart';
 import '../../data/report_repository.dart';
+import '../../core/theme.dart';
+import '../../widgets/empty_state.dart';
 import '../../widgets/report_tile.dart';
 import '../../widgets/routes.dart';
 import '../detail/report_detail_screen.dart';
@@ -17,7 +19,17 @@ import '../report/report_flow_screen.dart';
 
 /// Unsent work first (outbox, then drafts), then the reports already sent.
 class MyReportsScreen extends StatefulWidget {
-  const MyReportsScreen({super.key});
+  const MyReportsScreen({
+    super.key,
+    this.embedded = false,
+    this.reloadToken = 0,
+  });
+
+  /// True inside the home shell: no app bar of its own.
+  final bool embedded;
+
+  /// Changing this value reloads the sent reports and the drafts.
+  final int reloadToken;
 
   @override
   State<MyReportsScreen> createState() => _MyReportsScreenState();
@@ -32,6 +44,15 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
     super.initState();
     _sent = context.read<ReportRepository>().mine();
     unawaited(_loadDrafts());
+  }
+
+  @override
+  void didUpdateWidget(MyReportsScreen old) {
+    super.didUpdateWidget(old);
+    if (old.reloadToken != widget.reloadToken) {
+      _reloadSent();
+      unawaited(_loadDrafts());
+    }
   }
 
   Future<void> _loadDrafts() async {
@@ -86,7 +107,7 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
   Widget build(BuildContext context) {
     final outbox = context.read<OutboxService?>();
     return Scaffold(
-      appBar: AppBar(title: const Text(S.myReports)),
+      appBar: widget.embedded ? null : AppBar(title: const Text(S.myReports)),
       body: ListenableBuilder(
         listenable: Listenable.merge([?outbox]),
         builder: (context, _) {
@@ -101,7 +122,12 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
                 return _EmptyState(onStart: _openFlow);
               }
               return ListView(
-                padding: const EdgeInsets.only(bottom: 24),
+                padding: const EdgeInsets.fromLTRB(
+                  AldiaSpace.l,
+                  0,
+                  AldiaSpace.l,
+                  AldiaSpace.fabClearance,
+                ),
                 children: [
                   if (queued.isNotEmpty) ...[
                     const _SectionHeader(S.outbox),
@@ -170,11 +196,14 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
                       ),
                     ),
                   for (final report in sent)
-                    ReportTile(
-                      report: report,
-                      onTap: () => AldiaRoute.open<void>(
-                        context,
-                        ReportDetailScreen(report: report),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AldiaSpace.s),
+                      child: ReportTile(
+                        report: report,
+                        onTap: () => AldiaRoute.open<void>(
+                          context,
+                          ReportDetailScreen(report: report),
+                        ),
                       ),
                     ),
                 ],
@@ -195,7 +224,7 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) => Semantics(
     header: true,
     child: Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+      padding: const EdgeInsets.fromLTRB(0, AldiaSpace.l, 0, AldiaSpace.s),
       child: Text(title, style: Theme.of(context).textTheme.titleMedium),
     ),
   );
@@ -232,9 +261,9 @@ class _LocalCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final category = categoryId == null ? null : categoryById(categoryId!);
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      margin: const EdgeInsets.only(bottom: AldiaSpace.s),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(AldiaSpace.m),
         child: Semantics(
           container: true,
           child: Column(
@@ -280,19 +309,10 @@ class _EmptyState extends StatelessWidget {
   final VoidCallback onStart;
 
   @override
-  Widget build(BuildContext context) => Center(
-    child: SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.add_a_photo_outlined, size: 48),
-          const SizedBox(height: 12),
-          const Text(S.emptyMine, textAlign: TextAlign.center),
-          const SizedBox(height: 16),
-          FilledButton(onPressed: onStart, child: const Text(S.firstReport)),
-        ],
-      ),
-    ),
+  Widget build(BuildContext context) => EmptyState(
+    icon: Icons.add_a_photo_outlined,
+    title: S.emptyMine,
+    actionLabel: S.firstReport,
+    onAction: onStart,
   );
 }

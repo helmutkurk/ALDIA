@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../../core/categories.dart';
 import '../../core/config.dart';
 import '../../core/strings.dart';
+import '../../core/theme.dart';
 import '../../data/report_repository.dart';
 import '../../services/connectivity_service.dart';
 import '../../services/location_service.dart';
@@ -117,22 +118,15 @@ class _FlowViewState extends State<_FlowView> with WidgetsBindingObserver {
                 if (!result) ...[
                   Text(
                     S.stepProgress(c.step.index + 1, FlowStep.values.length),
+                    style: Theme.of(context).textTheme.labelLarge,
                   ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 4,
-                    children: [
-                      for (final step in FlowStep.values)
-                        Text(
-                          _title(step),
-                          style: TextStyle(
-                            fontWeight: step == c.step
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                          ),
-                        ),
-                    ],
+                  const SizedBox(height: AldiaSpace.s),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      minHeight: 6,
+                      value: (c.step.index + 1) / FlowStep.values.length,
+                    ),
                   ),
                   const SizedBox(height: 16),
                 ],
@@ -429,28 +423,77 @@ class _CategoryStep extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       const Text(S.chooseCategory),
-      const SizedBox(height: 8),
+      const SizedBox(height: AldiaSpace.m),
       for (final category in reportCategories)
         Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Semantics(
+          padding: const EdgeInsets.only(bottom: AldiaSpace.s),
+          child: _CategoryRow(
+            category: category,
             selected: controller.categoryId == category.id,
-            child: OutlinedButton(
-              onPressed: () => controller.setCategory(category.id),
+            onTap: () => controller.setCategory(category.id),
+          ),
+        ),
+    ],
+  );
+}
+
+/// Large selectable row: icon, label and a check when chosen.
+class _CategoryRow extends StatelessWidget {
+  const _CategoryRow({
+    required this.category,
+    required this.selected,
+    required this.onTap,
+  });
+  final ReportCategory category;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: Material(
+        color: selected
+            ? scheme.primaryContainer
+            : scheme.surfaceContainerLowest,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(
+            color: selected ? scheme.primary : scheme.outlineVariant,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 64),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AldiaSpace.l,
+                vertical: AldiaSpace.m,
+              ),
               child: Row(
                 children: [
-                  Icon(category.icon),
-                  const SizedBox(width: 12),
-                  Expanded(child: Text(category.label)),
-                  if (controller.categoryId == category.id)
-                    const Icon(Icons.check_circle),
+                  Icon(category.icon, size: 28, color: scheme.primary),
+                  const SizedBox(width: AldiaSpace.l),
+                  Expanded(
+                    child: Text(
+                      category.label,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                  if (selected) Icon(Icons.check_circle, color: scheme.primary),
                 ],
               ),
             ),
           ),
         ),
-    ],
-  );
+      ),
+    );
+  }
 }
 
 class _DuplicatesStep extends StatelessWidget {

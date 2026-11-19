@@ -14,6 +14,56 @@ String statusLabel(String status) => switch (status) {
 String reportStatusLabel(Report report) =>
     '${statusLabel(report.status)}${report.verification?.isStub == true ? ' (prueba)' : ''}';
 
+/// Compact state label for cards and pins: icon plus text on a tonal fill
+/// (never color alone). Wraps to two lines instead of overflowing.
+class StateChip extends StatelessWidget {
+  const StateChip({super.key, required this.state});
+  final String? state;
+
+  @override
+  Widget build(BuildContext context) {
+    final info = citizenStateFor(state);
+    final scheme = Theme.of(context).colorScheme;
+    final (background, foreground) = switch (state) {
+      'resuelto' => (scheme.primaryContainer, scheme.onPrimaryContainer),
+      'rechazado_verificador' => (
+        scheme.errorContainer,
+        scheme.onErrorContainer,
+      ),
+      'en_proceso' ||
+      'programado' ||
+      'en_revision' => (scheme.secondaryContainer, scheme.onSecondaryContainer),
+      _ => (scheme.surfaceContainerHighest, scheme.onSurfaceVariant),
+    };
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(AldiaSpace.xl),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AldiaSpace.s,
+          vertical: AldiaSpace.xs,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(info.icon, size: 16, color: foreground),
+            const SizedBox(width: AldiaSpace.xs),
+            Flexible(
+              child: Text(
+                info.label,
+                style: Theme.of(context).textTheme.labelMedium
+                    ?.copyWith(color: foreground),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// State as icon plus text (never color alone).
 class CitizenStateChip extends StatelessWidget {
   const CitizenStateChip({super.key, required this.state});
@@ -83,8 +133,8 @@ class ChecksList extends StatelessWidget {
                       ? Icons.check_circle_outline
                       : Icons.info_outline,
                   color: check.passed
-                      ? AldiaColors.primaryDark
-                      : AldiaColors.danger,
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.error,
                 ),
                 const SizedBox(width: 12),
                 Expanded(

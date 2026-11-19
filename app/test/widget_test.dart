@@ -47,17 +47,8 @@ void main() {
     await tester.tap(find.text(S.newReport));
     await tester.pumpAndSettle();
 
-    // The step list is shown in order; the current step is also the heading.
-    for (final title in [
-      S.stepPhoto,
-      S.stepLocation,
-      S.stepCategory,
-      S.stepDuplicates,
-      S.stepNote,
-      S.stepReview,
-    ]) {
-      expect(find.text(title), findsWidgets);
-    }
+    // One heading and a progress line instead of the full step list.
+    expect(find.text(S.stepPhoto), findsOneWidget);
     expect(find.text(S.stepProgress(1, 6)), findsOneWidget);
     expect(find.text(S.takePhoto), findsOneWidget);
   });

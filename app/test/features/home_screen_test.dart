@@ -69,7 +69,7 @@ void main() {
     await tester.pumpAndSettle();
     final before = clusters.calls;
 
-    await tester.tap(find.text(S.filtersLabel));
+    await tester.tap(find.byTooltip(S.filtersLabel));
     await tester.pumpAndSettle();
     await tester.tap(find.byType(DropdownButtonFormField<String?>).first);
     await tester.pumpAndSettle();

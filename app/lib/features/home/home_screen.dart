@@ -13,6 +13,7 @@ import '../../core/theme.dart';
 import '../../data/clusters_api.dart';
 import '../../data/report.dart';
 import '../../data/report_repository.dart';
+import '../../widgets/empty_state.dart';
 import '../../widgets/report_tile.dart';
 import '../../widgets/routes.dart';
 import '../detail/report_detail_screen.dart';
@@ -21,7 +22,7 @@ import '../drafts/draft_store.dart';
 import '../mine/my_reports_screen.dart';
 import '../report/report_flow_screen.dart';
 
-enum _View { map, list }
+enum _Tab { map, list, mine }
 
 /// States a citizen can filter by (`oculto` is never public).
 final List<String> _filterStates = [
@@ -38,7 +39,10 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  _View _view = _View.map;
+  _Tab _tab = _Tab.map;
+  // Tabs are built on first visit and then kept (map camera, scroll position).
+  final _visited = <_Tab>{_Tab.map};
+  int _mineToken = 0;
   String? _state;
   String? _category;
   DraftRecord? _draft;
@@ -75,8 +79,17 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _startReport([DraftRecord? draft]) async {
     await AldiaRoute.open<void>(context, ReportFlowScreen(draft: draft));
     if (!mounted) return;
+    setState(() => _mineToken++);
     _reload();
     unawaited(_loadDraft());
+  }
+
+  void _clearFilters() {
+    setState(() {
+      _state = null;
+      _category = null;
+      _list = _loadList();
+    });
   }
 
   Future<void> _editFilters() async {
@@ -94,86 +107,95 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  Widget _body(_Tab tab) {
+    if (!_visited.contains(tab)) return const SizedBox.shrink();
+    return switch (tab) {
+      _Tab.map => _MapView(state: _state, category: _category, onOpen: _open),
+      _Tab.list => _ReportList(
+        future: _list,
+        filtered: _filtered,
+        onOpen: _open,
+        onRetry: _reload,
+        onClear: _clearFilters,
+      ),
+      _Tab.mine => MyReportsScreen(embedded: true, reloadToken: _mineToken),
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
+    final filterCount = (_state != null ? 1 : 0) + (_category != null ? 1 : 0);
     return Scaffold(
       appBar: AppBar(
         title: const Text(S.appName),
         actions: [
-          IconButton(
-            tooltip: S.myReports,
-            icon: const Icon(Icons.person_outline),
-            onPressed: () =>
-                AldiaRoute.open<void>(context, const MyReportsScreen()),
-          ),
+          if (_tab != _Tab.mine)
+            IconButton(
+              tooltip: S.filtersLabel,
+              onPressed: _editFilters,
+              icon: Badge(
+                isLabelVisible: _filtered,
+                label: Text('$filterCount'),
+                child: const Icon(Icons.filter_list),
+              ),
+            ),
         ],
       ),
       body: Column(
         children: [
-          ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(context).height * 0.4,
-            ),
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-                    child: SegmentedButton<_View>(
-                      segments: const [
-                        ButtonSegment(
-                          value: _View.map,
-                          icon: Icon(Icons.map),
-                          label: Text(S.navMap),
-                        ),
-                        ButtonSegment(
-                          value: _View.list,
-                          icon: Icon(Icons.list),
-                          label: Text(S.navList),
-                        ),
-                      ],
-                      selected: {_view},
-                      onSelectionChanged: (s) =>
-                          setState(() => _view = s.first),
-                    ),
-                  ),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton.icon(
-                      onPressed: _editFilters,
-                      icon: const Icon(Icons.filter_list),
-                      label: Text(
-                        _filtered
-                            ? '${S.filtersLabel} (${(_state != null ? 1 : 0) + (_category != null ? 1 : 0)})'
-                            : S.filtersLabel,
-                      ),
-                    ),
-                  ),
-                  if (_draft case final draft?)
-                    _DraftBanner(
-                      draft: draft,
-                      onTap: () => _startReport(draft),
-                    ),
-                ],
+          if (_draft case final draft? when _tab != _Tab.mine)
+            // Capped so it never pushes the map or list off screen at 200 % text.
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(context).height * 0.3,
+              ),
+              child: SingleChildScrollView(
+                child: _DraftBanner(
+                  draft: draft,
+                  onTap: () => _startReport(draft),
+                ),
               ),
             ),
-          ),
           Expanded(
-            child: _view == _View.map
-                ? _MapView(state: _state, category: _category, onOpen: _open)
-                : _ReportList(
-                    future: _list,
-                    filtered: _filtered,
-                    onOpen: _open,
-                    onRetry: _reload,
-                  ),
+            child: IndexedStack(
+              index: _tab.index,
+              children: [for (final tab in _Tab.values) _body(tab)],
+            ),
           ),
         ],
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _startReport,
         icon: const Icon(Icons.add_a_photo),
         label: const Text(S.newReport),
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _tab.index,
+        animationDuration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 500),
+        onDestinationSelected: (i) => setState(() {
+          _tab = _Tab.values[i];
+          _visited.add(_tab);
+        }),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.map_outlined),
+            selectedIcon: Icon(Icons.map),
+            label: S.navMap,
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.view_list_outlined),
+            selectedIcon: Icon(Icons.view_list),
+            label: S.navList,
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: S.myReports,
+          ),
+        ],
       ),
     );
   }
@@ -192,21 +214,29 @@ class _DraftBanner extends StatelessWidget {
     final category = draft.categoryId == null
         ? null
         : categoryById(draft.categoryId!).label;
-    return Card(
-      margin: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-      child: ListTile(
-        minTileHeight: 56,
-        leading: const Icon(Icons.edit_note),
-        title: const Text(S.continueDraft),
-        subtitle: Text(
-          [
-            S.draftBannerHelp,
-            ?category,
-            S.age(draft.createdAt, DateTime.now()),
-          ].join(' · '),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AldiaSpace.l,
+        AldiaSpace.s,
+        AldiaSpace.l,
+        0,
+      ),
+      child: Card(
+        color: Theme.of(context).colorScheme.secondaryContainer,
+        child: ListTile(
+          minTileHeight: 56,
+          leading: const Icon(Icons.edit_note),
+          title: const Text(S.continueDraft),
+          subtitle: Text(
+            [
+              S.draftBannerHelp,
+              ?category,
+              S.age(draft.createdAt, DateTime.now()),
+            ].join(' · '),
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: onTap,
         ),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: onTap,
       ),
     );
   }
@@ -298,12 +328,14 @@ class _ReportList extends StatelessWidget {
     required this.filtered,
     required this.onOpen,
     required this.onRetry,
+    required this.onClear,
   });
 
   final Future<List<Report>> future;
   final bool filtered;
   final void Function(Report) onOpen;
   final VoidCallback onRetry;
+  final VoidCallback onClear;
 
   @override
   Widget build(BuildContext context) {
@@ -314,27 +346,39 @@ class _ReportList extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(S.loadError),
-                TextButton(onPressed: onRetry, child: const Text(S.retry)),
-              ],
-            ),
+          return EmptyState(
+            icon: Icons.cloud_off,
+            title: S.loadError,
+            actionLabel: S.retry,
+            onAction: onRetry,
           );
         }
         final reports = snapshot.data!;
         if (reports.isEmpty) {
-          return Center(
-            child: Text(filtered ? S.emptyFiltered : S.emptyNearby),
-          );
+          return filtered
+              ? EmptyState(
+                  icon: Icons.filter_list_off,
+                  title: S.emptyFiltered,
+                  actionLabel: S.clearFilters,
+                  onAction: onClear,
+                )
+              : const EmptyState(
+                  icon: Icons.map_outlined,
+                  title: S.emptyNearby,
+                  help: S.emptyNearbyHelp,
+                );
         }
         return RefreshIndicator(
           onRefresh: () async => onRetry(),
-          child: ListView.builder(
-            padding: const EdgeInsets.only(bottom: 88),
+          child: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(
+              AldiaSpace.l,
+              AldiaSpace.s,
+              AldiaSpace.l,
+              AldiaSpace.fabClearance,
+            ),
             itemCount: reports.length,
+            separatorBuilder: (_, _) => const SizedBox(height: AldiaSpace.s),
             itemBuilder: (context, i) =>
                 ReportTile(report: reports[i], onTap: () => onOpen(reports[i])),
           ),
@@ -451,7 +495,7 @@ class _MapViewState extends State<_MapView> {
 
         return SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(AldiaSpace.l),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [

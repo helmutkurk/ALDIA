@@ -83,7 +83,7 @@ void _tall(WidgetTester tester) {
 }
 
 Future<void> _openMine(WidgetTester tester) async {
-  await tester.tap(find.byTooltip(S.myReports));
+  await tester.tap(find.text(S.myReports));
   await tester.pumpAndSettle();
 }
 
