@@ -73,7 +73,7 @@ Append one block per iteration to `documentation/log/<hostname>.md`: time, item,
 - **Isabel's `dashboard` branch** adds a little our portal lacks: statistics logic (median repair time per category, frequency by category
   split fixed/open/closed, per-zone table), chart tooltips with a "see table" alternative, KPI ideas and demo data. Everything else is
   already implemented on develop. Decision: port those pieces as contract v0.3 (she stays author of the ported commit), tell her, and
-  delete the branch only after the port is merged **and** Helmut writes "Isabel OK" in the log.
+  delete the branch only after the port is merged. **Helmut approved this on 2026-11-19 21:10** (he will tell Isabel; the port keeps her as commit author).
 - Real staff login and phone-code login are queued after the first end-to-end run, with a fake SMS provider (nothing real is sent).
 
 ## Roles
@@ -100,6 +100,10 @@ Append one block per iteration to `documentation/log/<hostname>.md`: time, item,
 | 6 | `job-phone-login.md`: phone-code login with a fake provider, API and app | backend/api, app | queued |
 | 7 | `job-postgres.md`: run migrations and seed on PostgreSQL without Docker if possible | backend/api | queued |
 | 8 | Browser verification of the portal vs the reference captures (Claude + Chrome) | portal | after 23:20 |
+| 9 | `job-mobile-release-ready.md` (replaces 3): everything for Android and iOS releases that does not depend on accounts: debug APK/AAB artifact in CI, Linux build check, release signing wired to CI secrets (placeholders, no real keys), `documentation/mobile-release.md` with the exact Play Console / TestFlight steps, iOS bundle id, Info.plist, Podfile, export options, app icons and splash assets generated in code, store listing text in Spanish. What stays for Helmut: create the Android keystore, the Apple team and certificates, and the store accounts | app, .github, documentation | queued |
+| 10 | Quality pass with the Cursor skill `hks-thermo-nuclear-code-quality-review` (`~/.local/share/agent-skills/cursor-plugins/`), one job per area (api, verifier, portal, app), 2 in parallel: Reader (terra) writes the audit using that skill's standards, Builder (sol) applies only behavior-preserving restructurings, checks stay green, no file crosses 1000 lines | all four | after jobs 1-7, or earlier if the queue is empty |
+| 11 | Notion hand-off: close the old tasks (Done) and create new ones per person from their roles (Notion MCP, Claude or `[sonnet-ok]` subagent; creation is allowed until 2026-11-22 on the free plan); add a status page (what exists, how to run it, what each person does next) | Notion | last |
+| 12 | Delete `origin/dashboard` after the v0.3 port is merged; final release PR `develop` → `main` with green CI; update `documentation/team-update.md` (message for the team: state of the code, how to start, next tasks) and send the summary | repo | last |
 
 Order rule: finish 1 and 2 first; run 3 and 4 in parallel next; then 5 and 6; 7 whenever a slot is free. After each job: the
 orchestrator runs the checks of the touched areas, commits on develop, pushes, appends the log.
