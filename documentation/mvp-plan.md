@@ -61,3 +61,52 @@ staff access is a shared provisional token.
 ## Log
 
 Append one block per iteration to `documentation/log/<hostname>.md`: time, item, what changed, commit hash, what is next.
+
+## Decisions taken (2026-11-19, 21:00)
+
+- **Everything runs on the main laptop tonight** (the Dell is not used). Codex quota was reset by Helmut at 20:50 (5 h window until 01:51):
+  all code work goes to Codex until Claude's window resets at 23:20. Claude then orchestrates, verifies in a real browser and reviews.
+- **Phone:** Android only tonight. Plan: CI builds a debug APK as a downloadable artifact (no Android SDK on this laptop) and Helmut
+  installs it on his phone; the same CI job also checks the Linux desktop build. **iOS is not possible tonight** (needs a Mac with Xcode;
+  TestFlight needs a paid Apple developer account).
+- **Portal and backend** run on any computer: `make dev-all` (no Docker) or `make up` (Docker). Not yet verified end to end.
+- **Isabel's `dashboard` branch** adds a little our portal lacks: statistics logic (median repair time per category, frequency by category
+  split fixed/open/closed, per-zone table), chart tooltips with a "see table" alternative, KPI ideas and demo data. Everything else is
+  already implemented on develop. Decision: port those pieces as contract v0.3 (she stays author of the ported commit), tell her, and
+  delete the branch only after the port is merged **and** Helmut writes "Isabel OK" in the log.
+- Real staff login and phone-code login are queued after the first end-to-end run, with a fake SMS provider (nothing real is sent).
+
+## Roles
+
+| Role | Who | Does |
+|---|---|---|
+| Orchestrator | this Claude session (loop) | reads this plan, picks the next job, writes briefs, commits, merges, keeps the log, decides |
+| Builder | Codex `gpt-6.1-sol` high (terminal) | all code and investigation jobs; max 2 in parallel on disjoint folders |
+| Reader | Codex `gpt-6.1-terra` high | read-only review of diffs, security and contract checks |
+| Quick fixer | Codex `gpt-6.1-luna` | mechanical edits, formatting, small renames |
+| Verifier | Claude with the Chrome extension (after 23:20) | drives the portal in a real browser, screenshots, finds UI bugs, compares with the reference captures |
+| Reviewer | Opus | final review before a release PR |
+| Subagents (Claude, `[sonnet-ok]`) | only when Codex is out or the task needs Notion/Chrome tools | Notion edits, browser checks |
+
+## Job queue (briefs in `documentation/prompts/`)
+
+| # | Job | Folders | Status |
+|---|---|---|---|
+| 1 | `job-dev-local.md`: one-command local stack + smoke script + fixes | scripts, backend, portal | running (Codex) |
+| 2 | `job-app-ui-parity.md`: app UI parity + Linux desktop run | app | running (Codex) |
+| 3 | `job-android-apk-ci.md`: CI job that builds a debug APK artifact and the Linux build | .github, app | queued |
+| 4 | `job-stats-v03.md`: contract v0.3 stats from the harvest + portal charts (with "ver tabla") | backend/api, portal | queued |
+| 5 | `job-staff-auth.md`: real staff users, roles, session cookie | backend/api, portal | queued |
+| 6 | `job-phone-login.md`: phone-code login with a fake provider, API and app | backend/api, app | queued |
+| 7 | `job-postgres.md`: run migrations and seed on PostgreSQL without Docker if possible | backend/api | queued |
+| 8 | Browser verification of the portal vs the reference captures (Claude + Chrome) | portal | after 23:20 |
+
+Order rule: finish 1 and 2 first; run 3 and 4 in parallel next; then 5 and 6; 7 whenever a slot is free. After each job: the
+orchestrator runs the checks of the touched areas, commits on develop, pushes, appends the log.
+
+## Goals by hour (targets)
+
+- 21:00-23:20: jobs 1, 2 (then 3, 4) with Codex.
+- 23:20-01:51: Claude window 2: browser verification (job 8), fixes, jobs 5 and 6 reviewed, release PR to main if CI is green.
+- 01:51-07:00: Codex window 2 and Claude window 3: jobs 6, 7, polish from the browser findings, final release PR `develop` → `main`.
+- 07:00: summary in the log and by email (`hks-ausente`); `main` = `develop`.
