@@ -1,169 +1,352 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/categories.dart';
 import '../../core/config.dart';
 import '../../core/strings.dart';
 import '../../data/report_repository.dart';
+import '../../services/connectivity_service.dart';
 import '../../services/location_service.dart';
 import '../../services/photo_service.dart';
+import '../../widgets/report_tile.dart';
 import '../../widgets/status_chips.dart';
+import '../detail/report_detail_screen.dart';
+import '../drafts/draft_record.dart';
+import '../drafts/draft_store.dart';
+import '../outbox/outbox_service.dart';
 import 'report_flow_controller.dart';
 
-/// Four steps (SeeClickFix flow): location, category, live photo, note.
 class ReportFlowScreen extends StatelessWidget {
-  const ReportFlowScreen({super.key});
+  const ReportFlowScreen({super.key, this.draft});
+  final DraftRecord? draft;
 
   @override
-  Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (context) => ReportFlowController(
+  Widget build(BuildContext context) => ChangeNotifierProvider(
+    create: (context) {
+      final controller = ReportFlowController(
         repository: context.read<ReportRepository>(),
         location: context.read<LocationService>(),
         photos: context.read<PhotoService>(),
-      )..useMyLocation(),
-      child: const _FlowView(),
-    );
-  }
+        drafts: context.read<DraftStore?>(),
+        outbox: context.read<OutboxService?>(),
+        connectivity: context.read<ConnectivityService?>(),
+      );
+      if (draft != null) unawaited(controller.restore(draft!));
+      return controller;
+    },
+    child: const _FlowView(),
+  );
 }
 
-class _FlowView extends StatelessWidget {
+class _FlowView extends StatefulWidget {
   const _FlowView();
+  @override
+  State<_FlowView> createState() => _FlowViewState();
+}
+
+class _FlowViewState extends State<_FlowView> with WidgetsBindingObserver {
+  final _heading = FocusNode();
+  ReportFlowController? _controller;
+  String? _lastHeading;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _controller ??= context.read<ReportFlowController>()
+      ..addListener(_focusHeading);
+  }
+
+  void _focusHeading() {
+    final c = _controller!;
+    final key = '${c.step.name}:${c.submitState.name}';
+    if (_lastHeading == key) return;
+    _lastHeading = key;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _heading.requestFocus();
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_controller?.checkPhotoIntegrity());
+    } else {
+      unawaited(_controller?.saveDraft());
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _controller?.removeListener(_focusHeading);
+    unawaited(_controller?.saveDraft());
+    _heading.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final c = context.watch<ReportFlowController>();
+    _focusHeading();
+    final outcome = c.submitState;
+    final result =
+        outcome == SubmitState.done ||
+        outcome == SubmitState.queued ||
+        outcome == SubmitState.manualSaved ||
+        outcome == SubmitState.followed;
     return Scaffold(
       appBar: AppBar(title: const Text(S.newReport)),
-      body: switch (c.submitState) {
-        SubmitState.done => _ResultView(controller: c),
-        SubmitState.sending => const Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text(S.sending),
-            ],
+      body: SafeArea(
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 680),
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                if (!result) ...[
+                  Text(
+                    S.stepProgress(c.step.index + 1, FlowStep.values.length),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 4,
+                    children: [
+                      for (final step in FlowStep.values)
+                        Text(
+                          _title(step),
+                          style: TextStyle(
+                            fontWeight: step == c.step
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                Focus(
+                  focusNode: _heading,
+                  child: Semantics(
+                    header: true,
+                    child: Text(
+                      result ? _resultTitle(c) : _title(c.step),
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (c.storageError) const _Notice(S.storageError),
+                if (outcome == SubmitState.sending) ...[
+                  const LinearProgressIndicator(),
+                  const SizedBox(height: 16),
+                  const Text(S.sending),
+                ] else if (result)
+                  _ResultView(controller: c)
+                else ...[
+                  switch (c.step) {
+                    FlowStep.photo => _PhotoStep(controller: c),
+                    FlowStep.location => _LocationStep(controller: c),
+                    FlowStep.category => _CategoryStep(controller: c),
+                    FlowStep.duplicates => _DuplicatesStep(controller: c),
+                    FlowStep.note => _NoteStep(controller: c),
+                    FlowStep.review => _ReviewStep(controller: c),
+                  },
+                  if (c.submitState == SubmitState.failed)
+                    const _Notice(S.sendError),
+                  const SizedBox(height: 20),
+                  if (c.lookingForDuplicates) const LinearProgressIndicator(),
+                  if (c.step.index > 0)
+                    OutlinedButton(
+                      onPressed: c.back,
+                      child: const Text(S.back),
+                    ),
+                  const SizedBox(height: 8),
+                  FilledButton(
+                    onPressed: c.canAdvance
+                        ? (c.isLastStep ? c.submit : c.next)
+                        : null,
+                    child: Text(
+                      c.isLastStep
+                          ? S.send
+                          : c.step == FlowStep.photo
+                          ? S.usePhoto
+                          : c.step == FlowStep.location
+                          ? S.confirmLocation
+                          : c.step == FlowStep.duplicates
+                          ? S.differentProblem
+                          : S.next,
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
-        _ => _Steps(controller: c),
-      },
+      ),
     );
   }
 }
 
-class _Steps extends StatelessWidget {
-  const _Steps({required this.controller});
+String _title(FlowStep step) => switch (step) {
+  FlowStep.photo => S.stepPhoto,
+  FlowStep.location => S.stepLocation,
+  FlowStep.category => S.stepCategory,
+  FlowStep.duplicates => S.stepDuplicates,
+  FlowStep.note => S.stepNote,
+  FlowStep.review => S.stepReview,
+};
 
-  final ReportFlowController controller;
+String _resultTitle(ReportFlowController c) => switch (c.submitState) {
+  SubmitState.queued => S.waitingNetwork,
+  SubmitState.manualSaved => S.draft,
+  SubmitState.followed => S.following,
+  _ => switch (c.result?.status) {
+    'verified' =>
+      '${S.resultVerified}${c.result?.verification?.isStub == true ? ' (prueba)' : ''}',
+    'rejected' =>
+      '${S.resultRejected}${c.result?.verification?.isStub == true ? ' (prueba)' : ''}',
+    _ => S.resultPending,
+  },
+};
 
+class _Notice extends StatelessWidget {
+  const _Notice(this.text);
+  final String text;
   @override
-  Widget build(BuildContext context) {
-    final c = controller;
-    return Stepper(
-      currentStep: c.step.index,
-      physics: const ClampingScrollPhysics(),
-      controlsBuilder: (context, details) => Padding(
-        padding: const EdgeInsets.only(top: 16),
-        child: Column(
-          children: [
-            if (c.submitState == SubmitState.failed)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 8),
-                child: Text(S.sendError, style: TextStyle(color: Colors.red)),
-              ),
-            Row(
-              children: [
-                if (c.step.index > 0)
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: c.back,
-                      child: const Text(S.back),
-                    ),
-                  ),
-                if (c.step.index > 0) const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: c.canAdvance
-                        ? (c.isLastStep ? c.submit : c.next)
-                        : null,
-                    child: Text(c.isLastStep ? S.send : S.next),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-      steps: [
-        Step(
-          title: const Text(S.stepLocation),
-          isActive: c.step == FlowStep.location,
-          state: c.locationConfirmed ? StepState.complete : StepState.indexed,
-          content: _LocationStep(controller: c),
-        ),
-        Step(
-          title: const Text(S.stepCategory),
-          isActive: c.step == FlowStep.category,
-          state: c.categoryId != null ? StepState.complete : StepState.indexed,
-          content: _CategoryStep(controller: c),
-        ),
-        Step(
-          title: const Text(S.stepPhoto),
-          isActive: c.step == FlowStep.photo,
-          state: c.photo != null ? StepState.complete : StepState.indexed,
-          content: _PhotoStep(controller: c),
-        ),
-        Step(
-          title: const Text(S.stepNote),
-          isActive: c.step == FlowStep.note,
-          content: _NoteStep(controller: c),
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.info_outline),
+        const SizedBox(width: 8),
+        Expanded(child: Text(text)),
+      ],
+    ),
+  );
+}
+
+class _PhotoStep extends StatelessWidget {
+  const _PhotoStep({required this.controller});
+  final ReportFlowController controller;
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const Text(S.photoRequired),
+      if (controller.missingPhoto) const _Notice(S.missingPhoto),
+      if (controller.photoError) const _Notice(S.photoError),
+      if (controller.photo != null) ...[
+        const SizedBox(height: 12),
+        Image.memory(
+          controller.photo!.bytes,
+          height: 220,
+          fit: BoxFit.contain,
+          semanticLabel: S.photoAlternative,
+          errorBuilder: (_, _, _) =>
+              const Icon(Icons.broken_image, semanticLabel: S.imageReason),
         ),
       ],
-    );
-  }
+      const SizedBox(height: 12),
+      OutlinedButton.icon(
+        onPressed: controller.takePhoto,
+        icon: const Icon(Icons.camera_alt),
+        label: Text(controller.photo == null ? S.takePhoto : S.retakePhoto),
+      ),
+    ],
+  );
 }
 
 class _LocationStep extends StatefulWidget {
   const _LocationStep({required this.controller});
-
   final ReportFlowController controller;
-
   @override
   State<_LocationStep> createState() => _LocationStepState();
 }
 
 class _LocationStepState extends State<_LocationStep> {
-  final MapController _mapController = MapController();
+  final _map = MapController();
+  late final TextEditingController _lat;
+  late final TextEditingController _lon;
+  bool _invalid = false;
+  @override
+  void initState() {
+    super.initState();
+    _lat = TextEditingController(
+      text: '${widget.controller.position.latitude}',
+    );
+    _lon = TextEditingController(
+      text: '${widget.controller.position.longitude}',
+    );
+  }
 
   @override
   void didUpdateWidget(covariant _LocationStep oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Keep the map centered on the point after "use my location".
-    if (widget.controller.locationConfirmed) {
-      _mapController.move(widget.controller.position, 16);
-    }
+    _map.move(widget.controller.position, _map.camera.zoom);
+    _lat.text = '${widget.controller.position.latitude}';
+    _lon.text = '${widget.controller.position.longitude}';
+  }
+
+  @override
+  void dispose() {
+    _map.dispose();
+    _lat.dispose();
+    _lon.dispose();
+    super.dispose();
+  }
+
+  void _apply() {
+    final lat = double.tryParse(_lat.text);
+    final lon = double.tryParse(_lon.text);
+    setState(
+      () => _invalid =
+          lat == null ||
+          lon == null ||
+          !lat.isFinite ||
+          !lon.isFinite ||
+          lat.abs() > 90 ||
+          lon.abs() > 180,
+    );
+    if (!_invalid) widget.controller.setPosition(LatLng(lat!, lon!));
   }
 
   @override
   Widget build(BuildContext context) {
     final c = widget.controller;
+    final issue = switch (c.locationIssue) {
+      LocationIssue.denied => S.locationDenied,
+      LocationIssue.deniedForever => S.locationDeniedForever,
+      LocationIssue.serviceOff => S.locationServiceOff,
+      LocationIssue.unavailable => S.locationUnavailable,
+      null => null,
+    };
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const Text(S.locationHint),
         const SizedBox(height: 8),
         SizedBox(
           height: 260,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
+          child: Semantics(
+            label: S.pinAlternative,
             child: FlutterMap(
-              mapController: _mapController,
+              mapController: _map,
               options: MapOptions(
                 initialCenter: c.position,
-                initialZoom: AppConfig.defaultZoom + 2,
+                initialZoom: 16,
                 onTap: (_, point) => c.setPosition(point),
               ),
               children: [
@@ -172,17 +355,27 @@ class _LocationStepState extends State<_LocationStep> {
                   tileProvider: context.read<TileProvider>(),
                   userAgentPackageName: AppConfig.userAgentPackage,
                 ),
+                if (c.accuracy != null && c.gpsPosition != null)
+                  CircleLayer(
+                    circles: [
+                      CircleMarker(
+                        point: c.gpsPosition!,
+                        radius: c.accuracy!,
+                        useRadiusInMeter: true,
+                        color: Theme.of(context).colorScheme.primary
+                            .withValues(alpha: .15),
+                        borderColor: Theme.of(context).colorScheme.primary,
+                        borderStrokeWidth: 2,
+                      ),
+                    ],
+                  ),
                 MarkerLayer(
                   markers: [
                     Marker(
                       point: c.position,
-                      width: 40,
-                      height: 40,
-                      child: const Icon(
-                        Icons.location_pin,
-                        size: 40,
-                        color: Colors.red,
-                      ),
+                      width: 48,
+                      height: 48,
+                      child: const Icon(Icons.location_pin, size: 48),
                     ),
                   ],
                 ),
@@ -190,13 +383,39 @@ class _LocationStepState extends State<_LocationStep> {
             ),
           ),
         ),
-        const SizedBox(height: 8),
+        if (c.locating) const _Notice(S.locating),
+        if (issue != null) _Notice(issue),
+        if (c.locationIssue == LocationIssue.deniedForever)
+          OutlinedButton(
+            onPressed: c.openLocationSettings,
+            child: const Text(S.openSettings),
+          ),
+        if (c.accuracy != null) Text(S.accuracy(c.accuracy!)),
+        if ((c.accuracy ?? 0) > 50) const _Notice(S.poorAccuracy),
         TextButton.icon(
-          onPressed: c.useMyLocation,
+          onPressed: c.locating ? null : c.useMyLocation,
           icon: const Icon(Icons.my_location),
           label: const Text(S.useMyLocation),
         ),
-        if (c.locationDenied) const Text(S.locationDenied),
+        const Text(S.confirmPinHint),
+        TextField(
+          controller: _lat,
+          decoration: const InputDecoration(labelText: S.latitude),
+          keyboardType: const TextInputType.numberWithOptions(
+            signed: true,
+            decimal: true,
+          ),
+        ),
+        TextField(
+          controller: _lon,
+          decoration: const InputDecoration(labelText: S.longitude),
+          keyboardType: const TextInputType.numberWithOptions(
+            signed: true,
+            decimal: true,
+          ),
+        ),
+        if (_invalid) const _Notice(S.coordinatesInvalid),
+        TextButton(onPressed: _apply, child: const Text(S.applyCoordinates)),
       ],
     );
   }
@@ -204,131 +423,281 @@ class _LocationStepState extends State<_LocationStep> {
 
 class _CategoryStep extends StatelessWidget {
   const _CategoryStep({required this.controller});
-
   final ReportFlowController controller;
-
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(S.chooseCategory),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final category in reportCategories)
-              ChoiceChip(
-                avatar: Icon(category.icon, size: 18),
-                label: Text(category.label),
-                selected: controller.categoryId == category.id,
-                onSelected: (_) => controller.setCategory(category.id),
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const Text(S.chooseCategory),
+      const SizedBox(height: 8),
+      for (final category in reportCategories)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Semantics(
+            selected: controller.categoryId == category.id,
+            child: OutlinedButton(
+              onPressed: () => controller.setCategory(category.id),
+              child: Row(
+                children: [
+                  Icon(category.icon),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(category.label)),
+                  if (controller.categoryId == category.id)
+                    const Icon(Icons.check_circle),
+                ],
               ),
-          ],
+            ),
+          ),
         ),
-      ],
-    );
-  }
+    ],
+  );
 }
 
-class _PhotoStep extends StatelessWidget {
-  const _PhotoStep({required this.controller});
-
+class _DuplicatesStep extends StatelessWidget {
+  const _DuplicatesStep({required this.controller});
   final ReportFlowController controller;
-
   @override
-  Widget build(BuildContext context) {
-    final photo = controller.photo;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(S.photoRequired),
-        const SizedBox(height: 8),
-        if (photo != null)
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Image.memory(photo.bytes, height: 220, fit: BoxFit.cover),
+  Widget build(BuildContext context) => Column(
+    children: [
+      for (final report in controller.duplicates) ...[
+        ReportTile(
+          report: report,
+          onTap: () => showModalBottomSheet<void>(
+            context: context,
+            isScrollControlled: true,
+            builder: (_) => SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      categoryById(report.category).label,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    StatusChips(report: report),
+                    if (report.note != null) Text(report.note!),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (_) => ReportDetailScreen(report: report),
+                          ),
+                        );
+                      },
+                      child: const Text(S.viewDetail),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-        const SizedBox(height: 8),
-        OutlinedButton.icon(
-          onPressed: controller.takePhoto,
-          icon: const Icon(Icons.photo_camera),
-          label: Text(photo == null ? S.takePhoto : S.retakePhoto),
         ),
+        OutlinedButton(
+          onPressed: () => controller.follow(report),
+          child: const Text(S.followReport),
+        ),
+        const Divider(),
       ],
-    );
-  }
+    ],
+  );
 }
 
 class _NoteStep extends StatelessWidget {
   const _NoteStep({required this.controller});
-
   final ReportFlowController controller;
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      if (controller.photo != null)
+        Image.memory(
+          controller.photo!.bytes,
+          height: 90,
+          semanticLabel: S.photoAlternative,
+          errorBuilder: (_, _, _) => const Icon(Icons.photo),
+        ),
+      TextFormField(
+        initialValue: controller.note,
+        maxLength: AppConfig.maxNoteLength,
+        minLines: 3,
+        maxLines: 8,
+        onChanged: controller.setNote,
+        decoration: const InputDecoration(
+          labelText: S.noteLabel,
+          hintText: S.noteHint,
+          border: OutlineInputBorder(),
+        ),
+      ),
+    ],
+  );
+}
 
+class _ReviewStep extends StatelessWidget {
+  const _ReviewStep({required this.controller});
+  final ReportFlowController controller;
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      maxLength: AppConfig.maxNoteLength,
-      maxLines: 3,
-      decoration: const InputDecoration(
-        labelText: S.noteLabel,
-        hintText: S.noteHint,
-        border: OutlineInputBorder(),
-      ),
-      onChanged: controller.setNote,
+    final c = controller;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (c.photo != null)
+          Image.memory(
+            c.photo!.bytes,
+            height: 180,
+            semanticLabel: S.photoAlternative,
+            errorBuilder: (_, _, _) => const Icon(Icons.photo),
+          ),
+        TextButton(
+          onPressed: () => c.edit(FlowStep.photo),
+          child: const Text('${S.edit}: ${S.stepPhoto}'),
+        ),
+        Text(
+          '${c.position.latitude.toStringAsFixed(5)}, ${c.position.longitude.toStringAsFixed(5)}',
+        ),
+        TextButton(
+          onPressed: () => c.edit(FlowStep.location),
+          child: const Text('${S.edit}: ${S.stepLocation}'),
+        ),
+        Text(categoryById(c.categoryId!).label),
+        TextButton(
+          onPressed: () => c.edit(FlowStep.category),
+          child: const Text('${S.edit}: ${S.stepCategory}'),
+        ),
+        Text(c.note),
+        TextButton(
+          onPressed: () => c.edit(FlowStep.note),
+          child: const Text('${S.edit}: ${S.stepNote}'),
+        ),
+        Text(
+          S.uploadSize((c.photo?.bytes.length ?? 0) + 1024 + c.note.length * 4),
+        ),
+        const _Notice(S.publicPhotoNotice),
+      ],
     );
   }
 }
 
 class _ResultView extends StatelessWidget {
   const _ResultView({required this.controller});
-
   final ReportFlowController controller;
-
   @override
   Widget build(BuildContext context) {
-    final report = controller.result!;
-    final rejected = report.status == 'rejected';
-    final title = switch (report.status) {
-      'verified' => S.resultVerified,
-      'rejected' => S.resultRejected,
-      _ => S.resultPending,
-    };
-    return ListView(
-      padding: const EdgeInsets.all(16),
+    final c = controller;
+    final report = c.result;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Icon(
-          rejected ? Icons.error_outline : Icons.check_circle_outline,
-          size: 64,
-          color: statusColor(report.status),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          title,
-          style: Theme.of(context).textTheme.headlineSmall,
-          textAlign: TextAlign.center,
-        ),
-        if (rejected) ...[
-          const SizedBox(height: 8),
-          const Text(S.resultRejectedHelp, textAlign: TextAlign.center),
+        if (c.submitState == SubmitState.queued)
+          const _Notice(S.waitingNetworkHelp),
+        if (c.submitState == SubmitState.manualSaved)
+          const _Notice(S.manualSaved),
+        if (report != null) ...[
+          Text(S.reference(report.id)),
+          StatusChips(report: report),
+          if (report.status == 'pending') const _Notice(S.pendingHelp),
+          if (report.status == 'rejected') ...[
+            if (c.photo != null)
+              Stack(
+                children: [
+                  Image.memory(
+                    c.photo!.bytes,
+                    height: 140,
+                    semanticLabel: S.photoAlternative,
+                    errorBuilder: (_, _, _) => const Icon(Icons.photo),
+                  ),
+                  const Positioned(
+                    top: 0,
+                    right: 0,
+                    child: Icon(Icons.error, semanticLabel: S.resultRejected),
+                  ),
+                ],
+              ),
+            if (report.verification != null)
+              ChecksList(
+                verification: report.verification!,
+                category: categoryById(report.category).label,
+              ),
+            if (report.verification?.checks.any(
+                  (v) => v.name == 'duplicate' && !v.passed,
+                ) ==
+                true)
+              _DuplicateResult(controller: c),
+            OutlinedButton(
+              onPressed: c.retakePhoto,
+              child: const Text(S.retakePhoto),
+            ),
+            OutlinedButton(
+              onPressed: () => c.edit(FlowStep.category),
+              child: const Text(S.changeCategory),
+            ),
+            OutlinedButton(
+              onPressed: () => c.edit(FlowStep.location),
+              child: const Text(S.adjustLocation),
+            ),
+            if (c.canManualReview)
+              OutlinedButton(
+                onPressed: c.saveForManualReview,
+                child: const Text(S.manualReview),
+              ),
+          ],
         ],
-        if (report.verification != null) ...[
-          const SizedBox(height: 16),
-          ChecksList(verification: report.verification!),
-        ],
-        const SizedBox(height: 24),
-        if (rejected)
-          FilledButton(
-            onPressed: controller.retakePhoto,
-            child: const Text(S.retakePhoto),
-          ),
-        if (rejected) const SizedBox(height: 8),
-        OutlinedButton(
-          onPressed: () => Navigator.of(context).pop(),
+        const SizedBox(height: 16),
+        FilledButton(
+          onPressed: () => Navigator.pop(context),
           child: const Text(S.close),
         ),
       ],
     );
   }
+}
+
+class _DuplicateResult extends StatefulWidget {
+  const _DuplicateResult({required this.controller});
+  final ReportFlowController controller;
+  @override
+  State<_DuplicateResult> createState() => _DuplicateResultState();
+}
+
+class _DuplicateResultState extends State<_DuplicateResult> {
+  late final Future<List<dynamic>> _future;
+  @override
+  void initState() {
+    super.initState();
+    final c = widget.controller;
+    final repo = context.read<ReportRepository>();
+    _future = c.result?.duplicateOf != null
+        ? repo.get(c.result!.duplicateOf!).then((r) => [r])
+        : repo.duplicates(c.position, c.categoryId!);
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<List<dynamic>>(
+    future: _future,
+    builder: (context, snapshot) => Column(
+      children: [
+        for (final report in snapshot.data ?? [])
+          Column(
+            children: [
+              ReportTile(
+                report: report,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => ReportDetailScreen(report: report),
+                  ),
+                ),
+              ),
+              OutlinedButton(
+                onPressed: () => widget.controller.follow(report),
+                child: const Text(S.followReport),
+              ),
+            ],
+          ),
+      ],
+    ),
+  );
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -5,35 +7,87 @@ import 'package:provider/provider.dart';
 
 import 'core/strings.dart';
 import 'core/theme.dart';
+import 'data/clusters_api.dart';
 import 'data/report_repository.dart';
+import 'features/drafts/draft_store.dart';
 import 'features/home/home_screen.dart';
+import 'features/outbox/outbox_service.dart';
+import 'services/connectivity_service.dart';
 import 'services/location_service.dart';
 import 'services/photo_service.dart';
 
 /// Root widget. Dependencies are injected so tests can replace them.
-class AldiaApp extends StatelessWidget {
+/// Optional services are absent in tests that do not need them.
+class AldiaApp extends StatefulWidget {
   const AldiaApp({
     super.key,
     required this.repository,
     required this.location,
     required this.photos,
+    this.drafts,
+    this.outbox,
+    this.connectivity,
+    this.clusters,
     this.tileProvider,
   });
 
   final ReportRepository repository;
   final LocationService location;
   final PhotoService photos;
+  final DraftStore? drafts;
+  final OutboxService? outbox;
+  final ConnectivityService? connectivity;
+  final ClustersApi? clusters;
 
   /// Map tiles source. Tests inject an offline provider.
   final TileProvider? tileProvider;
 
   @override
+  State<AldiaApp> createState() => _AldiaAppState();
+}
+
+class _AldiaAppState extends State<AldiaApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Resumes anything left in the outbox by a previous run.
+    unawaited(widget.outbox?.initialize());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(widget.outbox?.retry());
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final AldiaApp(
+      :repository,
+      :location,
+      :photos,
+      :drafts,
+      :outbox,
+      :connectivity,
+      :clusters,
+      :tileProvider,
+    ) = widget;
     return MultiProvider(
       providers: [
         Provider<ReportRepository>.value(value: repository),
         Provider<LocationService>.value(value: location),
         Provider<PhotoService>.value(value: photos),
+        Provider<DraftStore?>.value(value: drafts),
+        // InheritedProvider: Provider.value rejects Listenable values.
+        InheritedProvider<OutboxService?>.value(value: outbox),
+        Provider<ConnectivityService?>.value(value: connectivity),
+        Provider<ClustersApi?>.value(value: clusters),
         Provider<TileProvider>.value(
           value: tileProvider ?? NetworkTileProvider(),
         ),

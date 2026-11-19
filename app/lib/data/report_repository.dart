@@ -13,7 +13,28 @@ class ReportRepository {
 
   String photoUrl(Report report) => _api.photoUrl(report.photoUrl);
 
-  Future<List<Report>> nearby() => _api.listReports();
+  Future<List<Report>> nearby({
+    LatLng? southWest,
+    LatLng? northEast,
+    String? state,
+    String? category,
+  }) => _api.listReports(
+    southWest: southWest,
+    northEast: northEast,
+    state: state,
+    category: category,
+  );
+  Future<List<Report>> duplicates(LatLng position, String category) =>
+      _api.nearbyReports(position: position, category: category);
+  Future<List<ReportCluster>> clusters(
+    LatLng southWest,
+    LatLng northEast,
+    double zoom,
+  ) => _api.clusters(southWest: southWest, northEast: northEast, zoom: zoom);
+  Future<Report> get(String id) => _api.getReport(id);
+  Future<void> follow(Report report) => _store.add(report.id);
+  String thumbnailUrl(Report report) =>
+      _api.photoUrl(report.thumbnailUrl ?? report.photoUrl);
 
   /// Reports sent from this device, newest first. Missing ids are skipped.
   Future<List<Report>> mine() async {
@@ -35,6 +56,7 @@ class ReportRepository {
     required String category,
     required LatLng position,
     String? note,
+    String? idempotencyKey,
   }) async {
     final report = await _api.createReport(
       photoBytes: photo.bytes,
@@ -43,6 +65,7 @@ class ReportRepository {
       position: position,
       capturedAt: photo.capturedAt,
       note: note,
+      idempotencyKey: idempotencyKey,
     );
     await _store.add(report.id);
     return report;

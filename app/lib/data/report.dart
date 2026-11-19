@@ -31,7 +31,7 @@ class Verification {
     mode: json['mode'] as String,
     checks: (json['checks'] as List<dynamic>)
         .map((c) => VerificationCheck.fromJson(c as Map<String, dynamic>))
-        .toList(),
+        .toList(growable: false),
   );
 
   final bool passed;
@@ -54,9 +54,35 @@ class Report {
     required this.photoUrl,
     this.note,
     this.verification,
+    this.state,
+    this.stateGroup,
+    this.stateChangedAt,
+    this.verifiedAt,
+    this.resolvedAt,
+    this.closedAt,
+    this.assignee,
+    this.duplicateOf,
+    this.publicNote,
+    this.thumbnailUrl,
+    this.events = const [],
   });
 
   factory Report.fromJson(Map<String, dynamic> json) => Report(
+    state: json['state'] as String?,
+    stateGroup: json['state_group'] as String?,
+    stateChangedAt: _date(json['state_changed_at']),
+    verifiedAt: _date(json['verified_at']),
+    resolvedAt: _date(json['resolved_at']),
+    closedAt: _date(json['closed_at']),
+    assignee: json['assignee'] as String?,
+    duplicateOf: json['duplicate_of'] as String?,
+    publicNote: json['public_note'] as String?,
+    thumbnailUrl: json['thumbnail_url'] as String?,
+    events: List.unmodifiable(
+      (json['events'] as List? ?? []).map(
+        (e) => ReportEvent.fromJson(Map<String, dynamic>.from(e as Map)),
+      ),
+    ),
     id: json['id'] as String,
     category: json['category'] as String,
     position: LatLng(
@@ -88,4 +114,73 @@ class Report {
   final String? note;
   final String photoUrl;
   final Verification? verification;
+  final String? state;
+  final String? stateGroup;
+  final DateTime? stateChangedAt;
+  final DateTime? verifiedAt;
+  final DateTime? resolvedAt;
+  final DateTime? closedAt;
+  final String? assignee;
+  final String? duplicateOf;
+  final String? publicNote;
+  final String? thumbnailUrl;
+  final List<ReportEvent> events;
+
+  String get citizenState =>
+      state ??
+      switch (status) {
+        'pending' => 'pendiente_verificacion',
+        'rejected' => 'rechazado_verificador',
+        _ => switch (resolution) {
+          'fixed' => 'resuelto',
+          'acknowledged' => 'en_proceso',
+          'closed' => 'no_procede',
+          _ => 'nuevo',
+        },
+      };
+}
+
+DateTime? _date(dynamic value) =>
+    value is String ? DateTime.tryParse(value) : null;
+
+/// Only public fields are retained, even if a server accidentally includes staff data.
+class ReportEvent {
+  const ReportEvent({
+    required this.at,
+    this.actorRole,
+    this.fromState,
+    this.toState,
+    this.publicNote,
+  });
+  factory ReportEvent.fromJson(Map<String, dynamic> json) => ReportEvent(
+    at: _date(json['at']),
+    actorRole: json['actor_role'] as String?,
+    fromState: json['from_state'] as String?,
+    toState: json['to_state'] as String?,
+    publicNote: json['public_note'] as String?,
+  );
+  final DateTime? at;
+  final String? actorRole;
+  final String? fromState;
+  final String? toState;
+  final String? publicNote;
+}
+
+class ReportCluster {
+  const ReportCluster({
+    required this.position,
+    required this.count,
+    this.ids = const [],
+  });
+  factory ReportCluster.fromJson(Map<String, dynamic> json) => ReportCluster(
+    position: LatLng(
+      (json['lat'] as num).toDouble(),
+      (json['lon'] as num).toDouble(),
+    ),
+    count: json['count'] as int,
+    ids: List.unmodifiable((json['ids'] as List? ?? []).cast<String>()),
+  );
+  final LatLng position;
+  final int count;
+  final List<String> ids;
 }
