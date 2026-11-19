@@ -17,9 +17,55 @@ export const t = Object.freeze({
     open: 'Abierto',
     acknowledged: 'En atención',
     fixed: 'Resuelto',
+    closed: 'Cerrado',
   }),
   mapView: 'Explorar mapa',
   dashboard: 'Panel de reportes',
+  dash: Object.freeze({
+    delimiter: 'Separador CSV',
+    comma: 'Coma',
+    semicolon: 'Punto y coma',
+    unavailable: 'Sin datos',
+    hours: 'h',
+    sample: (n) => `n = ${n}`,
+    recibidos: 'Recibidos',
+    rechazados_verificador: 'Rechazados por verificador',
+    abiertos: 'Abiertos',
+    resueltos: 'Resueltos',
+    cerrados_sin_solucion: 'Cerrados sin solución',
+    tasa_resolucion: 'Tasa de resolución',
+    median: 'Mediana de resolución',
+    p90: 'p90 de resolución',
+    mean: 'Media de resolución',
+    first: 'Primera respuesta: mediana',
+    firstP90: 'Primera respuesta: p90',
+    sla_cumplido: 'SLA cumplido',
+    vencidos: 'Vencidos',
+    ages: 'Antigüedad de abiertos',
+    days: 'días',
+    categoryGroups: 'Categoría y grupo de estado',
+    groups: Object.freeze({
+      pending: 'Pendientes',
+      open: 'Abiertos',
+      in_work: 'En trabajo',
+      resolved: 'Resueltos',
+      closed: 'Cerrados',
+      hidden: 'Ocultos',
+    }),
+    weekly: 'Recibidos y resueltos por semana',
+    weeklyLegend: 'Recibidos: línea continua. Resueltos: línea discontinua.',
+    distribution: 'Distribución por grupo',
+    week: 'Semana',
+    total: 'Total',
+    noWeeks: 'No hay semanas con datos en este periodo.',
+    metricsNote:
+      'La tasa excluye duplicados y fuera de competencia del denominador. Los tiempos se calculan desde la verificación; las resoluciones solo incluyen casos resueltos. Fechas según America/Guatemala.',
+    filterLimits:
+      'Los enlaces de categorías y grupos abren la lista filtrada. La API aún no ofrece filtros exactos para antigüedad, SLA, primera respuesta ni fecha de resolución; esas métricas no tienen un enlace equivalente.',
+    zoneLimits: 'La API aún no ofrece desglose por zona.',
+    crossError:
+      'No se pudo cargar el desglose por categoría. Vuelve a intentar.',
+  }),
   downloadCsv: 'Descargar CSV',
   dashboardScope: 'Reportes de la zona y los filtros seleccionados en el mapa.',
   dashboardLoading: 'Cargando estadísticas…',
@@ -49,7 +95,7 @@ export const t = Object.freeze({
   searchAttribution: 'Búsqueda © OpenStreetMap',
   category: 'Categoría',
   allCategories: 'Todas las categorías',
-  status: 'Estado',
+  status: 'Resultado del verificador',
   allStatuses: 'Todos los estados',
   statuses: Object.freeze({
     verified: 'Verificado',
@@ -113,6 +159,7 @@ export function statusLabel(report) {
 const dateFormatter = new Intl.DateTimeFormat('es-GT', {
   dateStyle: 'medium',
   timeStyle: 'short',
+  hour12: false,
   timeZone: 'America/Guatemala',
 });
 
@@ -122,4 +169,137 @@ export function formatDate(value) {
   return Number.isNaN(date.getTime())
     ? t.unknownDate
     : dateFormatter.format(date);
+}
+
+/** Staff and v0.2 UI copy; kept separate from the legacy dictionary. */
+export const ui = Object.freeze({
+  states: {
+    pendiente_verificacion: 'Pendiente de verificación',
+    rechazado_verificador: 'Rechazado por verificador',
+    nuevo: 'Nuevo',
+    en_revision: 'En revisión',
+    programado: 'Programado',
+    en_proceso: 'En proceso',
+    resuelto: 'Resuelto',
+    no_procede: 'No procede',
+    fuera_de_competencia: 'Fuera de competencia',
+    duplicado: 'Duplicado',
+    oculto: 'Oculto',
+  },
+  groups: {
+    pending: 'Pendiente',
+    open: 'Abiertos',
+    in_work: 'En trabajo',
+    resolved: 'Resueltos',
+    closed: 'Cerrados',
+    hidden: 'Ocultos',
+  },
+  groupLetters: {
+    pending: 'P',
+    open: 'A',
+    in_work: 'T',
+    resolved: 'R',
+    closed: 'C',
+    hidden: 'O',
+  },
+  staff: 'Modo personal',
+  token: 'Token de personal',
+  enable: 'Activar',
+  disable: 'Salir del modo personal',
+  staffHelp:
+    'El token permanece solo en memoria hasta recargar o cerrar esta pestaña. El servidor verifica los permisos en cada acción.',
+  role: 'Permisos solicitados',
+  operator: 'Operador',
+  supervisor: 'Supervisor',
+  roleHelp:
+    'Seleccionar supervisor no concede permisos: requiere el token de supervisor.',
+  publicMode: 'Vista pública de solo lectura',
+  staffActive: 'Modo personal activo',
+  tokenLength: 'El token debe tener al menos 32 caracteres.',
+  state: 'Estado municipal',
+  stateGroup: 'Grupo de estados',
+  allStates: 'Todos los estados municipales',
+  allGroups: 'Todos los grupos',
+  from: 'Desde',
+  to: 'Hasta',
+  assignee: 'Cuadrilla o responsable',
+  sort: 'Ordenar',
+  sorts: {
+    newest: 'Más recientes',
+    oldest: 'Más antiguos',
+    updated: 'Última actualización',
+    age_in_state: 'Antigüedad en el estado',
+  },
+  includeOld: 'Incluir antiguos',
+  defaultWindow: 'Por defecto: últimos 30 días.',
+  activeFilters: (count) => `Filtros activos: ${count}`,
+  removeFilter: (label) => `Quitar filtro: ${label}`,
+  previous: 'Anterior',
+  next: 'Siguiente',
+  page: (page, total) =>
+    `Página ${page} de ${Math.max(1, Math.ceil(total / 25))}`,
+  mapToggle: 'Mostrar u ocultar mapa',
+  selected: 'Reporte seleccionado',
+  cluster: (n) => `${n} reportes; acercar para verlos`,
+  clusterReports: (n) => `Reportes del grupo (${n})`,
+  clusterLimited:
+    'El servidor solo identifica hasta cinco reportes del grupo. La lista de la zona permite continuar la consulta.',
+  clusterError: 'No se pudieron cargar los grupos del mapa.',
+  transition: 'Cambiar estado',
+  nextState: 'Nuevo estado',
+  publicNote: 'Nota pública',
+  internalNote: 'Nota interna',
+  reasonRequired:
+    'Este cambio requiere una razón en la nota pública o interna.',
+  internalRequired: 'La anulación del rechazo requiere una nota interna.',
+  noTransitions: 'No hay cambios de estado disponibles para estos permisos.',
+  duplicateOf: 'Reporte principal (UUID)',
+  invalidDuplicate: 'Indica el UUID de otro reporte principal.',
+  save: 'Guardar',
+  saved: 'Cambio guardado.',
+  assign: 'Asignar',
+  unassigned: 'Sin asignar',
+  conflict:
+    'El reporte cambió o la transición no está permitida. Recarga el reporte y revisa el estado actual.',
+  unauthorized:
+    'Token no válido o permisos insuficientes. Revisa el modo personal.',
+  unavailable:
+    'El modo personal no está disponible en el servidor. Contacta con la administración.',
+  timeline: 'Historial de estados',
+  noEvents: 'No hay eventos registrados.',
+  created: 'Creado',
+  verified: 'Verificado',
+  changed: 'Estado actualizado',
+  coordinates: 'Coordenadas',
+  actors: { system: 'Sistema', operator: 'Operador', supervisor: 'Supervisor' },
+  zoomPhoto: 'Ampliar foto',
+  closePhoto: 'Cerrar foto ampliada',
+  nearby: 'Posibles duplicados cercanos',
+  noNearby: 'No hay reportes cercanos compatibles.',
+  nearbyError: 'No se pudieron consultar los posibles duplicados.',
+  markDuplicate: 'Marcar como duplicado',
+  duplicateHelp:
+    'Para marcar un duplicado, lleva primero el reporte a En revisión.',
+  triage: 'Bandeja de revisión',
+  review: 'Por revisar',
+  rejected: 'Rechazadas por verificador',
+  age: (hours) => `${Math.floor(hours)} h desde la verificación`,
+  queueError: 'No se pudo cargar la bandeja.',
+  staffNeeded: 'Activa el modo personal para gestionar la bandeja.',
+  override: 'Anular rechazo',
+  refresh: 'Recargar reporte',
+});
+
+/** Stable Spanish guidance for action failures; server text remains literal data. @param {object} error */
+export function staffError(error) {
+  return (
+    {
+      401: ui.unauthorized,
+      403: ui.unauthorized,
+      409: ui.conflict,
+      503: ui.unavailable,
+    }[error.status] ??
+    error.error?.message ??
+    t.networkError
+  );
 }

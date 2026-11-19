@@ -92,6 +92,6 @@ it('combines resolution with category and status and rejects unknown resolutions
   store.setFilters({ category: '', status: '', resolution: 'acknowledged' });
   expect(store.getState().filters.resolution).toBe('acknowledged');
   expect(() =>
-    store.setFilters({ category: '', status: '', resolution: 'closed' }),
+    store.setFilters({ category: '', status: '', resolution: 'unknown' }),
   ).toThrow(RangeError);
 });

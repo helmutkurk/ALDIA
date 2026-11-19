@@ -11,7 +11,7 @@ const response = (body, status = 200) =>
 afterEach(() => vi.useRealTimers());
 
 describe('reports API client', () => {
-  it('sends bbox in lon/lat order, filters and the 500-report limit', async () => {
+  it('sends bbox in lon/lat order, filters and the 25-report page size', async () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValue(response({ items: [report()], total: 700 }));
@@ -27,7 +27,7 @@ describe('reports API client', () => {
       bbox: '-90.6,14.5,-90.4,14.7',
       category: 'pothole',
       status: 'verified',
-      limit: '500',
+      limit: '25',
     });
     expect(result.total).toBe(700);
     expect(result.items).toHaveLength(1);
@@ -206,7 +206,7 @@ describe('v0.1 report, statistics and export endpoints', () => {
     expect(new URL(fetchImpl.mock.calls[0][0]).pathname).toBe(
       `/api/reports/${report().id}`,
     );
-    fetchImpl.mockResolvedValue(response(report({ resolution: 'closed' })));
+    fetchImpl.mockResolvedValue(response(report({ resolution: 'unknown' })));
     await expect(api.getReport(report().id)).rejects.toMatchObject({
       error: { code: 'invalid_response' },
     });

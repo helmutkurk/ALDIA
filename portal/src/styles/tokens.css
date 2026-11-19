@@ -10,3 +10,13 @@
   --text: #0f172a;
   --text-muted: #475569;
 }
+
+/* Municipality handling groups; verifier verdicts retain their own badges. */
+:root {
+  --state-open: #dc2626;
+  --state-work: #c2410c;
+  --state-resolved: #15803d;
+  --state-closed: #64748b;
+  --state-pending: #ffffff;
+  --border: #cbd5e1;
+}

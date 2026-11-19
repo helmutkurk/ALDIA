@@ -33,7 +33,7 @@ describe('Leaflet map integration in jsdom', () => {
     view.renderReports([report()]);
     expect(
       container.querySelector('.status-pin--verified').dataset.letter,
-    ).toBe('V');
+    ).toBe('A');
     expect(
       container
         .querySelector('.leaflet-control-zoom-in')
@@ -103,4 +103,43 @@ it('ignores window and element resizes while a retained map is hidden', () => {
   hidden = false;
   view.invalidateSize();
   expect(view.getBbox()).toEqual(before);
+});
+
+it('renders cluster counts, zooms by click and opens members only at maximum zoom', () => {
+  const region = document.createElement('section');
+  const container = document.createElement('div');
+  region.append(container);
+  document.body.append(region);
+  Object.defineProperties(container, {
+    clientWidth: { value: 800 },
+    clientHeight: { value: 600 },
+  });
+  const onCluster = vi.fn();
+  view = createReportMap(container, {
+    onBoundsChange: vi.fn(),
+    onSelect: vi.fn(),
+    onCluster,
+    zoom: 17,
+  });
+  const cluster = {
+    lat: 14.6349,
+    lon: -90.5069,
+    count: 12,
+    ids: [report().id],
+  };
+  view.renderClusters([cluster]);
+  expect(container.querySelector('.cluster-count').textContent).toBe('12');
+  container.querySelector('.cluster-marker').click();
+  expect(view.getZoom()).toBe(19);
+  expect(onCluster).not.toHaveBeenCalled();
+  container.querySelector('.cluster-marker').click();
+  expect(onCluster).toHaveBeenCalledWith(cluster);
+  view.renderClusters(
+    [{ ...cluster, count: 1 }],
+    [report({ state: 'programado', state_group: 'in_work' })],
+  );
+  expect(container.querySelector('.cluster-marker')).toBeNull();
+  expect(container.querySelector('.state-pin--in_work').dataset.letter).toBe(
+    'T',
+  );
 });
