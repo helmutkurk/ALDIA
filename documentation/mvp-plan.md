@@ -28,6 +28,9 @@ staff access is a shared provisional token.
 1. `scripts/dev-local.sh` + `make dev-all`: start verifier, API on SQLite, portal; seed; print URLs; stop with Ctrl-C.
 2. Drive the portal in a real browser (Chrome extension): fix every bug found on the acceptance items 2 and 3 (screenshots in
    the log). Mobile width too.
+2b. **App UI parity with the SeeClickFix reference**: follow `documentation/ui/app-reference-seeclickfix.md` (task list at its end:
+   wizard order, location with address search, category search, nearby cards, new bottom navigation, Avisos and Perfil).
+   Principles only, Aldia name/copy/colors, no copied assets.
 3. Create a report with a real JPEG through the API as the app does (multipart, idempotency key); fix what breaks.
 4. App: find a runnable target (`flutter devices`); if none, add the `web` platform (do NOT commit generated platform folders you
    do not need) and run the wizard against the local API; fix crashes. Record what only a phone can verify.
