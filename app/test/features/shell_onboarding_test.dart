@@ -22,34 +22,43 @@ AldiaApp _app({bool onboarding = false, VoidCallback? onDone}) => AldiaApp(
 );
 
 void main() {
-  testWidgets('bottom navigation has Mapa, Lista and Mis reportes', (
+  testWidgets(
+    'bottom navigation has Inicio, Avisos, Reportar, Mis reportes and Perfil',
+    (tester) async {
+      await tester.pumpWidget(_app());
+      await tester.pumpAndSettle();
+
+      final bar = find.byType(NavigationBar);
+      for (final label in [
+        'Inicio',
+        'Avisos',
+        S.newReport,
+        S.myReports,
+        'Perfil',
+      ]) {
+        expect(
+          find.descendant(of: bar, matching: find.text(label)),
+          findsOneWidget,
+        );
+      }
+      expect(find.text(S.newReport), findsOneWidget);
+
+      await tester.tap(find.text(S.myReports));
+      await tester.pumpAndSettle();
+      expect(find.text(S.firstReport), findsOneWidget);
+      // The filter action belongs to the map and list tabs only.
+      expect(find.byTooltip(S.filtersLabel), findsNothing);
+    },
+  );
+
+  testWidgets('the explore list shows photo cards with a state chip', (
     tester,
   ) async {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
-
-    final bar = find.byType(NavigationBar);
-    for (final label in [S.navMap, S.navList, S.myReports]) {
-      expect(
-        find.descendant(of: bar, matching: find.text(label)),
-        findsOneWidget,
-      );
-    }
-    expect(find.text(S.newReport), findsOneWidget);
-
-    await tester.tap(find.text(S.myReports));
+    await tester.tap(find.text('Explorar mi ciudad'));
     await tester.pumpAndSettle();
-    expect(find.text(S.firstReport), findsOneWidget);
-    // The filter action belongs to the map and list tabs only.
-    expect(find.byTooltip(S.filtersLabel), findsNothing);
-  });
-
-  testWidgets('the list tab shows compact cards with a state chip', (
-    tester,
-  ) async {
-    await tester.pumpWidget(_app());
-    await tester.pumpAndSettle();
-    await tester.tap(find.text(S.navList));
+    await tester.tap(find.text('LISTA'));
     await tester.pumpAndSettle();
     expect(find.byType(Card), findsWidgets);
     expect(find.text('Bache'), findsOneWidget);
@@ -60,7 +69,9 @@ void main() {
       harness(home: const HomeScreen(), repository: repositoryWith()),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text(S.navList));
+    await tester.tap(find.text('Explorar mi ciudad'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('LISTA'));
     await tester.pumpAndSettle();
     expect(find.byType(EmptyState), findsOneWidget);
     expect(find.text(S.emptyNearby), findsOneWidget);
@@ -145,5 +156,11 @@ void main() {
     await tester.pumpAndSettle();
     final bar = tester.widget<NavigationBar>(find.byType(NavigationBar));
     expect(bar.animationDuration, Duration.zero);
+    await tester.tap(find.text('Explorar mi ciudad'));
+    await tester.pumpAndSettle();
+    final tabs = tester.widget<DefaultTabController>(
+      find.byType(DefaultTabController),
+    );
+    expect(tabs.animationDuration, Duration.zero);
   });
 }

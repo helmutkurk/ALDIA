@@ -23,6 +23,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await tester.tap(find.text('Explorar mi ciudad'));
+    await tester.pumpAndSettle();
     expect(clusters.calls, greaterThan(0));
     expect(find.text('7'), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('7 reportes')), findsOneWidget);
@@ -40,6 +42,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      await tester.tap(find.text('Explorar mi ciudad'));
+      await tester.pumpAndSettle();
       expect(find.text(S.mapFallback), findsOneWidget);
       expect(find.text('En revisión'), findsOneWidget);
       expect(find.byIcon(Icons.manage_search), findsOneWidget);
@@ -66,6 +70,8 @@ void main() {
         clusters: clusters,
       ),
     );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Explorar mi ciudad'));
     await tester.pumpAndSettle();
     final before = clusters.calls;
 
@@ -96,7 +102,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text(S.navList));
+    await tester.tap(find.text('Explorar mi ciudad'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('LISTA'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Programado'), findsOneWidget);
   });

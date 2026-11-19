@@ -1,15 +1,39 @@
 import 'package:latlong2/latlong.dart';
 
 import '../services/photo_service.dart';
+import '../core/categories.dart';
 import 'api_client.dart';
 import 'my_reports_store.dart';
 import 'report.dart';
+import 'local_citizen_store.dart';
 
 class ReportRepository {
-  ReportRepository({required this._api, required this._store});
+  ReportRepository({
+    required this._api,
+    required this._store,
+    LocalCitizenStore? local,
+  }) : local = local ?? LocalCitizenStore();
+
+  final LocalCitizenStore local;
+  Future<int?> resolvedCount() => _api.resolvedCount();
+
+  Future<void> clearLocalData() async {
+    if (_store case final PrefsMyReportsStore prefs) await prefs.clear();
+    await local.clear();
+  }
 
   final ApiClient _api;
   final MyReportsStore _store;
+
+  Future<void> _observe(List<Report> reports) async {
+    try {
+      await local.observe(reports);
+    } catch (_) {
+      /* A local inbox failure must not retry an accepted upload. */
+    }
+  }
+
+  Future<List<ReportCategory>> categories() => _api.categories();
 
   String photoUrl(Report report) => _api.photoUrl(report.photoUrl);
 
@@ -31,14 +55,25 @@ class ReportRepository {
     LatLng northEast,
     double zoom,
   ) => _api.clusters(southWest: southWest, northEast: northEast, zoom: zoom);
-  Future<Report> get(String id) => _api.getReport(id);
-  Future<void> follow(Report report) => _store.add(report.id);
+  Future<Report> get(String id) async {
+    final report = await _api.getReport(id);
+    if ((await _store.ids()).contains(id) || local.follows(id)) {
+      await _observe([report]);
+    }
+    return report;
+  }
+
+  Future<void> follow(Report report) async {
+    await local.setFollow(report.id, true);
+    await _observe([report]);
+  }
+
   String thumbnailUrl(Report report) =>
       _api.photoUrl(report.thumbnailUrl ?? report.photoUrl);
 
-  /// Reports sent from this device, newest first. Missing ids are skipped.
+  /// Own and locally followed reports. Missing ids are skipped.
   Future<List<Report>> mine() async {
-    final ids = await _store.ids();
+    final ids = {...await _store.ids(), ...local.followedIds};
     final results = await Future.wait(
       ids.map((id) async {
         try {
@@ -48,7 +83,9 @@ class ReportRepository {
         }
       }),
     );
-    return results.whereType<Report>().toList();
+    final reports = results.whereType<Report>().toList();
+    await _observe(reports);
+    return reports;
   }
 
   Future<Report> submit({
@@ -68,6 +105,7 @@ class ReportRepository {
       idempotencyKey: idempotencyKey,
     );
     await _store.add(report.id);
+    await _observe([report]);
     return report;
   }
 }

@@ -69,7 +69,7 @@ class S {
   static const firstReport = 'Hacer mi primer reporte';
   static const emptyFiltered = 'No hay reportes con estos filtros.';
   static const clearFilters = 'Quitar filtros';
-  static const sentReports = 'Enviados';
+  static const sentReports = 'Enviados y seguidos';
   static const retryNow = 'Reenviar ahora';
   static const outboxWillRetry = 'Se enviará solo cuando vuelva la conexión.';
   static const deleteOutboxQuestion =
@@ -107,7 +107,7 @@ class S {
       'No hay señal de ubicación. Elige el punto en el mapa.';
   static const poorAccuracy =
       'La precisión supera 50 m. Reintenta el GPS o ajusta el punto en el mapa.';
-  static const confirmLocation = 'Confirmar ubicación';
+  static const confirmLocation = 'CONFIRMAR UBICACIÓN';
   static const locating = 'Buscando ubicación…';
   static const edit = 'Editar';
   static const manualReview = 'Enviar para revisión manual';

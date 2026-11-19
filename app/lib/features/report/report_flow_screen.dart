@@ -12,8 +12,10 @@ import '../../core/theme.dart';
 import '../../data/report_repository.dart';
 import '../../services/connectivity_service.dart';
 import '../../services/location_service.dart';
+import '../../services/geocoder_service.dart';
 import '../../services/photo_service.dart';
 import '../../widgets/report_tile.dart';
+import '../../widgets/map_layers_button.dart';
 import '../../widgets/status_chips.dart';
 import '../detail/report_detail_screen.dart';
 import '../drafts/draft_record.dart';
@@ -36,6 +38,7 @@ class ReportFlowScreen extends StatelessWidget {
         outbox: context.read<OutboxService?>(),
         connectivity: context.read<ConnectivityService?>(),
       );
+      unawaited(controller.loadCategories());
       if (draft != null) unawaited(controller.restore(draft!));
       return controller;
     },
@@ -106,7 +109,71 @@ class _FlowViewState extends State<_FlowView> with WidgetsBindingObserver {
         outcome == SubmitState.manualSaved ||
         outcome == SubmitState.followed;
     return Scaffold(
-      appBar: AppBar(title: const Text(S.newReport)),
+      appBar: AppBar(
+        title: const Text(S.newReport),
+        actions: [
+          if (Navigator.of(context).canPop())
+            IconButton(
+              tooltip: S.close,
+              onPressed: () => Navigator.of(context).maybePop(),
+              icon: const Icon(Icons.close),
+            ),
+          IconButton(
+            tooltip: 'Ayuda para reportar',
+            icon: const Icon(Icons.help_outline),
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Tu reporte, paso a paso'),
+                content: const Text(
+                  'Confirma el lugar, elige una categoría y revisa los reportes cercanos. Luego toma una foto en el momento y revisa los datos antes de enviar.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text(S.close),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+      bottomNavigationBar: result || outcome == SubmitState.sending
+          ? null
+          : SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (c.lookingForDuplicates) const LinearProgressIndicator(),
+                    if (c.step.index > 0)
+                      OutlinedButton(
+                        onPressed: c.back,
+                        child: const Text(S.back),
+                      ),
+                    FilledButton(
+                      onPressed: c.canAdvance
+                          ? (c.isLastStep ? c.submit : c.next)
+                          : null,
+                      child: Text(
+                        c.isLastStep
+                            ? S.send
+                            : c.step == FlowStep.location
+                            ? S.confirmLocation
+                            : c.step == FlowStep.photo
+                            ? S.usePhoto
+                            : c.step == FlowStep.duplicates
+                            ? S.differentProblem
+                            : S.next,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
       body: SafeArea(
         child: Align(
           alignment: Alignment.topCenter,
@@ -116,6 +183,8 @@ class _FlowViewState extends State<_FlowView> with WidgetsBindingObserver {
               padding: const EdgeInsets.all(16),
               children: [
                 if (!result) ...[
+                  _SummaryRow(controller: c),
+                  const SizedBox(height: 16),
                   Text(
                     S.stepProgress(c.step.index + 1, FlowStep.values.length),
                     style: Theme.of(context).textTheme.labelLarge,
@@ -159,30 +228,6 @@ class _FlowViewState extends State<_FlowView> with WidgetsBindingObserver {
                   },
                   if (c.submitState == SubmitState.failed)
                     const _Notice(S.sendError),
-                  const SizedBox(height: 20),
-                  if (c.lookingForDuplicates) const LinearProgressIndicator(),
-                  if (c.step.index > 0)
-                    OutlinedButton(
-                      onPressed: c.back,
-                      child: const Text(S.back),
-                    ),
-                  const SizedBox(height: 8),
-                  FilledButton(
-                    onPressed: c.canAdvance
-                        ? (c.isLastStep ? c.submit : c.next)
-                        : null,
-                    child: Text(
-                      c.isLastStep
-                          ? S.send
-                          : c.step == FlowStep.photo
-                          ? S.usePhoto
-                          : c.step == FlowStep.location
-                          ? S.confirmLocation
-                          : c.step == FlowStep.duplicates
-                          ? S.differentProblem
-                          : S.next,
-                    ),
-                  ),
                 ],
               ],
             ),
@@ -214,6 +259,62 @@ String _resultTitle(ReportFlowController c) => switch (c.submitState) {
     _ => S.resultPending,
   },
 };
+
+class _SummaryRow extends StatelessWidget {
+  const _SummaryRow({required this.controller});
+  final ReportFlowController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = controller;
+    final place =
+        c.placeLabel ??
+        (c.locationConfirmed
+            ? '${c.position.latitude.toStringAsFixed(5)}, ${c.position.longitude.toStringAsFixed(5)}'
+            : 'Elige el lugar del problema');
+    final category = c.categories
+        .where((item) => item.id == c.categoryId)
+        .firstOrNull;
+    return Semantics(
+      container: true,
+      child: Container(
+        padding: const EdgeInsets.all(AldiaSpace.m),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              child: Icon(
+                c.photo == null
+                    ? Icons.add_a_photo_outlined
+                    : Icons.photo_camera,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    c.step == FlowStep.location
+                        ? '¿Es este el lugar correcto?'
+                        : 'Tu reporte',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  Text(place),
+                  if (category != null) Text(category.label),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _Notice extends StatelessWidget {
   const _Notice(this.text);
@@ -254,6 +355,25 @@ class _PhotoStep extends StatelessWidget {
         ),
       ],
       const SizedBox(height: 12),
+      if (controller.photo == null)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 24),
+          child: Center(
+            child: Semantics(
+              button: true,
+              label: 'Abrir cámara para tomar la foto',
+              child: SizedBox(
+                width: 160,
+                height: 160,
+                child: IconButton.filledTonal(
+                  onPressed: controller.takePhoto,
+                  icon: const Icon(Icons.camera_alt_outlined, size: 64),
+                  tooltip: 'Abrir cámara',
+                ),
+              ),
+            ),
+          ),
+        ),
       OutlinedButton.icon(
         onPressed: controller.takePhoto,
         icon: const Icon(Icons.camera_alt),
@@ -275,6 +395,51 @@ class _LocationStepState extends State<_LocationStep> {
   late final TextEditingController _lat;
   late final TextEditingController _lon;
   bool _invalid = false;
+  bool _showAccuracy = true;
+  final _search = TextEditingController();
+  Timer? _debounce;
+  int _generation = 0;
+  bool _searching = false;
+  String? _searchMessage;
+  List<AddressResult> _addresses = const [];
+
+  void _searchAddress() {
+    _debounce?.cancel();
+    final generation = ++_generation;
+    final query = _search.text.trim();
+    if (query.length < 3) {
+      setState(
+        () => _searchMessage = 'Escribe al menos tres letras de la dirección.',
+      );
+      return;
+    }
+    // Only an explicit Search/Enter triggers the demo's public geocoder.
+    _debounce = Timer(const Duration(milliseconds: 450), () async {
+      final geocoder = context.read<GeocoderService?>();
+      setState(() {
+        _searching = true;
+        _searchMessage = null;
+      });
+      try {
+        final results = await geocoder?.search(query) ?? <AddressResult>[];
+        if (!mounted || generation != _generation) return;
+        setState(() {
+          _addresses = results;
+          _searching = false;
+          _searchMessage = results.isEmpty
+              ? 'No encontramos esa dirección. Prueba con calle y municipio o elige el punto en el mapa.'
+              : null;
+        });
+      } catch (_) {
+        if (!mounted || generation != _generation) return;
+        setState(() {
+          _searching = false;
+          _searchMessage = 'No se pudo buscar la dirección. Puedes elegir el punto en el mapa.';
+        });
+      }
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -296,6 +461,8 @@ class _LocationStepState extends State<_LocationStep> {
 
   @override
   void dispose() {
+    _debounce?.cancel();
+    _search.dispose();
     _map.dispose();
     _lat.dispose();
     _lon.dispose();
@@ -330,6 +497,43 @@ class _LocationStepState extends State<_LocationStep> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        TextField(
+          controller: _search,
+          decoration: const InputDecoration(
+            labelText: 'Buscar dirección',
+            hintText: 'Calle y municipio',
+            prefixIcon: Icon(Icons.search),
+          ),
+          textInputAction: TextInputAction.search,
+          onSubmitted: (_) => _searchAddress(),
+          onChanged: (_) {
+            _debounce?.cancel();
+            _generation++;
+            setState(() {
+              _addresses = const [];
+              _searchMessage = null;
+              _searching = false;
+            });
+          },
+        ),
+        TextButton.icon(
+          onPressed: _searchAddress,
+          icon: const Icon(Icons.search),
+          label: const Text('Buscar dirección en el mapa'),
+        ),
+        if (_searching) const LinearProgressIndicator(),
+        if (_searchMessage != null) _Notice(_searchMessage!),
+        for (final address in _addresses)
+          ListTile(
+            minTileHeight: 56,
+            leading: const Icon(Icons.place_outlined),
+            title: Text(address.label),
+            onTap: () {
+              c.setPosition(address.position, label: address.label);
+              setState(() => _addresses = const []);
+              FocusScope.of(context).unfocus();
+            },
+          ),
         const Text(S.locationHint),
         const SizedBox(height: 8),
         SizedBox(
@@ -349,7 +553,9 @@ class _LocationStepState extends State<_LocationStep> {
                   tileProvider: context.read<TileProvider>(),
                   userAgentPackageName: AppConfig.userAgentPackage,
                 ),
-                if (c.accuracy != null && c.gpsPosition != null)
+                if (_showAccuracy &&
+                    c.accuracy != null &&
+                    c.gpsPosition != null)
                   CircleLayer(
                     circles: [
                       CircleMarker(
@@ -369,13 +575,58 @@ class _LocationStepState extends State<_LocationStep> {
                       point: c.position,
                       width: 48,
                       height: 48,
-                      child: const Icon(Icons.location_pin, size: 48),
+                      child: const Icon(
+                        Icons.location_pin,
+                        size: 48,
+                        color: AldiaColors.accent,
+                      ),
                     ),
                   ],
+                ),
+                Align(
+                  alignment: Alignment.topRight,
+                  child: Card(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        MapLayersButton(
+                          overlay: 'Precisión del GPS',
+                          visible: _showAccuracy,
+                          onChanged: (value) =>
+                              setState(() => _showAccuracy = value),
+                        ),
+                        IconButton(
+                          tooltip: 'Acercar mapa',
+                          onPressed: () => _map.move(
+                            _map.camera.center,
+                            (_map.camera.zoom + 1).clamp(3, 19),
+                          ),
+                          icon: const Icon(Icons.add),
+                        ),
+                        IconButton(
+                          tooltip: 'Alejar mapa',
+                          onPressed: () => _map.move(
+                            _map.camera.center,
+                            (_map.camera.zoom - 1).clamp(3, 19),
+                          ),
+                          icon: const Icon(Icons.remove),
+                        ),
+                        IconButton(
+                          tooltip: S.useMyLocation,
+                          onPressed: c.locating ? null : c.useMyLocation,
+                          icon: const Icon(Icons.my_location),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
+        ),
+        const Text(
+          '© OpenStreetMap contributors · búsqueda y mapa',
+          style: TextStyle(fontSize: 12),
         ),
         if (c.locating) const _Notice(S.locating),
         if (issue != null) _Notice(issue),
@@ -415,26 +666,61 @@ class _LocationStepState extends State<_LocationStep> {
   }
 }
 
-class _CategoryStep extends StatelessWidget {
+class _CategoryStep extends StatefulWidget {
   const _CategoryStep({required this.controller});
   final ReportFlowController controller;
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      const Text(S.chooseCategory),
-      const SizedBox(height: AldiaSpace.m),
-      for (final category in reportCategories)
-        Padding(
-          padding: const EdgeInsets.only(bottom: AldiaSpace.s),
-          child: _CategoryRow(
-            category: category,
-            selected: controller.categoryId == category.id,
-            onTap: () => controller.setCategory(category.id),
+  State<_CategoryStep> createState() => _CategoryStepState();
+}
+
+class _CategoryStepState extends State<_CategoryStep> {
+  String _query = '';
+  @override
+  Widget build(BuildContext context) {
+    final categories = widget.controller.categories
+        .where((c) => c.label.toLowerCase().contains(_query.toLowerCase()))
+        .toList();
+    final groups = categories.map((c) => c.group).toSet();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(S.chooseCategory),
+        const SizedBox(height: AldiaSpace.m),
+        TextField(
+          decoration: const InputDecoration(
+            labelText: 'Buscar categoría',
+            prefixIcon: Icon(Icons.search),
           ),
+          onChanged: (value) => setState(() => _query = value),
         ),
-    ],
-  );
+        if (categories.isEmpty)
+          const _Notice(
+            'No encontramos esa categoría. Prueba con otra palabra.',
+          ),
+        for (final group in groups) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Semantics(
+              header: true,
+              child: Text(
+                categoryGroupLabel(group),
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+          ),
+          for (final category in categories.where((c) => c.group == group))
+            Padding(
+              padding: const EdgeInsets.only(bottom: AldiaSpace.s),
+              child: _CategoryRow(
+                category: category,
+                selected: widget.controller.categoryId == category.id,
+                onTap: () => widget.controller.setCategory(category.id),
+              ),
+            ),
+        ],
+      ],
+    );
+  }
 }
 
 /// Large selectable row: icon, label and a check when chosen.
@@ -501,7 +787,15 @@ class _DuplicatesStep extends StatelessWidget {
   final ReportFlowController controller;
   @override
   Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
+      const Text(
+        'Revisa si alguien ya reportó el mismo problema cerca de este lugar. Puedes seguirlo para consultarlo después.',
+      ),
+      if (controller.duplicates.isEmpty)
+        const _Notice(
+          'No hay coincidencias disponibles. Puedes continuar con tu reporte.',
+        ),
       for (final report in controller.duplicates) ...[
         ReportTile(
           report: report,
@@ -540,7 +834,14 @@ class _DuplicatesStep extends StatelessWidget {
         ),
         OutlinedButton(
           onPressed: () => controller.follow(report),
-          child: const Text(S.followReport),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.favorite_border),
+              SizedBox(width: 8),
+              Flexible(child: Text(S.followReport)),
+            ],
+          ),
         ),
         const Divider(),
       ],
@@ -599,7 +900,8 @@ class _ReviewStep extends StatelessWidget {
           child: const Text('${S.edit}: ${S.stepPhoto}'),
         ),
         Text(
-          '${c.position.latitude.toStringAsFixed(5)}, ${c.position.longitude.toStringAsFixed(5)}',
+          c.placeLabel ??
+              '${c.position.latitude.toStringAsFixed(5)}, ${c.position.longitude.toStringAsFixed(5)}',
         ),
         TextButton(
           onPressed: () => c.edit(FlowStep.location),
@@ -736,7 +1038,14 @@ class _DuplicateResultState extends State<_DuplicateResult> {
               ),
               OutlinedButton(
                 onPressed: () => widget.controller.follow(report),
-                child: const Text(S.followReport),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.favorite_border),
+                    SizedBox(width: 8),
+                    Flexible(child: Text(S.followReport)),
+                  ],
+                ),
               ),
             ],
           ),

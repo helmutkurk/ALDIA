@@ -13,8 +13,11 @@ import '../../core/theme.dart';
 import '../../data/clusters_api.dart';
 import '../../data/report.dart';
 import '../../data/report_repository.dart';
+import '../../services/location_service.dart';
+import '../citizen/citizen_screens.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/report_tile.dart';
+import '../../widgets/map_layers_button.dart';
 import '../../widgets/routes.dart';
 import '../detail/report_detail_screen.dart';
 import '../drafts/draft_record.dart';
@@ -22,7 +25,7 @@ import '../drafts/draft_store.dart';
 import '../mine/my_reports_screen.dart';
 import '../report/report_flow_screen.dart';
 
-enum _Tab { map, list, mine }
+enum _Tab { home, notices, report, mine, profile }
 
 /// States a citizen can filter by (`oculto` is never public).
 final List<String> _filterStates = [
@@ -39,9 +42,11 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  _Tab _tab = _Tab.map;
+  _Tab _tab = _Tab.home;
+  bool _exploring = false;
+  late Future<int?> _resolved;
   // Tabs are built on first visit and then kept (map camera, scroll position).
-  final _visited = <_Tab>{_Tab.map};
+  final _visited = <_Tab>{_Tab.home};
   int _mineToken = 0;
   String? _state;
   String? _category;
@@ -54,13 +59,37 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _list = _loadList();
+    _resolved = _loadResolved();
     unawaited(_loadDraft());
+    unawaited(_observeMine());
   }
 
-  Future<List<Report>> _loadList() => context.read<ReportRepository>().nearby(
-    state: _state,
-    category: _category,
-  );
+  Future<int?> _loadResolved() async {
+    try {
+      return await context.read<ReportRepository>().resolvedCount();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _observeMine() async {
+    try {
+      await context.read<ReportRepository>().mine();
+    } catch (_) {
+      /* The inbox remains available offline. */
+    }
+  }
+
+  Future<List<Report>> _loadList() {
+    final future = context.read<ReportRepository>().nearby(
+      state: _state,
+      category: _category,
+    );
+    // Explore is lazy. Observe failures now; FutureBuilder still receives the
+    // original error when the citizen opens Lista and offers Retry.
+    future.ignore();
+    return future;
+  }
 
   Future<void> _loadDraft() async {
     final drafts = await context.read<DraftStore?>()?.loadAll();
@@ -70,7 +99,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void _reload() {
     setState(() {
       _list = _loadList();
+      _resolved = _loadResolved();
     });
+    unawaited(_observeMine());
   }
 
   void _open(Report report) =>
@@ -110,26 +141,93 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _body(_Tab tab) {
     if (!_visited.contains(tab)) return const SizedBox.shrink();
     return switch (tab) {
-      _Tab.map => _MapView(state: _state, category: _category, onOpen: _open),
-      _Tab.list => _ReportList(
-        future: _list,
-        filtered: _filtered,
-        onOpen: _open,
-        onRetry: _reload,
-        onClear: _clearFilters,
-      ),
+      _Tab.home =>
+        _exploring
+            ? DefaultTabController(
+                length: 2,
+                animationDuration: MediaQuery.disableAnimationsOf(context)
+                    ? Duration.zero
+                    : const Duration(milliseconds: 300),
+                child: Column(
+                  children: [
+                    TabBar(
+                      indicatorColor: AldiaColors.accent,
+                      indicatorWeight: 3,
+                      tabs: const [
+                        Tab(text: 'MAPA'),
+                        Tab(text: 'LISTA'),
+                      ],
+                    ),
+                    Expanded(
+                      child: TabBarView(
+                        physics: MediaQuery.disableAnimationsOf(context)
+                            ? const NeverScrollableScrollPhysics()
+                            : null,
+                        children: [
+                          _MapView(
+                            state: _state,
+                            category: _category,
+                            onOpen: _open,
+                          ),
+                          _ReportList(
+                            future: _list,
+                            filtered: _filtered,
+                            onOpen: _open,
+                            onRetry: _reload,
+                            onClear: _clearFilters,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            : _Landing(
+                resolved: _resolved,
+                onExplore: () => setState(() => _exploring = true),
+                onReport: _startReport,
+              ),
+      _Tab.notices => NoticesScreen(onOpen: _open),
       _Tab.mine => MyReportsScreen(embedded: true, reloadToken: _mineToken),
+      _Tab.profile => ProfileScreen(
+        onCleared: () {
+          setState(() => _mineToken++);
+          _reload();
+          unawaited(_loadDraft());
+        },
+      ),
+      _Tab.report => const SizedBox.shrink(),
     };
   }
 
   @override
   Widget build(BuildContext context) {
     final filterCount = (_state != null ? 1 : 0) + (_category != null ? 1 : 0);
+    final exploring = _tab == _Tab.home && _exploring;
     return Scaffold(
       appBar: AppBar(
-        title: const Text(S.appName),
+        backgroundColor: AldiaColors.primaryDark,
+        foregroundColor: Colors.white,
+        leading: exploring
+            ? IconButton(
+                tooltip: 'Volver a Inicio',
+                onPressed: () => setState(() => _exploring = false),
+                icon: const Icon(Icons.arrow_back),
+              )
+            : null,
+        title: Text(
+          exploring
+              ? 'Explorar mi ciudad'
+              : switch (_tab) {
+                  _Tab.notices => 'Avisos',
+                  _Tab.mine => S.myReports,
+                  _Tab.profile => 'Perfil',
+                  _ => S.appName,
+                },
+          style: const TextStyle(color: Colors.white),
+        ),
         actions: [
-          if (_tab != _Tab.mine)
+          if (exploring)
             IconButton(
               tooltip: S.filtersLabel,
               onPressed: _editFilters,
@@ -143,8 +241,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Column(
         children: [
-          if (_draft case final draft? when _tab != _Tab.mine)
-            // Capped so it never pushes the map or list off screen at 200 % text.
+          if (_draft case final draft? when _tab == _Tab.home)
             ConstrainedBox(
               constraints: BoxConstraints(
                 maxHeight: MediaQuery.sizeOf(context).height * 0.3,
@@ -164,41 +261,132 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _startReport,
-        icon: const Icon(Icons.add_a_photo),
-        label: const Text(S.newReport),
-      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab.index,
+        height: MediaQuery.textScalerOf(context).scale(14) > 20 ? 104 : 80,
         animationDuration: MediaQuery.disableAnimationsOf(context)
             ? Duration.zero
-            : const Duration(milliseconds: 500),
-        onDestinationSelected: (i) => setState(() {
-          _tab = _Tab.values[i];
-          _visited.add(_tab);
-        }),
+            : const Duration(milliseconds: 300),
+        onDestinationSelected: (i) {
+          final tab = _Tab.values[i];
+          if (tab == _Tab.report) {
+            unawaited(_startReport());
+            return;
+          }
+          setState(() {
+            _tab = tab;
+            _visited.add(tab);
+          });
+          if (tab == _Tab.notices || tab == _Tab.mine) {
+            unawaited(_observeMine());
+          }
+        },
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.map_outlined),
-            selectedIcon: Icon(Icons.map),
-            label: S.navMap,
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: 'Inicio',
           ),
           NavigationDestination(
-            icon: Icon(Icons.view_list_outlined),
-            selectedIcon: Icon(Icons.view_list),
-            label: S.navList,
+            icon: Icon(Icons.notifications_outlined),
+            selectedIcon: Icon(Icons.notifications),
+            label: 'Avisos',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.add_circle_outline, size: 36),
+            label: S.newReport,
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.assignment_outlined),
+            selectedIcon: Icon(Icons.assignment),
+            label: S.myReports,
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline),
             selectedIcon: Icon(Icons.person),
-            label: S.myReports,
+            label: 'Perfil',
           ),
         ],
       ),
     );
   }
+}
+
+class _Landing extends StatelessWidget {
+  const _Landing({
+    required this.resolved,
+    required this.onExplore,
+    required this.onReport,
+  });
+  final Future<int?> resolved;
+  final VoidCallback onExplore;
+  final VoidCallback onReport;
+
+  @override
+  Widget build(BuildContext context) => ColoredBox(
+    color: AldiaColors.primaryDark,
+    child: Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 680),
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.all(AldiaSpace.xl),
+          children: [
+            const Icon(
+              Icons.location_city_outlined,
+              color: Colors.white,
+              size: 88,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Tu ciudad, al día',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.headlineMedium
+                  ?.copyWith(color: Colors.white),
+            ),
+            const SizedBox(height: 24),
+            FutureBuilder<int?>(
+              future: resolved,
+              builder: (context, snapshot) => Column(
+                children: [
+                  Text(
+                    snapshot.data?.toString() ?? '—',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  Text(
+                    snapshot.hasData
+                        ? 'reportes resueltos'
+                        : 'Reportes resueltos: dato no disponible',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Divider(color: Colors.white54),
+            ),
+            FilledButton.tonalIcon(
+              onPressed: onExplore,
+              icon: const Icon(Icons.explore_outlined),
+              label: const Text('Explorar mi ciudad'),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onReport,
+              icon: const Icon(Icons.add_a_photo_outlined),
+              label: const Text('Reportar un problema'),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 AnimationStyle? _sheetStyle(BuildContext context) =>
@@ -413,6 +601,7 @@ class _MapViewState extends State<_MapView> {
   List<ReportCluster> _clusters = const [];
   List<Report> _pins = const [];
   bool _clustersFailed = false;
+  bool _showReports = true;
 
   @override
   void didUpdateWidget(_MapView old) {
@@ -560,31 +749,92 @@ class _MapViewState extends State<_MapView> {
                 tileProvider: context.read<TileProvider>(),
                 userAgentPackageName: AppConfig.userAgentPackage,
               ),
-              MarkerLayer(
-                markers: [
-                  for (final report in _pins)
-                    Marker(
-                      point: report.position,
-                      width: 104,
-                      height: 72,
-                      child: _StatePin(
-                        report: report,
-                        onTap: () => _showSummary(report),
+              if (_showReports)
+                MarkerLayer(
+                  markers: [
+                    for (final report in _pins)
+                      Marker(
+                        point: report.position,
+                        width: 104,
+                        height: 72,
+                        child: _StatePin(
+                          report: report,
+                          onTap: () => _showSummary(report),
+                        ),
                       ),
-                    ),
-                  for (final cluster in _clusters)
-                    Marker(
-                      point: cluster.position,
-                      width: 56,
-                      height: 56,
-                      child: _ClusterPin(
-                        cluster: cluster,
-                        onTap: () => _tapCluster(cluster),
+                    for (final cluster in _clusters)
+                      Marker(
+                        point: cluster.position,
+                        width: 56,
+                        height: 56,
+                        child: _ClusterPin(
+                          cluster: cluster,
+                          onTap: () => _tapCluster(cluster),
+                        ),
                       ),
-                    ),
-                ],
-              ),
+                  ],
+                ),
             ],
+          ),
+        ),
+        Positioned(
+          right: 8,
+          bottom: 16,
+          child: Card(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                MapLayersButton(
+                  overlay: 'Reportes de la comunidad',
+                  visible: _showReports,
+                  onChanged: (value) => setState(() => _showReports = value),
+                ),
+                IconButton(
+                  tooltip: 'Acercar mapa',
+                  onPressed: () => _controller.move(
+                    _controller.camera.center,
+                    (_controller.camera.zoom + 1).clamp(3, 19),
+                  ),
+                  icon: const Icon(Icons.add),
+                ),
+                IconButton(
+                  tooltip: 'Alejar mapa',
+                  onPressed: () => _controller.move(
+                    _controller.camera.center,
+                    (_controller.camera.zoom - 1).clamp(3, 19),
+                  ),
+                  icon: const Icon(Icons.remove),
+                ),
+                IconButton(
+                  tooltip: S.useMyLocation,
+                  onPressed: () async {
+                    final point = await context
+                        .read<LocationService>()
+                        .currentPosition();
+                    if (!mounted || !context.mounted) return;
+                    if (point != null) {
+                      _controller.move(point, 16);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text(S.locationUnavailable)),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.my_location),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const Positioned(
+          left: 4,
+          bottom: 4,
+          child: ColoredBox(
+            color: Colors.white,
+            child: Text(
+              '© OpenStreetMap contributors',
+              style: TextStyle(color: AldiaColors.text, fontSize: 11),
+            ),
           ),
         ),
         if (_clustersFailed)

@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
 import '../core/config.dart';
+import '../core/categories.dart';
 import 'report.dart';
 
 class ApiException implements Exception {
@@ -33,6 +34,26 @@ class ApiClient {
     if (Uri.parse(photoPath).hasScheme) return photoPath;
     final uri = Uri.parse(_baseUrl);
     return uri.replace(path: photoPath, query: null).toString();
+  }
+
+  Future<int?> resolvedCount() async {
+    final json = jsonDecode(
+      await _send(() => _client.get(Uri.parse('$_baseUrl/stats'))),
+    ) as Map<String, dynamic>;
+    final value =
+        json['resueltos'] ?? (json['by_resolution'] as Map?)?['fixed'];
+    return value is num ? value.toInt() : null;
+  }
+
+  Future<List<ReportCategory>> categories() async {
+    final decoded = jsonDecode(
+      await _send(() => _client.get(Uri.parse('$_baseUrl/categories'))),
+    ) as List;
+    return decoded
+        .map(
+          (e) => ReportCategory.fromJson(Map<String, dynamic>.from(e as Map)),
+        )
+        .toList();
   }
 
   Future<List<Report>> listReports({

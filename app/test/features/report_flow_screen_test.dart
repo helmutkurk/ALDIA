@@ -2,6 +2,7 @@ import 'package:aldia_app/core/strings.dart';
 import 'package:aldia_app/data/report_repository.dart';
 import 'package:aldia_app/features/report/report_flow_screen.dart';
 import 'package:aldia_app/services/location_service.dart';
+import 'package:aldia_app/services/geocoder_service.dart';
 import 'package:aldia_app/services/photo_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -12,26 +13,30 @@ import 'package:provider/provider.dart';
 import '../support/fakes.dart';
 import '../support/offline_tiles.dart';
 
-Widget host(ReportRepository repository, {double textScale = 1}) =>
-    MultiProvider(
-      providers: [
-        Provider<ReportRepository>.value(value: repository),
-        Provider<LocationService>.value(
-          value: FakeLocation(const LatLng(14.61, -90.52)),
-        ),
-        Provider<PhotoService>.value(value: FakePhotos()),
-        Provider<TileProvider>.value(value: OfflineTileProvider()),
-      ],
-      child: MaterialApp(
-        home: Builder(
-          builder: (context) => MediaQuery(
-            data: MediaQuery.of(context)
-                .copyWith(textScaler: TextScaler.linear(textScale)),
-            child: const ReportFlowScreen(),
-          ),
-        ),
+Widget host(
+  ReportRepository repository, {
+  double textScale = 1,
+  GeocoderService? geocoder,
+}) => MultiProvider(
+  providers: [
+    Provider<ReportRepository>.value(value: repository),
+    Provider<LocationService>.value(
+      value: FakeLocation(const LatLng(14.61, -90.52)),
+    ),
+    Provider<PhotoService>.value(value: FakePhotos()),
+    Provider<GeocoderService?>.value(value: geocoder ?? FakeGeocoder()),
+    Provider<TileProvider>.value(value: OfflineTileProvider()),
+  ],
+  child: MaterialApp(
+    home: Builder(
+      builder: (context) => MediaQuery(
+        data: MediaQuery.of(context)
+            .copyWith(textScaler: TextScaler.linear(textScale)),
+        child: const ReportFlowScreen(),
       ),
-    );
+    ),
+  ),
+);
 
 /// The wizard is a lazy list and the map would swallow drags, so scroll the
 /// page through its controller until the text is built, then bring it on screen.
@@ -57,7 +62,53 @@ Future<void> tapText(WidgetTester tester, String text) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> advanceToPhoto(WidgetTester tester) async {
+  await tapText(tester, S.useMyLocation);
+  await tapText(tester, S.confirmLocation);
+  await tapText(tester, 'Bache');
+  await tapText(tester, S.next);
+  await tapText(tester, S.differentProblem);
+}
+
+Future<void> advanceToReview(WidgetTester tester) async {
+  await advanceToPhoto(tester);
+  await tapText(tester, S.takePhoto);
+  await tapText(tester, S.usePhoto);
+  await tapText(tester, S.next);
+}
+
 void main() {
+  testWidgets(
+    'address search is explicit, debounced and selecting a fake result updates the summary',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final geocoder = FakeGeocoder()
+        ..results = const [
+          AddressResult(
+            label: 'Zona 1, Ciudad de Guatemala',
+            position: LatLng(14.64, -90.51),
+          ),
+        ];
+      await tester.pumpWidget(host(fakeRepository(), geocoder: geocoder));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).first, 'Zona 1');
+      await tester.pump(const Duration(seconds: 1));
+      expect(geocoder.queries, isEmpty);
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pump(const Duration(milliseconds: 449));
+      expect(geocoder.queries, isEmpty);
+      await tester.pump(const Duration(milliseconds: 2));
+      await tester.pumpAndSettle();
+      expect(geocoder.queries, ['Zona 1']);
+      await tapText(tester, 'Zona 1, Ciudad de Guatemala');
+      await tapText(tester, S.confirmLocation);
+      expect(find.text('Zona 1, Ciudad de Guatemala'), findsOneWidget);
+      expect(find.text(S.chooseCategory), findsOneWidget);
+    },
+  );
+
   testWidgets('wizard works at text scale 2.0 without overflow on every step', (
     tester,
   ) async {
@@ -67,21 +118,7 @@ void main() {
     await tester.pumpWidget(host(fakeRepository(), textScale: 2));
     await tester.pumpAndSettle();
 
-    await reveal(tester, S.takePhoto);
-    await tapText(tester, S.takePhoto);
-    await reveal(tester, S.retakePhoto);
-    await tapText(tester, S.usePhoto);
-
-    await reveal(tester, S.confirmLocation);
-    await tapText(tester, S.confirmLocation);
-
-    await reveal(tester, S.chooseCategory);
-    await tapText(tester, 'Bache');
-    await tapText(tester, S.next);
-
-    // No nearby reports: duplicates are skipped and details follow.
-    await reveal(tester, S.noteLabel);
-    await tapText(tester, S.next);
+    await advanceToReview(tester);
 
     await reveal(tester, S.send);
     await tester.scrollUntilVisible(
@@ -98,6 +135,7 @@ void main() {
   ) async {
     await tester.pumpWidget(host(fakeRepository()));
     await tester.pumpAndSettle();
+    await advanceToPhoto(tester);
     final size = tester.getSize(
       find.widgetWithText(OutlinedButton, S.takePhoto),
     );
@@ -115,8 +153,8 @@ void main() {
     await tester.pumpWidget(host(fakeRepository()));
     await tester.pumpAndSettle();
     expect(
-      tester.getSemantics(find.text(S.stepPhoto).last),
-      isSemantics(label: S.stepPhoto, isHeader: true, isFocused: true),
+      tester.getSemantics(find.text(S.stepLocation).last),
+      isSemantics(label: S.stepLocation, isHeader: true, isFocused: true),
     );
     handle.dispose();
   });
@@ -133,8 +171,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tapText(tester, S.takePhoto);
-    await tapText(tester, S.usePhoto);
+    await tapText(tester, S.useMyLocation);
     await tapText(tester, S.confirmLocation);
     await tapText(tester, 'Bache');
     await tapText(tester, S.next);
@@ -163,12 +200,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tapText(tester, S.takePhoto);
-      await tapText(tester, S.usePhoto);
-      await tapText(tester, S.confirmLocation);
-      await tapText(tester, 'Bache');
-      await tapText(tester, S.next);
-      await tapText(tester, S.next);
+      await advanceToReview(tester);
       await tapText(tester, S.send);
 
       expect(find.textContaining('(prueba)'), findsWidgets);
@@ -200,12 +232,7 @@ void main() {
       addTearDown(tester.view.reset);
       await tester.pumpWidget(host(fakeRepository(createdStatus: 'pending')));
       await tester.pumpAndSettle();
-      await tapText(tester, S.takePhoto);
-      await tapText(tester, S.usePhoto);
-      await tapText(tester, S.confirmLocation);
-      await tapText(tester, 'Bache');
-      await tapText(tester, S.next);
-      await tapText(tester, S.next);
+      await advanceToReview(tester);
       await tapText(tester, S.send);
       expect(find.text(S.pendingHelp), findsOneWidget);
     },

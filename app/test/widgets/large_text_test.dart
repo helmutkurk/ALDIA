@@ -46,10 +46,22 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Explorar mi ciudad'),
+      180,
+      scrollable: find
+          .descendant(
+            of: find.byType(ListView).first,
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.tap(find.text('Explorar mi ciudad'));
+    await tester.pumpAndSettle();
     expect(find.text('Corresponde a otra entidad'), findsOneWidget);
 
-    await tester.ensureVisible(find.text(S.navList));
-    await tester.tap(find.text(S.navList));
+    await tester.ensureVisible(find.text('LISTA'));
+    await tester.tap(find.text('LISTA'));
     await tester.pumpAndSettle();
     expect(find.byType(ReportTile), findsWidgets);
 
@@ -57,6 +69,20 @@ void main() {
     await tester.tap(find.byTooltip(S.filtersLabel));
     await tester.pumpAndSettle();
     expect(find.text(S.apply), findsOneWidget);
+    await tester.tapAt(const Offset(5, 5));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Avisos'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Actualizar avisos'),
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Actualizar avisos'), findsOneWidget);
+    await tester.tap(find.text('Perfil'));
+    await tester.pumpAndSettle();
+    expect(find.text('Tu perfil en Aldia'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('report detail at 200 % text', (tester) async {

@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:aldia_app/data/api_client.dart';
+import 'package:aldia_app/core/categories.dart';
+import 'package:aldia_app/services/geocoder_service.dart';
 import 'package:aldia_app/data/my_reports_store.dart';
 import 'package:aldia_app/data/report_repository.dart';
 import 'package:aldia_app/services/location_service.dart';
@@ -75,6 +77,22 @@ class FakeDiagnosticLocation implements LocationService, LocationDiagnostics {
   Future<void> openSettings() async => settingsOpened++;
 }
 
+class FakeGeocoder implements GeocoderService {
+  final queries = <String>[];
+  List<AddressResult> results = const [];
+
+  @override
+  Future<List<AddressResult>> search(String query) async {
+    queries.add(query);
+    return results;
+  }
+}
+
+List<Map<String, String>> categoryJson() => [
+  for (final category in reportCategories)
+    {'id': category.id, 'label': category.label, 'group': category.group},
+];
+
 class FakePhotos implements PhotoService {
   @override
   Future<CapturedPhoto?> takePhoto() async => CapturedPhoto(
@@ -101,6 +119,20 @@ ReportRepository fakeRepository({
   final client = MockClient((http.Request request) async {
     final path = request.url.path;
     requests?.add(request);
+    if (path.endsWith('/categories')) {
+      return http.Response(jsonEncode(categoryJson()), 200);
+    }
+    if (path.endsWith('/stats')) {
+      return http.Response(
+        jsonEncode({
+          'total': 1,
+          'by_category': {'pothole': 1},
+          'by_status': {'verified': 1},
+          'by_resolution': {'open': 1, 'fixed': 0},
+        }),
+        200,
+      );
+    }
     if (request.method == 'GET' && path.endsWith('/reports/nearby')) {
       if (failNearby) return http.Response('{}', 500);
       return http.Response(jsonEncode({'items': nearby}), 200);

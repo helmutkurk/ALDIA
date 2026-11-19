@@ -10,6 +10,11 @@ abstract class MyReportsStore {
 class PrefsMyReportsStore implements MyReportsStore {
   static const _key = 'my_report_ids';
 
+  Future<void> clear() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_key);
+  }
+
   @override
   Future<List<String>> ids() async {
     final prefs = await SharedPreferences.getInstance();

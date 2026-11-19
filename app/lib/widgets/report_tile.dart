@@ -7,77 +7,160 @@ import '../core/strings.dart';
 import '../core/theme.dart';
 import '../data/report.dart';
 import '../data/report_repository.dart';
-import 'status_chips.dart';
+import '../services/share_service.dart';
 
-/// Compact report card: thumbnail, category, state chip and age.
+/// Public report card. Actions remain separate semantic targets from the detail.
 class ReportTile extends StatelessWidget {
   const ReportTile({super.key, required this.report, required this.onTap});
   final Report report;
   final VoidCallback onTap;
 
-  static const double _thumb = 72;
-
   @override
   Widget build(BuildContext context) {
     final category = categoryById(report.category);
     final state = citizenStateFor(report.citizenState);
-    final age = S.age(report.createdAt, DateTime.now());
+    final repository = context.read<ReportRepository>();
     final theme = Theme.of(context);
-    return Semantics(
-      button: true,
-      label: '${category.label}. ${state.label}. $age',
-      excludeSemantics: true,
-      onTap: onTap,
-      child: Card(
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(AldiaSpace.s),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: SizedBox(
-                    width: _thumb,
-                    height: _thumb,
-                    child: Image.network(
-                      context.read<ReportRepository>().thumbnailUrl(report),
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => ColoredBox(
-                        color: theme.colorScheme.surfaceContainerHighest,
-                        child: Icon(
-                          category.icon,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Semantics(
+            button: true,
+            label: '${category.label}. ${state.label}. Ver detalle',
+            child: InkWell(
+              onTap: onTap,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Image.network(
+                    repository.photoUrl(report),
+                    height: 190,
+                    fit: BoxFit.cover,
+                    semanticLabel: S.photoLabel(category.label, state.label),
+                    errorBuilder: (_, _, _) => Container(
+                      height: 190,
+                      color: theme.colorScheme.surfaceContainerHighest,
+                      child: Icon(
+                        category.icon,
+                        size: 56,
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: AldiaSpace.m),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(category.label, style: theme.textTheme.titleMedium),
-                      const SizedBox(height: AldiaSpace.xs),
-                      Wrap(
-                        spacing: AldiaSpace.s,
-                        runSpacing: AldiaSpace.xs,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          StateChip(state: report.citizenState),
-                          Text(age, style: theme.textTheme.bodySmall),
-                        ],
-                      ),
-                    ],
+                  Padding(
+                    padding: const EdgeInsets.all(AldiaSpace.l),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Wrap(
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 8,
+                            children: [
+                              Icon(
+                                Icons.circle,
+                                size: 12,
+                                color: switch (report.citizenState) {
+                                  'resuelto' => AldiaColors.success,
+                                  'en_revision' ||
+                                  'programado' ||
+                                  'en_proceso' => theme.colorScheme.primary,
+                                  'nuevo' || 'pendiente_verificacion' =>
+                                    AldiaColors.accent,
+                                  _ => theme.colorScheme.onSurfaceVariant,
+                                },
+                              ),
+                              Text(
+                                state.label,
+                                style: theme.textTheme.labelLarge,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(category.label, style: theme.textTheme.titleLarge),
+                        Text(
+                          'Punto: ${report.position.latitude.toStringAsFixed(5)}, ${report.position.longitude.toStringAsFixed(5)}',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                        if (report.note?.isNotEmpty == true)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(report.note!),
+                          ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '${report.createdAt.day}/${report.createdAt.month}/${report.createdAt.year} · ${S.age(report.createdAt, DateTime.now())}',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                        Text(
+                          S.reference(report.id),
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
                   ),
+                ],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                AnimatedBuilder(
+                  animation: repository.local,
+                  builder: (context, _) {
+                    final followed = repository.local.follows(report.id);
+                    return IconButton(
+                      tooltip: followed
+                          ? 'Dejar de seguir reporte'
+                          : S.followReport,
+                      isSelected: followed,
+                      selectedIcon: const Icon(Icons.favorite),
+                      icon: const Icon(Icons.favorite_border),
+                      onPressed: () async {
+                        try {
+                          if (followed) {
+                            await repository.local.setFollow(report.id, false);
+                          } else {
+                            await repository.follow(report);
+                          }
+                        } catch (_) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text(S.storageError)),
+                            );
+                          }
+                        }
+                      },
+                    );
+                  },
+                ),
+                IconButton(
+                  tooltip: 'Compartir reporte',
+                  icon: const Icon(Icons.share_outlined),
+                  onPressed: () async {
+                    final shared = await ShareService.shareReport(report.id);
+                    if (!shared && context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Enlace copiado. Pégalo en WhatsApp o donde quieras compartirlo.',
+                          ),
+                        ),
+                      );
+                    }
+                  },
                 ),
               ],
             ),
           ),
-        ),
+        ],
       ),
     );
   }

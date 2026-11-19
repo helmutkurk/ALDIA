@@ -14,7 +14,7 @@ import '../support/fakes.dart';
 import '../support/memory_draft_store.dart';
 import '../support/offline_tiles.dart';
 import '../widgets/harness.dart';
-import 'report_flow_screen_test.dart' show tapText;
+import 'report_flow_screen_test.dart' show tapText, advanceToReview;
 
 class _Connectivity implements ConnectivityService {
   _Connectivity(this.isOnline);
@@ -69,6 +69,7 @@ class _Wired {
     repository: repository,
     location: FakeLocation(const LatLng(14.61, -90.52)),
     photos: FakePhotos(),
+    geocoder: FakeGeocoder(),
     drafts: drafts,
     outbox: outbox,
     connectivity: connectivity,
@@ -98,8 +99,8 @@ void main() {
 
     await tester.tap(find.text(S.newReport));
     await tester.pumpAndSettle();
-    await tapText(tester, S.takePhoto);
-    await tapText(tester, S.usePhoto);
+    await tapText(tester, S.useMyLocation);
+    await tapText(tester, S.confirmLocation);
     expect(wired.drafts.records, isNotEmpty);
 
     await tester.tap(find.byType(BackButton));
@@ -121,12 +122,7 @@ void main() {
 
     await tester.tap(find.text(S.newReport));
     await tester.pumpAndSettle();
-    await tapText(tester, S.takePhoto);
-    await tapText(tester, S.usePhoto);
-    await tapText(tester, S.confirmLocation);
-    await tapText(tester, 'Bache');
-    await tapText(tester, S.next);
-    await tapText(tester, S.next);
+    await advanceToReview(tester);
     await tapText(tester, S.send);
 
     expect(wired.outbox.entries, hasLength(1));

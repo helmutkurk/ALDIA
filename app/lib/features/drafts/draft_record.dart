@@ -8,6 +8,7 @@ class DraftRecord {
     required this.position,
     required this.createdAt,
     this.locationConfirmed = false,
+    this.placeLabel,
     this.categoryId,
     this.photoPath,
     this.capturedAt,
@@ -26,6 +27,7 @@ class DraftRecord {
     ),
     createdAt: DateTime.parse(json['created_at'] as String),
     locationConfirmed: json['location_confirmed'] as bool? ?? false,
+    placeLabel: json['place_label'] as String?,
     categoryId: json['category'] as String?,
     photoPath: json['photo_path'] as String?,
     capturedAt: DateTime.tryParse(json['captured_at'] as String? ?? ''),
@@ -39,6 +41,7 @@ class DraftRecord {
   final String step;
   final LatLng position;
   final bool locationConfirmed;
+  final String? placeLabel;
   final String? categoryId;
   final String? photoPath;
   final DateTime? capturedAt;
@@ -53,6 +56,7 @@ class DraftRecord {
     String? step,
     LatLng? position,
     bool? locationConfirmed,
+    String? placeLabel,
     String? categoryId,
     String? photoPath,
     DateTime? capturedAt,
@@ -67,6 +71,7 @@ class DraftRecord {
     step: step ?? this.step,
     position: position ?? this.position,
     locationConfirmed: locationConfirmed ?? this.locationConfirmed,
+    placeLabel: placeLabel ?? this.placeLabel,
     categoryId: categoryId ?? this.categoryId,
     photoPath: clearPhoto ? null : photoPath ?? this.photoPath,
     capturedAt: clearPhoto ? null : capturedAt ?? this.capturedAt,
@@ -83,6 +88,7 @@ class DraftRecord {
     'latitude': position.latitude,
     'longitude': position.longitude,
     'location_confirmed': locationConfirmed,
+    'place_label': placeLabel,
     'category': categoryId,
     'photo_path': photoPath,
     'captured_at': capturedAt?.toUtc().toIso8601String(),

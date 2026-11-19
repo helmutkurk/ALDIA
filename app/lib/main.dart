@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
 import 'data/api_client.dart';
+import 'data/local_citizen_store.dart';
 import 'data/clusters_api.dart';
 import 'data/my_reports_store.dart';
 import 'data/report_repository.dart';
@@ -13,6 +14,7 @@ import 'features/drafts/draft_store.dart';
 import 'features/outbox/outbox_service.dart';
 import 'services/connectivity_service.dart';
 import 'services/location_service.dart';
+import 'services/geocoder_service.dart';
 import 'services/photo_service.dart';
 
 const _onboardingKey = 'onboarding_seen';
@@ -24,6 +26,7 @@ Future<void> main() async {
   final repository = ReportRepository(
     api: ApiClient(client: client),
     store: PrefsMyReportsStore(),
+    local: LocalCitizenStore(preferences: prefs),
   );
   final connectivity = PlusConnectivityService();
   final drafts = JsonDraftStore();
@@ -51,6 +54,7 @@ Future<void> main() async {
       repository: repository,
       location: const GeolocatorLocationService(),
       photos: CameraPhotoService(),
+      geocoder: NominatimGeocoder(client: client),
       drafts: drafts,
       outbox: outbox,
       connectivity: connectivity,

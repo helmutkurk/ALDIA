@@ -9,6 +9,7 @@ import 'package:aldia_app/features/drafts/draft_store.dart';
 import 'package:aldia_app/features/outbox/outbox_service.dart';
 import 'package:aldia_app/services/connectivity_service.dart';
 import 'package:aldia_app/services/location_service.dart';
+import 'package:aldia_app/services/geocoder_service.dart';
 import 'package:aldia_app/services/photo_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -41,6 +42,23 @@ ReportRepository repositoryWith({
   final client = MockClient((request) async {
     requests?.add(request.url);
     final path = request.url.path;
+    if (path.endsWith('/categories')) {
+      return http.Response(jsonEncode(categoryJson()), 200);
+    }
+    if (path.endsWith('/stats')) {
+      final fixed = list
+          .where((report) => report['state'] == 'resuelto')
+          .length;
+      return http.Response(
+        jsonEncode({
+          'total': list.length,
+          'by_category': {},
+          'by_status': {},
+          'by_resolution': {'fixed': fixed},
+        }),
+        200,
+      );
+    }
     if (request.method == 'POST') {
       posts?.add(request);
       return http.Response(jsonEncode(stateJson('nuevo')), 201);
@@ -124,6 +142,7 @@ Widget harness({
     Provider<ReportRepository>.value(value: repository),
     Provider<LocationService>.value(value: FakeLocation(null)),
     Provider<PhotoService>.value(value: FakePhotos()),
+    Provider<GeocoderService?>.value(value: FakeGeocoder()),
     Provider<DraftStore?>.value(value: drafts),
     InheritedProvider<OutboxService?>.value(value: outbox),
     Provider<ConnectivityService?>.value(value: null),
