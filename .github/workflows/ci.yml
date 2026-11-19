@@ -63,8 +63,7 @@ jobs:
 
   app:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    container: ghcr.io/cirruslabs/flutter:stable
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: app
@@ -72,6 +71,13 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+      # Same Flutter version as .mise.toml, installed from the official release tag.
+      - name: Install Flutter 3.47.9
+        working-directory: ${{ github.workspace }}
+        run: |
+          git clone --depth 1 --branch 3.47.9 https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      - run: flutter --version
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
