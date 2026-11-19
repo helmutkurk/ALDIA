@@ -1,0 +1,17 @@
+# Code owners per folder (roles decided 2026-11-19). A review from an owner is requested automatically.
+# Last matching pattern wins.
+
+*                      @helmutkurk
+
+/app/                  @helmutkurk @Fmayo444
+/portal/               @mariaisabel16
+/backend/api/          @04Lenz04
+/backend/verifier/     @04Lenz04
+/documentation/        @helmutkurk
+
+# Shared contract and repo plumbing: the integrator plus the owner of the consumer side
+/documentation/api-contract.md   @helmutkurk @04Lenz04
+/.github/                        @helmutkurk
+/docker-compose.yml              @helmutkurk @04Lenz04
+/Makefile                        @helmutkurk
+/.mise.toml                      @helmutkurk

@@ -1,0 +1,77 @@
+name: CI
+
+# Lint and test every area. Jobs run inside official images, so no third-party
+# actions are needed besides checkout (pinned by commit SHA).
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container: python:3.12.15-slim
+    defaults:
+      run:
+        working-directory: backend/api
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - run: pip install --no-cache-dir uv==0.12.23 && uv sync --frozen
+      - run: uv run ruff check && uv run ruff format --check && uv run mypy app
+      - run: uv run pytest
+
+  verifier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container: python:3.12.15-slim
+    defaults:
+      run:
+        working-directory: backend/verifier
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - run: pip install --no-cache-dir uv==0.12.23 && uv sync --frozen
+      - run: uv run ruff check && uv run ruff format --check && uv run mypy app
+      - run: uv run pytest
+
+  portal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container: node:24-slim
+    defaults:
+      run:
+        working-directory: portal
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - run: npm ci --ignore-scripts
+      - run: npm run check
+
+  app:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container: ghcr.io/cirruslabs/flutter:3.47.9
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test

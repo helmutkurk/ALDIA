@@ -1,0 +1,63 @@
+# Local stack: db, verifier, api, portal. `make up` (needs a .env copied from .env.example).
+# Published ports bind to 127.0.0.1 only; the verifier and the database are never published.
+name: aldia
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-aldia}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-aldia}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  verifier:
+    build: ./backend/verifier
+    restart: unless-stopped
+    environment:
+      VERIFIER_MODE: ${VERIFIER_MODE:-stub}
+      MAX_AGE_SECONDS: ${MAX_AGE_SECONDS:-600}
+    expose:
+      - "8001"
+
+  api:
+    build: ./backend/api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      verifier:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-aldia}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-aldia}
+      PHOTO_DIR: /data/photos
+      VERIFIER_URL: http://verifier:8001
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}
+    volumes:
+      - photos:/data/photos
+    # Apply migrations, then serve.
+    command:
+      - sh
+      - -c
+      - alembic upgrade head && exec uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000 --no-access-log
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  portal:
+    build: ./portal
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "127.0.0.1:8080:8080"
+
+volumes:
+  db-data:
+  photos:
