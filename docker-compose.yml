@@ -40,6 +40,9 @@ services:
       PHOTO_DIR: /data/photos
       VERIFIER_URL: http://verifier:8001
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}
+      # Staff actions answer 503 until a token (32+ chars) is set in the local environment file.
+      STAFF_TOKEN: ${STAFF_TOKEN:-}
+      SUPERVISOR_TOKEN: ${SUPERVISOR_TOKEN:-}
     volumes:
       - photos:/data/photos
     # Apply migrations, then serve.

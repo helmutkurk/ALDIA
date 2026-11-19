@@ -222,7 +222,7 @@ def test_filters_and_pagination(client: TestClient) -> None:
         "bbox=0,-91,1,2",
         "category=unknown",
         "status=unknown",
-        "resolution=closed",
+        "resolution=unknown",
         "limit=0",
         "limit=501",
         "offset=-1",
@@ -478,6 +478,26 @@ def seed_reports(client: TestClient) -> list[str]:
                     created_at=datetime(2026, 11, 10 + index, 12, tzinfo=UTC),
                     status=status,
                     resolution=resolution,
+                    state=(
+                        "resuelto"
+                        if resolution == "fixed"
+                        else "en_proceso"
+                        if resolution == "acknowledged"
+                        else "pendiente_verificacion"
+                        if status == "pending"
+                        else "nuevo"
+                    ),
+                    state_changed_at=datetime(2026, 11, 10 + index, 12, tzinfo=UTC),
+                    verified_at=(
+                        datetime(2026, 11, 10 + index, 12, tzinfo=UTC)
+                        if status != "pending"
+                        else None
+                    ),
+                    resolved_at=(
+                        datetime(2026, 11, 10 + index, 12, tzinfo=UTC)
+                        if resolution == "fixed"
+                        else None
+                    ),
                     note="Luminaria dañada, reparar\npor favor" if index == 1 else None,
                     verification=None,
                     phash=None,
@@ -489,7 +509,7 @@ def seed_reports(client: TestClient) -> list[str]:
 
 def test_resolution_list_and_detail(client: TestClient) -> None:
     ids = seed_reports(client)
-    result = client.get("/api/reports?resolution=fixed").json()
+    result = client.get("/api/reports?resolution=fixed&include_old=true").json()
     assert result["total"] == 2
     assert [row["id"] for row in result["items"]] == [ids[3], ids[2]]
     assert all(row["resolution"] == "fixed" for row in result["items"])
@@ -509,24 +529,41 @@ def test_empty_read_views(client: TestClient, path: str) -> None:
     if path == "/api/stats":
         from app.categories import CATEGORY_IDS
 
-        assert response.json() == {
-            "total": 0,
-            "by_category": dict.fromkeys(CATEGORY_IDS, 0),
-            "by_status": dict.fromkeys(["pending", "verified", "rejected"], 0),
-            "by_resolution": dict.fromkeys(["open", "acknowledged", "fixed"], 0),
+        stats = response.json()
+        assert stats["total"] == 0
+        assert stats["by_category"] == dict.fromkeys(CATEGORY_IDS, 0)
+        assert stats["by_status"] == dict.fromkeys(
+            ["pending", "verified", "rejected"], 0
+        )
+        assert stats["by_resolution"] == dict.fromkeys(
+            ["open", "acknowledged", "fixed", "closed"], 0
+        )
+        assert stats["recibidos"] == stats["resueltos"] == stats["abiertos"] == 0
+        assert stats["resolucion_horas"] == {
+            "median": None,
+            "p90": None,
+            "mean": None,
+            "n": 0,
         }
+        assert stats["tasa_resolucion"] is None
+        assert stats["sla_cumplido"] is None
     elif path.endswith(".csv"):
-        assert list(csv.reader(StringIO(response.text))) == [
+        assert list(csv.reader(StringIO(response.content.decode("utf-8-sig")))) == [
             [
                 "id",
+                "created_at",
+                "verified_at",
                 "category",
+                "state",
+                "state_changed_at",
+                "resolved_at",
                 "latitude",
                 "longitude",
-                "captured_at",
-                "created_at",
-                "status",
-                "resolution",
-                "photo_url",
+                "assignee",
+                "verifier_status",
+                "duplicates_count",
+                "days_open",
+                "link",
             ]
         ]
     else:
@@ -535,7 +572,7 @@ def test_empty_read_views(client: TestClient, path: str) -> None:
 
 def test_stats_counts(client: TestClient) -> None:
     seed_reports(client)
-    response = client.get("/api/stats")
+    response = client.get("/api/stats?include_old=true")
     assert response.status_code == 200
     stats = response.json()
     assert stats["total"] == 5
@@ -543,7 +580,12 @@ def test_stats_counts(client: TestClient) -> None:
     assert stats["by_category"]["graffiti"] == 2
     assert stats["by_category"]["street_light"] == 0
     assert stats["by_status"] == {"pending": 1, "verified": 3, "rejected": 1}
-    assert stats["by_resolution"] == {"open": 2, "acknowledged": 1, "fixed": 2}
+    assert stats["by_resolution"] == {
+        "open": 2,
+        "acknowledged": 1,
+        "fixed": 2,
+        "closed": 0,
+    }
 
 
 @pytest.mark.parametrize(
@@ -564,26 +606,28 @@ def test_shared_read_filters(
     from io import StringIO
 
     ids = seed_reports(client)
-    listed = client.get(f"/api/reports?{query}").json()
-    stats_response = client.get(f"/api/stats?{query}")
-    csv_response = client.get(f"/api/reports.csv?{query}")
+    listed = client.get(f"/api/reports?{query}&include_old=true").json()
+    stats_response = client.get(f"/api/stats?{query}&include_old=true")
+    csv_response = client.get(f"/api/reports.csv?{query}&include_old=true")
     assert stats_response.status_code == csv_response.status_code == 200
     stats = stats_response.json()
-    rows = list(csv.DictReader(StringIO(csv_response.text)))
+    rows = list(csv.DictReader(StringIO(csv_response.content.decode("utf-8-sig"))))
     assert [row["id"] for row in rows] == [ids[index] for index in indexes]
     assert listed["total"] == stats["total"] == len(indexes)
     for key in ["by_category", "by_status", "by_resolution"]:
         assert sum(stats[key].values()) == len(indexes)
-    for key in ["category", "status", "resolution"]:
+    for key, column in [("category", "category"), ("status", "verifier_status")]:
         for value, count in stats[f"by_{key}"].items():
-            assert count == sum(row[key] == value for row in rows)
+            assert count == sum(row[column] == value for row in rows)
+    for value, count in stats["by_resolution"].items():
+        assert count == sum(row["resolution"] == value for row in listed["items"])
 
 
 @pytest.mark.parametrize("path", ["/api/reports", "/api/stats", "/api/reports.csv"])
 @pytest.mark.parametrize(
     "query",
     [
-        "resolution=closed",
+        "resolution=unknown",
         "category=bad",
         "status=open",
         "bbox=nan,0,1,2",
@@ -604,25 +648,36 @@ def test_csv_shape_and_injection(client: TestClient) -> None:
     from app.models import Report
 
     ids = seed_reports(client)
-    response = client.get("/api/reports.csv")
+    response = client.get("/api/reports.csv?include_old=true")
     assert response.status_code == 200
     assert response.headers["content-type"] == "text/csv; charset=utf-8"
     assert (
         response.headers["content-disposition"]
         == "attachment; filename=aldia-reports.csv"
     )
-    rows = list(csv.DictReader(StringIO(response.content.decode("utf-8"))))
+    rows = list(csv.DictReader(StringIO(response.content.decode("utf-8-sig"))))
+    assert response.content.startswith(b"\xef\xbb\xbf")
     assert len(rows) == 5
+    days_open = float(rows[-1].pop("days_open"))
+    assert days_open == pytest.approx(
+        (datetime.now(UTC) - datetime(2026, 11, 10, 12, tzinfo=UTC)).total_seconds()
+        / 86400,
+        abs=1 / 86400,
+    )
     assert rows[-1] == {
         "id": ids[0],
         "category": "pothole",
         "latitude": "14.5",
         "longitude": "-90.5",
-        "captured_at": "2026-11-10T11:00:00Z",
         "created_at": "2026-11-10T12:00:00Z",
-        "status": "verified",
-        "resolution": "open",
-        "photo_url": f"/api/reports/{ids[0]}/photo",
+        "verified_at": "2026-11-10T12:00:00Z",
+        "state": "nuevo",
+        "state_changed_at": "2026-11-10T12:00:00Z",
+        "resolved_at": "",
+        "assignee": "",
+        "verifier_status": "verified",
+        "duplicates_count": "0",
+        "link": f"/api/reports/{ids[0]}",
     }
     # Exercise all dangerous prefixes and CSV quoting, including non-ASCII text.
     for prefix in ["=", "+", "-", "@"]:
@@ -631,7 +686,15 @@ def test_csv_shape_and_injection(client: TestClient) -> None:
             assert row is not None
             row.category = f'{prefix}fórmula,"dato"\nsegunda línea'
             session.commit()
-        rows = list(csv.DictReader(StringIO(client.get("/api/reports.csv").text)))
+        rows = list(
+            csv.DictReader(
+                StringIO(
+                    client.get("/api/reports.csv?include_old=true").content.decode(
+                        "utf-8-sig"
+                    )
+                )
+            )
+        )
         assert rows[-1]["category"] == f'\'{prefix}fórmula,"dato"\nsegunda línea'
 
 
@@ -719,14 +782,28 @@ def test_export_caps(client: TestClient) -> None:
                     captured_at=datetime(2026, 11, 10, tzinfo=UTC),
                     created_at=datetime(2026, 11, 10, tzinfo=UTC),
                     status="verified",
+                    state="nuevo",
+                    state_changed_at=datetime(2026, 11, 10, tzinfo=UTC),
+                    verified_at=datetime(2026, 11, 10, tzinfo=UTC),
                 )
                 for _ in range(5001)
             ],
         )
         session.commit()
-    assert client.get("/api/stats").json()["total"] == 5001
+    assert client.get("/api/stats?include_old=true").json()["total"] == 5001
     assert (
-        len(list(csv.DictReader(StringIO(client.get("/api/reports.csv").text)))) == 5000
+        len(
+            list(
+                csv.DictReader(
+                    StringIO(
+                        client.get("/api/reports.csv?include_old=true").content.decode(
+                            "utf-8-sig"
+                        )
+                    )
+                )
+            )
+        )
+        == 5000
     )
     rows = client.get("/api/open311/v2/requests.json").json()
     assert len(rows) == 1000
@@ -763,8 +840,11 @@ def test_resolution_migration_existing_rows(
         command.upgrade(config, "head")
         with engine.connect() as connection:
             assert connection.scalar(text("SELECT resolution FROM reports")) == "open"
-        with engine.begin() as connection, pytest.raises(IntegrityError):
+        with engine.begin() as connection:
             connection.execute(text("UPDATE reports SET resolution = 'closed'"))
+            assert connection.scalar(text("SELECT resolution FROM reports")) == "closed"
+        with engine.begin() as connection, pytest.raises(IntegrityError):
+            connection.execute(text("UPDATE reports SET resolution = 'unknown'"))
         command.downgrade(config, "0001")
         with engine.connect() as connection:
             assert connection.scalar(text("SELECT count(*) FROM reports")) == 1
