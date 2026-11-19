@@ -14,7 +14,7 @@ String statusLabel(String status) => switch (status) {
 String reportStatusLabel(Report report) =>
     '${statusLabel(report.status)}${report.verification?.isStub == true ? ' (prueba)' : ''}';
 
-/// Compact state label for cards and pins: icon plus text on a tonal fill
+/// Compact state label: functional icon plus text on an opaque surface
 /// (never color alone). Wraps to two lines instead of overflowing.
 class StateChip extends StatelessWidget {
   const StateChip({super.key, required this.state});
@@ -24,20 +24,11 @@ class StateChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final info = citizenStateFor(state);
     final scheme = Theme.of(context).colorScheme;
-    final (background, foreground) = switch (state) {
-      'resuelto' => (scheme.primaryContainer, scheme.onPrimaryContainer),
-      'rechazado_verificador' => (
-        scheme.errorContainer,
-        scheme.onErrorContainer,
-      ),
-      'en_proceso' ||
-      'programado' ||
-      'en_revision' => (scheme.secondaryContainer, scheme.onSecondaryContainer),
-      _ => (scheme.surfaceContainerHighest, scheme.onSurfaceVariant),
-    };
+    final foreground = AldiaColors.status(state, scheme.brightness);
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: background,
+        color: scheme.surface,
+        border: Border.all(color: foreground),
         borderRadius: BorderRadius.circular(AldiaSpace.xl),
       ),
       child: Padding(
@@ -72,9 +63,14 @@ class CitizenStateChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final info = citizenStateFor(state);
+    final theme = Theme.of(context);
+    final foreground = AldiaColors.status(state, theme.brightness);
     return Chip(
-      avatar: Icon(info.icon, size: 20),
+      backgroundColor: theme.colorScheme.surface,
+      side: BorderSide(color: foreground),
+      avatar: Icon(info.icon, size: 20, color: foreground),
       label: Text(info.label),
+      labelStyle: TextStyle(color: foreground),
       materialTapTargetSize: MaterialTapTargetSize.padded,
     );
   }
@@ -84,24 +80,32 @@ class StatusChips extends StatelessWidget {
   const StatusChips({super.key, required this.report});
   final Report report;
   @override
-  Widget build(BuildContext context) => Wrap(
-    spacing: 8,
-    runSpacing: 4,
-    children: [
-      CitizenStateChip(state: report.citizenState),
-      Chip(
-        avatar: Icon(
-          report.status == 'verified'
-              ? Icons.verified_outlined
-              : report.status == 'rejected'
-              ? Icons.info_outline
-              : Icons.hourglass_empty,
-          size: 20,
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final foreground = AldiaColors.status(report.status, theme.brightness);
+    return Wrap(
+      spacing: 8,
+      runSpacing: 4,
+      children: [
+        CitizenStateChip(state: report.citizenState),
+        Chip(
+          backgroundColor: theme.colorScheme.surface,
+          side: BorderSide(color: foreground),
+          avatar: Icon(
+            report.status == 'verified'
+                ? Icons.verified_outlined
+                : report.status == 'rejected'
+                ? Icons.info_outline
+                : Icons.hourglass_empty,
+            size: 20,
+            color: foreground,
+          ),
+          label: Text(reportStatusLabel(report)),
+          labelStyle: TextStyle(color: foreground),
         ),
-        label: Text(reportStatusLabel(report)),
-      ),
-    ],
-  );
+      ],
+    );
+  }
 }
 
 class ChecksList extends StatelessWidget {
@@ -133,7 +137,10 @@ class ChecksList extends StatelessWidget {
                       ? Icons.check_circle_outline
                       : Icons.info_outline,
                   color: check.passed
-                      ? Theme.of(context).colorScheme.primary
+                      ? AldiaColors.status(
+                          'verified',
+                          Theme.of(context).brightness,
+                        )
                       : Theme.of(context).colorScheme.error,
                 ),
                 const SizedBox(width: 12),

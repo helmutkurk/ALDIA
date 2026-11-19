@@ -74,10 +74,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(
-                            _icons[i],
-                            size: 72,
-                            color: theme.colorScheme.primary,
+                          Container(
+                            padding: const EdgeInsets.all(AldiaSpace.xl),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surface,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: theme.colorScheme.outlineVariant,
+                              ),
+                            ),
+                            child: Icon(
+                              _icons[i],
+                              size: 72,
+                              color: theme.colorScheme.primary,
+                            ),
                           ),
                           const SizedBox(height: AldiaSpace.xl),
                           Semantics(
@@ -92,7 +102,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           Text(
                             S.onboardingBodies[i],
                             textAlign: TextAlign.center,
-                            style: theme.textTheme.bodyLarge,
+                            style: theme.textTheme.bodyLarge?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
                           ),
                         ],
                       ),

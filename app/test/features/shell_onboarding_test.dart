@@ -130,7 +130,7 @@ void main() {
     }
   });
 
-  testWidgets('dark mode builds a dark ColorScheme from the same seed', (
+  testWidgets('dark mode uses the inverted neutral ColorScheme', (
     tester,
   ) async {
     expect(buildTheme().colorScheme.brightness, Brightness.light);

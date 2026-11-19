@@ -16,6 +16,7 @@ import '../../services/geocoder_service.dart';
 import '../../services/photo_service.dart';
 import '../../widgets/report_tile.dart';
 import '../../widgets/map_layers_button.dart';
+import '../../widgets/neutral_map_pin.dart';
 import '../../widgets/status_chips.dart';
 import '../detail/report_detail_screen.dart';
 import '../drafts/draft_record.dart';
@@ -575,10 +576,9 @@ class _LocationStepState extends State<_LocationStep> {
                       point: c.position,
                       width: 48,
                       height: 48,
-                      child: const Icon(
-                        Icons.location_pin,
+                      child: const NeutralMapPin(
                         size: 48,
-                        color: AldiaColors.accent,
+                        child: Icon(Icons.location_on_outlined),
                       ),
                     ),
                   ],

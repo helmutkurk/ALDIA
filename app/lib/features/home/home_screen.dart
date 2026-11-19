@@ -18,6 +18,7 @@ import '../citizen/citizen_screens.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/report_tile.dart';
 import '../../widgets/map_layers_button.dart';
+import '../../widgets/neutral_map_pin.dart';
 import '../../widgets/routes.dart';
 import '../detail/report_detail_screen.dart';
 import '../drafts/draft_record.dart';
@@ -151,7 +152,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   children: [
                     TabBar(
-                      indicatorColor: AldiaColors.accent,
+                      indicatorColor: Theme.of(context).colorScheme.primary,
                       indicatorWeight: 3,
                       tabs: const [
                         Tab(text: 'MAPA'),
@@ -206,7 +207,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final exploring = _tab == _Tab.home && _exploring;
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: AldiaColors.primaryDark,
+        backgroundColor: AldiaColors.primary,
         foregroundColor: Colors.white,
         leading: exploring
             ? IconButton(
@@ -324,7 +325,7 @@ class _Landing extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ColoredBox(
-    color: AldiaColors.primaryDark,
+    color: Theme.of(context).scaffoldBackgroundColor,
     child: Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 680),
@@ -332,9 +333,9 @@ class _Landing extends StatelessWidget {
           shrinkWrap: true,
           padding: const EdgeInsets.all(AldiaSpace.xl),
           children: [
-            const Icon(
+            Icon(
               Icons.location_city_outlined,
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.primary,
               size: 88,
             ),
             const SizedBox(height: 16),
@@ -342,7 +343,7 @@ class _Landing extends StatelessWidget {
               'Tu ciudad, al día',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.headlineMedium
-                  ?.copyWith(color: Colors.white),
+                  ?.copyWith(color: Theme.of(context).colorScheme.onSurface),
             ),
             const SizedBox(height: 24),
             FutureBuilder<int?>(
@@ -353,7 +354,7 @@ class _Landing extends StatelessWidget {
                     snapshot.data?.toString() ?? '—',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                      color: Colors.white,
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -362,14 +363,18 @@ class _Landing extends StatelessWidget {
                         ? 'reportes resueltos'
                         : 'Reportes resueltos: dato no disponible',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Divider(color: Colors.white54),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Divider(
+                color: Theme.of(context).colorScheme.outlineVariant,
+              ),
             ),
             FilledButton.tonalIcon(
               onPressed: onExplore,
@@ -875,23 +880,25 @@ class _StatePin extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: AldiaColors.primaryDark,
-              child: Icon(state.icon, color: Colors.white, size: 22),
-            ),
+            NeutralMapPin(child: Icon(state.icon)),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 4),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outline,
+                ),
               ),
               child: Text(
                 state.label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textScaler: TextScaler.noScaling,
-                style: const TextStyle(fontSize: 11),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
               ),
             ),
           ],
@@ -919,18 +926,10 @@ class _ClusterPin extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: CircleAvatar(
-          backgroundColor: AldiaColors.primaryDark,
+        child: NeutralMapPin(
           child: single
-              ? const Icon(Icons.location_on, color: Colors.white)
-              : Text(
-                  '${cluster.count}',
-                  textScaler: TextScaler.noScaling,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+              ? const Icon(Icons.location_on)
+              : Text('${cluster.count}', textScaler: TextScaler.noScaling),
         ),
       ),
     );

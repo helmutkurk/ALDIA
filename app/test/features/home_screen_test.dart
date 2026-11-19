@@ -1,7 +1,9 @@
 import 'package:aldia_app/core/strings.dart';
+import 'package:aldia_app/core/theme.dart';
 import 'package:aldia_app/data/report.dart';
 import 'package:aldia_app/features/drafts/draft_record.dart';
 import 'package:aldia_app/features/home/home_screen.dart';
+import 'package:aldia_app/widgets/neutral_map_pin.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
@@ -36,7 +38,12 @@ void main() {
       await tester.pumpWidget(
         harness(
           home: const HomeScreen(),
-          repository: repositoryWith(list: [stateJson('en_revision')]),
+          repository: repositoryWith(
+            list: [
+              stateJson('en_revision'),
+              stateJson('resuelto', id: mainId, extra: {'longitude': -90.45}),
+            ],
+          ),
           clusters: FakeClusters(const [], fail: true),
         ),
       );
@@ -47,6 +54,21 @@ void main() {
       expect(find.text(S.mapFallback), findsOneWidget);
       expect(find.text('En revisión'), findsOneWidget);
       expect(find.byIcon(Icons.manage_search), findsOneWidget);
+      expect(find.byType(NeutralMapPin), findsNWidgets(2));
+      // Different states use the same neutral fill and a visible outline.
+      for (final container in tester.widgetList<Container>(
+        find.descendant(
+          of: find.byType(NeutralMapPin),
+          matching: find.byType(Container),
+        ),
+      )) {
+        final decoration = container.decoration! as BoxDecoration;
+        expect(decoration.color, AldiaColors.primary);
+        expect(
+          decoration.border,
+          Border.all(color: AldiaColors.onPrimary, width: 2),
+        );
+      }
 
       await tester.tap(find.text('En revisión'));
       await tester.pumpAndSettle();

@@ -21,6 +21,10 @@ class ReportTile extends StatelessWidget {
     final state = citizenStateFor(report.citizenState);
     final repository = context.read<ReportRepository>();
     final theme = Theme.of(context);
+    final statusColor = AldiaColors.status(
+      report.citizenState,
+      theme.brightness,
+    );
     return Card(
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -60,22 +64,12 @@ class ReportTile extends StatelessWidget {
                             crossAxisAlignment: WrapCrossAlignment.center,
                             spacing: 8,
                             children: [
-                              Icon(
-                                Icons.circle,
-                                size: 12,
-                                color: switch (report.citizenState) {
-                                  'resuelto' => AldiaColors.success,
-                                  'en_revision' ||
-                                  'programado' ||
-                                  'en_proceso' => theme.colorScheme.primary,
-                                  'nuevo' || 'pendiente_verificacion' =>
-                                    AldiaColors.accent,
-                                  _ => theme.colorScheme.onSurfaceVariant,
-                                },
-                              ),
+                              Icon(state.icon, size: 12, color: statusColor),
                               Text(
                                 state.label,
-                                style: theme.textTheme.labelLarge,
+                                style: theme.textTheme.labelLarge?.copyWith(
+                                  color: statusColor,
+                                ),
                               ),
                             ],
                           ),

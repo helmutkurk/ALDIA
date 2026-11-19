@@ -62,15 +62,15 @@ Future<CapturedPhoto> _syntheticPhoto() async {
   }
 
   rectangle(0, 0, 640, 480, 0xffb9def1);
-  rectangle(0, 100, 180, 150, 0xffe5bc85);
+  rectangle(0, 100, 180, 150, 0xffd6d3d1);
   rectangle(470, 70, 170, 180, 0xffc5d3b3);
   for (final x in [30.0, 100.0, 500.0, 570.0]) {
-    rectangle(x, 125, 35, 45, 0xff4a6976);
+    rectangle(x, 125, 35, 45, 0xff4b5563);
   }
   rectangle(0, 250, 640, 230, 0xff606974);
   rectangle(0, 240, 640, 25, 0xffd0c8b9);
   for (var y = 280.0; y < 480; y += 80) {
-    rectangle(310, y, 20, 40, 0xfff2db8e);
+    rectangle(310, y, 20, 40, 0xffe5e7eb);
   }
   canvas.drawOval(
     const ui.Rect.fromLTWH(380, 330, 160, 85),
@@ -80,7 +80,7 @@ Future<CapturedPhoto> _syntheticPhoto() async {
     const ui.Rect.fromLTWH(394, 338, 133, 60),
     paint..color = const ui.Color(0xff303842),
   );
-  rectangle(0, 0, 640, 52, 0xff164b52);
+  rectangle(0, 0, 640, 52, 0xff1f2937);
   final label =
       (ui.ParagraphBuilder(ui.ParagraphStyle(fontSize: 23))
             ..pushStyle(ui.TextStyle(color: const ui.Color(0xffffffff)))
