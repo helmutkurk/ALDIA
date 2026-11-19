@@ -1,0 +1,33 @@
+# Dependencies and builds
+node_modules/
+dist/
+build/
+coverage/
+.dart_tool/
+*.tsbuildinfo
+
+# Secrets: never commit. Names only in the example file
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+secrets/
+
+# Local agent settings
+.claude/settings.local.json
+CLAUDE.local.md
+.claude/worktrees/
+
+# Data and photos stay out of git
+*.jsonl
+backend/data/
+backend/verifier/photos/
+
+# OS and editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
