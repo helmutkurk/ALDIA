@@ -1,0 +1,12 @@
+/* Binding mirror of documentation/design-tokens.md. */
+:root {
+  --primary: #0f766e;
+  --primary-dark: #115e59;
+  --accent: #f59e0b;
+  --success: #16a34a;
+  --danger: #dc2626;
+  --surface: #ffffff;
+  --background: #f1f5f9;
+  --text: #0f172a;
+  --text-muted: #475569;
+}
