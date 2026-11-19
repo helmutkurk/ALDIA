@@ -43,3 +43,15 @@ portal-dev: ## Run the portal dev server (http://localhost:5173)
 
 app-run: ## Run the app on the connected device or emulator
 	cd app && mise exec -- flutter run --dart-define=API_BASE_URL=$${API_BASE_URL:-http://10.0.2.2:8000/api}
+
+.PHONY: seed seed-reset
+
+# Demo data: synthetic reports around Guatemala City (note prefix "[demo]"). Uses DATABASE_URL and PHOTO_DIR
+# from the environment; defaults to the local SQLite database of backend/api/README.md. Never run in production.
+SEED_ENV = DATABASE_URL=$${DATABASE_URL:-sqlite:///./aldia.db} PHOTO_DIR=$${PHOTO_DIR:-/tmp/aldia-api-photos}
+
+seed: ## Create synthetic demo reports (idempotent, migrates first)
+	cd backend/api && $(SEED_ENV) uv run alembic upgrade head && $(SEED_ENV) uv run python scripts/seed_demo.py
+
+seed-reset: ## Delete the "[demo]" reports and create them again
+	cd backend/api && $(SEED_ENV) uv run alembic upgrade head && $(SEED_ENV) uv run python scripts/seed_demo.py --reset

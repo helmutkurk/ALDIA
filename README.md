@@ -28,6 +28,7 @@ make up                          # db + verifier + api + portal in Docker
 make check                       # lint and tests for all four areas
 ```
 
+Testing guide (automated checks, manual QA, demo checklist): [documentation/testing.md](documentation/testing.md).
 Android Studio, Xcode and running the app: [documentation/dev-setup.md](documentation/dev-setup.md).
 API contract (the single source of truth for all three codebases): [documentation/api-contract.md](documentation/api-contract.md).
 

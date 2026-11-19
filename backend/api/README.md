@@ -167,6 +167,23 @@ multiple workers. The key is checked again under that lock before verification.
 A replay returns the report's current representation, including public events.
 If moderation has hidden it, replay returns 404 and still creates nothing.
 
+## Demo data
+
+`scripts/seed_demo.py` creates 44 synthetic reports around Guatemala City (all categories and all 11 states, events
+spread over 60 days, a few duplicates, generated 800x600 JPEGs). It writes through the SQLAlchemy models and
+`PhotoStorage`, marks every row with a note starting `[demo]`, and uses deterministic ids, so repeated runs create
+nothing new. It refuses to run when `ALDIA_ENV`, `APP_ENV` or `ENVIRONMENT` is `production`.
+
+```sh
+export DATABASE_URL=sqlite:///./aldia.db PHOTO_DIR=/tmp/aldia-api-photos   # same values as the running API
+uv run alembic upgrade head
+uv run python scripts/seed_demo.py            # create what is missing
+uv run python scripts/seed_demo.py --reset    # delete "[demo]" rows, then create again
+uv run python scripts/seed_demo.py --purge    # delete "[demo]" rows only
+```
+
+From the repo root: `make seed` and `make seed-reset`. Tests: `tests/test_seed_script.py`.
+
 ## Migrations
 
 Schema creation is explicit; application startup never creates tables:
