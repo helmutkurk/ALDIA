@@ -25,20 +25,20 @@ export function createMapView(container, { center, zoom, tiles, onSelect }) {
   let state = { cases: [], selectedId: null };
 
   function caseIcon(c, selected) {
-    const size = 20 + Math.min(c.reporterCount, 6) * 3;
+    const size = 16 + Math.min(c.reporterCount, 6) * 2;
     const classes = ["pin", `st-${c.status}`];
     if (selected) classes.push("is-selected");
     if (c.open && c.severity === "dangerous") classes.push("is-urgent");
     const el = h(
       "span",
       { class: classes.join(" "), style: { "--size": `${size}px` } },
-      c.reporterCount > 1 ? String(c.reporterCount) : "",
+      c.reporterCount > 2 ? String(c.reporterCount) : "",
     );
     return L.divIcon({ html: el, className: "pin-wrap", iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
   }
 
   function clusterIcon(count, urgent) {
-    const size = 32 + Math.min(count, 24);
+    const size = 28 + Math.min(count, 20);
     const el = h("span", { class: `cluster${urgent ? " has-urgent" : ""}`, style: { "--size": `${size}px` } }, String(count));
     return L.divIcon({ html: el, className: "pin-wrap", iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
   }

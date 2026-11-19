@@ -26,6 +26,14 @@ export function casesInPeriod(cases, days, now) {
   return cases.filter((c) => now - Date.parse(c.firstReportedAt) <= days * DAY_MS);
 }
 
+/** Keeps cases first reported in (from, to]. */
+export function casesInWindow(cases, from, to) {
+  return cases.filter((c) => {
+    const t = Date.parse(c.firstReportedAt);
+    return t > from && t <= to;
+  });
+}
+
 export function headline(cases) {
   const fixed = fixedCases(cases);
   const everClaimed = cases.filter((c) => c.history.some((h) => h.status === "fix_claimed"));

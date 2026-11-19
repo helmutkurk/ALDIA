@@ -22,7 +22,8 @@ const TYPES = {
 const CSP = [
   "default-src 'self'",
   "script-src 'self' https://unpkg.com",
-  "style-src 'self' https://unpkg.com",
+  "style-src 'self' https://unpkg.com https://fonts.googleapis.com",
+  "font-src https://fonts.gstatic.com",
   "img-src 'self' data: blob: https://tile.openstreetmap.org https://unpkg.com",
   "connect-src 'self' http://127.0.0.1:* http://localhost:*",
   "frame-ancestors 'none'",

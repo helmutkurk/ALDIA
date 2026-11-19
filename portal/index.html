@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>ALDÍA · Portal de gobierno</title>
     <link rel="icon" href="public/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" />
     <link
       rel="stylesheet"
       href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -22,52 +25,88 @@
     <script type="module" src="src/main.js"></script>
   </head>
   <body>
-    <header class="topbar">
-      <div class="brand">
-        <svg class="logo" viewBox="0 0 40 40" aria-hidden="true">
-          <path d="M20 3c-7.2 0-13 5.6-13 12.6C7 25 20 37 20 37s13-12 13-21.4C33 8.6 27.2 3 20 3z" fill="#4997D0" />
-          <path d="M14 16.5l4.2 4.2L26.5 12" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-        <div>
-          <p class="wordmark">ALDÍA</p>
-          <p class="tagline">Portal de gobierno · reportes verificados</p>
+    <div class="shell">
+      <aside class="sidebar">
+        <a class="brand" href="#mapa" aria-label="ALDÍA, inicio">
+          <svg class="logo" viewBox="0 0 40 40" aria-hidden="true">
+            <path d="M20 3c-7.2 0-13 5.6-13 12.6C7 25 20 37 20 37s13-12 13-21.4C33 8.6 27.2 3 20 3z" fill="#5AA3DB" />
+            <path d="M14 16.5l4.2 4.2L26.5 12" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <span>
+            <span class="wordmark">ALDÍA</span>
+            <span class="tagline">Portal de gobierno</span>
+          </span>
+        </a>
+        <nav class="nav" aria-label="Secciones">
+          <a href="#mapa" id="tab-mapa">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z" /><path d="M9 4v14M15 6v14" /></svg>
+            Mapa y casos
+          </a>
+          <a href="#estadisticas" id="tab-estadisticas">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></svg>
+            Estadísticas
+          </a>
+        </nav>
+        <div class="org-card">
+          <span class="org-label">Municipio</span>
+          <span id="municipality" class="org-name"></span>
+          <span id="demo-badge" class="demo-badge" hidden>Datos de ejemplo</span>
         </div>
-      </div>
-      <div class="topbar-mid">
-        <p id="municipality" class="municipality"></p>
-        <p id="sync" class="sync" role="status">Cargando casos…</p>
-      </div>
-      <nav class="tabs" aria-label="Secciones">
-        <a href="#mapa" id="tab-mapa">Mapa y casos</a>
-        <a href="#estadisticas" id="tab-estadisticas">Estadísticas</a>
-      </nav>
-      <div class="topbar-actions">
-        <button id="export-geojson" type="button" class="btn on-dark">Exportar GeoJSON</button>
-        <button id="export-open311" type="button" class="btn on-dark">Exportar Open311</button>
-      </div>
-    </header>
-    <p id="demo-banner" class="demo-banner" hidden>
-      Datos de ejemplo: todos los casos, lugares, personas y fotos son sintéticos.
-    </p>
-
-    <section id="kpis" class="kpis" aria-label="Resumen"></section>
-
-    <main class="workspace">
-      <section class="map-panel" aria-label="Mapa">
-        <div id="filters" class="filters"></div>
-        <div id="map" class="map" role="region" aria-label="Mapa de casos"></div>
-        <div id="legend" class="legend"></div>
-      </section>
-      <aside class="side-panel">
-        <div id="list-view">
-          <h2 class="side-title">Casos por prioridad <span id="list-count"></span></h2>
-          <ol id="case-list" class="case-list"></ol>
-        </div>
-        <div id="detail-view" class="detail" hidden></div>
       </aside>
-    </main>
 
-    <section id="stats-view" class="stats" aria-label="Estadísticas" hidden></section>
+      <div class="content">
+        <header class="page-head">
+          <div class="page-title">
+            <h1 id="page-title">Mapa y casos</h1>
+            <p id="sync" class="sync" role="status">Cargando casos…</p>
+          </div>
+          <div class="page-actions">
+            <label class="search" id="search-wrap">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+              <input id="filter-search" type="search" placeholder="Buscar folio, dirección o zona" aria-label="Buscar casos" />
+            </label>
+            <details class="menu" id="export-menu">
+              <summary class="btn">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 21h16" /></svg>
+                Exportar
+                <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+              </summary>
+              <div class="menu-list" role="menu">
+                <button type="button" role="menuitem" id="export-geojson">
+                  <b>GeoJSON</b><span>Para QGIS, ArcGIS o Google My Maps</span>
+                </button>
+                <button type="button" role="menuitem" id="export-open311">
+                  <b>Open311</b><span>Formato estándar de reportes urbanos</span>
+                </button>
+              </div>
+            </details>
+          </div>
+        </header>
+
+        <section id="map-page" class="page">
+          <div id="filters" class="filter-bar"></div>
+          <section id="kpis" class="kpi-grid" aria-label="Resumen"></section>
+          <div class="workspace">
+            <section class="card map-card" aria-label="Mapa">
+              <div id="map" class="map" role="region" aria-label="Mapa de casos"></div>
+              <div id="legend" class="legend"></div>
+            </section>
+            <aside class="card side-panel">
+              <div id="list-view">
+                <div class="side-head">
+                  <h2>Cola de trabajo</h2>
+                  <span id="list-count" class="muted"></span>
+                </div>
+                <ol id="case-list" class="case-list"></ol>
+              </div>
+              <div id="detail-view" class="detail" hidden></div>
+            </aside>
+          </div>
+        </section>
+
+        <section id="stats-view" class="page stats" aria-label="Estadísticas" hidden></section>
+      </div>
+    </div>
 
     <div id="toasts" class="toasts" aria-live="polite"></div>
   </body>

@@ -1,38 +1,54 @@
 /*
-  ALDÍA palette, provisional (to agree with app/).
-  Base: the light blue ("celeste") and white of Guatemala's flag, a deep navy for the header,
-  and quetzal green for "verified / fixed". Status colors are separate from the brand colors.
+  ALDÍA design tokens (provisional, to agree with app/).
+  Neutral surfaces, one accent (a darker celeste from Guatemala's flag), the navy sidebar for the
+  brand, and status colors used only in small dots and pins.
 */
 :root {
-  --gt-celeste: #4997d0;
-  --gt-celeste-600: #2f78b4;
-  --gt-celeste-800: #174f82;
-  --gt-navy: #0f3a63;
-  --gt-celeste-50: #eaf3fb;
-  --gt-white: #ffffff;
-  --quetzal: #1e7b4c;
-  --quetzal-50: #e2f2e9;
+  --navy: #0f2a44;
+  --navy-ink: #c9d6e3;
+  --navy-muted: #a9bcd0;
+  --celeste: #5aa3db;
 
-  --bg: #f3f7fb;
+  --bg: #f6f7f9;
   --surface: #ffffff;
-  --ink: #13263a;
-  --muted: #586a7d;
-  --line: #d6e2ed;
-  --focus: #f2b705;
+  --surface-2: #f9fafb;
+  --line: #e4e7ec;
+  --line-soft: #f2f4f7;
+  --ink: #101828;
+  --ink-2: #344054;
+  --muted: #475467;
+  --faint: #667085;
+  --placeholder: #98a2b3;
 
-  --danger: #c62828;
-  --warn: #b85c00;
+  --accent: #2f6fb0;
+  --accent-ink: #1f5590;
+  --accent-soft: #f2f7fc;
+  --focus: #84adff;
 
-  /* Case status */
-  --st-new: #d64545;
-  --st-in_review: #c88a00;
-  --st-scheduled: #7a5cc4;
-  --st-in_progress: #2f78b4;
-  --st-fix_claimed: #138a8a;
-  --st-reopened: #b0245a;
-  --st-fixed: #1e7b4c;
-  --st-closed: #7d8a97;
+  --good: #027a48;
+  --good-soft: #ecfdf3;
+  --bad: #b42318;
+  --bad-soft: #fef3f2;
+  --warn: #b54708;
+  --warn-soft: #fffaeb;
 
-  --radius: 10px;
-  --font: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  /* Case status (dots and pins only) */
+  --st-new: #dc4c4c;
+  --st-in_review: #d6a01d;
+  --st-scheduled: #7c6bc4;
+  --st-in_progress: #3478c6;
+  --st-fix_claimed: #1f9aa0;
+  --st-reopened: #c2417a;
+  --st-fixed: #2e8b57;
+  --st-closed: #98a2b3;
+
+  /* Chart series (validated for color-blind separation on white) */
+  --series-open: #2f78b4;
+  --series-fixed: #1e7b4c;
+  --series-closed: #d0742a;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --font: "Inter", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  --mono: ui-monospace, "SFMono-Regular", Consolas, monospace;
 }

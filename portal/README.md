@@ -46,8 +46,12 @@ Node 22 or newer. To use the backend instead of demo data, open
 - **FixMyStreet**: concepts only, no code. Its code is AGPL-3.0 and a Perl application; the team
   agreed not to fork it (2026-11-19). Taken: open / fixed / closed status groups, nearby
   duplicates, Open311 export.
-- **Colors**: celeste and white of Guatemala's flag, navy header, quetzal green for verified fixes
-  (`src/styles/tokens.css`). Provisional, to agree with `app/`.
+- **Look** (redesign 2026-11-19, mockup on the team canvas): navy sidebar, neutral surfaces, one
+  accent (a darker celeste), status colors only in dots and pins, Inter with a 12/13/14/16/20/28 px
+  scale, 1 px borders and no shadows, map tiles shown in grayscale so the points stand out. Tokens
+  in `src/styles/tokens.css`. Provisional, to agree with `app/`.
+- **KPI cards** show the change against the previous period and an 8-week trend line, rebuilt from
+  each case's history (`src/domain/trends.js`).
 
 ## Layout
 
@@ -55,7 +59,7 @@ Node 22 or newer. To use the backend instead of demo data, open
 index.html            page shell
 src/main.js           wiring: data source, state, rendering
 src/config.js         demo or API, map tiles, polling
-src/domain/           pure logic (tested): schema, statuses, cases, priority, metrics, filters, exports, stats
+src/domain/           pure logic (tested): schema, statuses, cases, priority, metrics, filters, exports, stats, trends
 src/data/             mock-source.js (synthetic Guatemala City data), api-source.js (backend)
 src/ui/               map-view.js (map adapter), views.js, detail-view.js, stats-view.js, dom.js, format.js
 src/styles/           tokens.css (palette), app.css

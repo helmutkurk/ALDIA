@@ -6,12 +6,12 @@ import { createApiSource } from "./data/api-source.js";
 import { parseCase, parseCaseList } from "./domain/schema.js";
 import { summarizeCase } from "./domain/cases.js";
 import { applyFilters, DEFAULT_FILTERS, sortForQueue } from "./domain/filters.js";
-import { computeMetrics } from "./domain/metrics.js";
+import { kpiTrends } from "./domain/trends.js";
 import { toGeoJSON, toOpen311 } from "./domain/exports.js";
 import { categoryLabel } from "./domain/categories.js";
 import { statusLabel } from "./domain/statuses.js";
 import { createMapView } from "./ui/map-view.js";
-import { createFilters, renderKpis, renderLegend, renderQueue } from "./ui/views.js";
+import { closeMenusOnOutsideClick, createFilters, renderKpis, renderLegend, renderQueue } from "./ui/views.js";
 import { renderDetail } from "./ui/detail-view.js";
 import { createStatsView } from "./ui/stats-view.js";
 import { downloadJson, h } from "./ui/dom.js";
@@ -30,7 +30,7 @@ const state = {
 };
 
 $("municipality").textContent = config.municipality;
-$("demo-banner").hidden = source.kind !== "mock";
+$("demo-badge").hidden = source.kind !== "mock";
 
 const map = createMapView($("map"), {
   center: config.map.center,
@@ -38,11 +38,12 @@ const map = createMapView($("map"), {
   tiles: TILE_PROVIDERS[config.map.tiles],
   onSelect: select,
 });
-createFilters($("filters"), state.filters, (filters) => {
+createFilters($("filters"), $("filter-search"), state.filters, (filters) => {
   state.filters = filters;
   render();
 });
 renderLegend($("legend"));
+closeMenusOnOutsideClick();
 const stats = createStatsView($("stats-view"), { isDemo: source.kind === "mock" });
 
 /** Two pages, chosen by the URL hash: #mapa (default) and #estadisticas. */
@@ -56,10 +57,11 @@ function showPage() {
     else tab.removeAttribute("aria-current");
   }
   const onStats = page === "estadisticas";
+  $("page-title").textContent = onStats ? "Estadísticas" : "Mapa y casos";
+  document.title = `ALDÍA · ${onStats ? "Estadísticas" : "Mapa y casos"}`;
   $("stats-view").hidden = !onStats;
-  $("kpis").hidden = onStats;
-  document.querySelector(".workspace").hidden = onStats;
-  document.body.classList.toggle("on-stats", onStats);
+  $("map-page").hidden = onStats;
+  $("search-wrap").hidden = onStats;
   render();
   if (!onStats) requestAnimationFrame(() => map.resize());
 }
@@ -74,8 +76,8 @@ function toast(text, tone = "") {
 function noteNewReports(cases) {
   const ids = new Set(cases.flatMap((c) => c.reports.map((r) => r.id)));
   if (state.seenReports) {
-    const fresh = cases.flatMap((c) => c.reports.filter((r) => !state.seenReports.has(r.id)).map((r) => ({ c, r })));
-    for (const { c } of fresh.slice(0, 3)) toast(`Nuevo reporte: ${categoryLabel(c.category)}, ${c.address ?? c.id}`, "info");
+    const fresh = cases.flatMap((c) => c.reports.filter((r) => !state.seenReports.has(r.id)).map(() => c));
+    for (const c of fresh.slice(0, 3)) toast(`Nuevo reporte: ${categoryLabel(c.category)}, ${c.address ?? c.id}`);
   }
   state.seenReports = ids;
 }
@@ -114,28 +116,32 @@ async function changeStatus(id, status, note) {
 
 async function simulate(id, passed) {
   upsert(await source.simulateRepairCheck(id, passed));
-  toast(passed ? "La foto de después pasó la verificación: caso reparado." : "La foto de después muestra el problema: caso reabierto.", passed ? "good" : "warn");
+  toast(
+    passed ? "La foto de después pasó la verificación: caso reparado." : "La foto de después muestra el problema: caso reabierto.",
+    passed ? "good" : "warn",
+  );
   render();
 }
 
 let visible = [];
+let allSummaries = [];
 
 function render() {
   const now = Date.now();
-  const all = [...state.cases.values()].map((c) => summarizeCase(c, now));
-  visible = sortForQueue(applyFilters(all, state.filters, now));
+  allSummaries = [...state.cases.values()].map((c) => summarizeCase(c, now));
 
   if (currentPage() === "estadisticas") {
-    stats.render(all, now);
+    stats.render(allSummaries, now);
     renderSyncStatus();
     return;
   }
 
-  renderKpis($("kpis"), computeMetrics(all, now));
+  visible = sortForQueue(applyFilters(allSummaries, state.filters, now));
+  renderKpis($("kpis"), kpiTrends(allSummaries, now));
   map.render(visible, state.selectedId);
   renderQueue($("case-list"), $("list-count"), visible, { selectedId: state.selectedId, now, onSelect: select });
 
-  const selected = state.selectedId ? all.find((c) => c.id === state.selectedId) : undefined;
+  const selected = state.selectedId ? allSummaries.find((c) => c.id === state.selectedId) : undefined;
   $("list-view").hidden = Boolean(selected);
   $("detail-view").hidden = !selected;
   if (selected) {
@@ -165,10 +171,15 @@ function renderSyncStatus() {
   }
 }
 
-$("export-geojson").addEventListener("click", () => downloadJson("aldia-casos.geojson", toGeoJSON(visible)));
-$("export-open311").addEventListener("click", () =>
-  downloadJson("aldia-casos-open311.json", visible.map((c) => toOpen311(c, { agency: config.agency }))),
-);
+const exportCases = () => (currentPage() === "estadisticas" ? allSummaries : visible);
+$("export-geojson").addEventListener("click", () => {
+  downloadJson("aldia-casos.geojson", toGeoJSON(exportCases()));
+  $("export-menu").removeAttribute("open");
+});
+$("export-open311").addEventListener("click", () => {
+  downloadJson("aldia-casos-open311.json", exportCases().map((c) => toOpen311(c, { agency: config.agency })));
+  $("export-menu").removeAttribute("open");
+});
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && state.selectedId) select(null);
 });
