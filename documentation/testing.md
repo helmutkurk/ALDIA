@@ -282,9 +282,8 @@ Open http://localhost:5173 (or :8080 with Docker). Use a recent Chrome or Firefo
    Settings -> General -> VPN & Device Management -> trust your developer profile.
 4. Permissions: camera and location prompts use the texts in `ios/Runner/Info.plist`. iOS also asks once for **Local
    Network** access when the app first talks to a LAN IP: allow it, otherwise requests time out
-   (**No se pudo enviar el reporte. Revisa tu conexión.**). Fix: Settings -> Aldia -> Local Network. Note: the
-   Info.plist currently has no `NSLocalNetworkUsageDescription`; if the prompt does not appear or requests are blocked,
-   add it (needs a team decision, `app/` is not part of this guide).
+   (**No se pudo enviar el reporte. Revisa tu conexión.**). Fix: Settings -> Aldia -> Local Network. The
+   Info.plist includes a Spanish `NSLocalNetworkUsageDescription` for development servers.
 5. HTTP to a LAN IP needs an App Transport Security exception in debug; if requests fail with an ATS error, use an HTTPS
    tunnel for the test (not executed, check on first run).
 6. Repeat 4.2 steps 4 to 11 (airplane mode is in Control Center).

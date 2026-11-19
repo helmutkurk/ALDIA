@@ -1,0 +1,70 @@
+name: Android release
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: Production HTTPS API URL, ending in /api
+        type: string
+        required: true
+      public_portal_url:
+        description: Production HTTPS public portal URL
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: app
+    env:
+      API_BASE_URL: ${{ inputs.api_base_url }}
+      PUBLIC_PORTAL_URL: ${{ inputs.public_portal_url }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Validate signing secrets and prepare temporary keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: python3 scripts/prepare_android_signing.py
+      - run: python3 scripts/validate_release_config.py
+      - name: Install Flutter 3.47.9
+        working-directory: ${{ github.workspace }}
+        run: |
+          git clone --depth 1 --branch 3.47.9 https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      - run: flutter pub get
+      - name: Build signed AAB and APK
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/aldia-upload.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          flutter build appbundle --release --dart-define="API_BASE_URL=$API_BASE_URL" --dart-define="PUBLIC_PORTAL_URL=$PUBLIC_PORTAL_URL"
+          flutter build apk --release --dart-define="API_BASE_URL=$API_BASE_URL" --dart-define="PUBLIC_PORTAL_URL=$PUBLIC_PORTAL_URL"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: aldia-android-release-${{ github.run_number }}
+          path: |
+            app/build/app/outputs/bundle/release/*.aab
+            app/build/app/outputs/flutter-apk/app-release.apk
+            app/build/app/outputs/mapping/release/mapping.txt
+          retention-days: 14
+          if-no-files-found: error
+      - name: Remove temporary keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/aldia-upload.jks"

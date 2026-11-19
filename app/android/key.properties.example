@@ -1,0 +1,6 @@
+# Copy to key.properties locally. Paths are relative to app/android, or absolute.
+# Never commit the real file or the keystore. CI uses environment variables instead.
+storeFile=/absolute/path/to/aldia-upload.jks
+storePassword=REPLACE_LOCALLY
+keyAlias=aldia-upload
+keyPassword=REPLACE_LOCALLY

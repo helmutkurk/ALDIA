@@ -75,6 +75,19 @@ never use the fake, even if the define is supplied. A desktop release needs a re
 Other defines: `API_BASE_URL`, `TILE_URL`, `PUBLIC_PORTAL_URL` (default `http://localhost:5173`, links use `#/reports/<id>`).
 Use HTTPS outside local development. Account login, push, remote deletion and actual manual review are pending backend work.
 
+## Mobile distribution
+
+See [mobile-release.md](../documentation/mobile-release.md) for debug APK installation, signed Android releases,
+unsigned iOS archives, TestFlight setup, account-only steps and Spanish store copy. CI uses Flutter 3.47.9's official
+release tag, matching the existing CI. Android/iOS icons and splash marks are original generated assets:
+`python3 scripts/generate_icons.py` (Pillow on the development machine only, no new Flutter dependency).
+
+The provisional Android application ID is `org.aldia.aldia_app` (confirm/change before store creation). iOS uses
+`org.aldia.aldiaApp`, with iOS 15.0 minimum. Both take release version/build numbers from `pubspec.yaml`.
+Release signing never falls back to Android's debug key. `android/key.properties.example` documents local signing;
+real signing files and credentials are ignored. No account or signing credential is needed for the debug APK or
+the unsigned iOS workflow.
+
 ## Checks
 
 ```bash
