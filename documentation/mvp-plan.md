@@ -118,3 +118,31 @@ orchestrator runs the checks of the touched areas, commits on develop, pushes, a
 - 01:51-07:00: Codex window 2 and Claude window 3: jobs 6, 7, polish from the browser findings, final release PR `develop` → `main`.
 - 07:00: summary in the log and by email (`hks-ausente`); `main` = `develop`.
 
+
+## Quality bar and government-pitch readiness (Helmut, 2026-11-19 22:10)
+
+Goal beyond "it runs": a very good Android and iOS app, a very good portal and a very good backend, close in look and flow to the
+reference screenshots (`documentation/ui/app-reference-seeclickfix.md`; portal captures in `/home/hks/Pictures/screenshot/`), of
+high quality, able to convince a government to adopt it. Neutral colors (documentation/design-tokens.md).
+
+**Visual QA with Claude in Chrome (first thing when Claude's window resets at 23:20):** start `make dev-all` (+ `make seed`), open the
+portal at http://localhost:5173 in Chrome, take screenshots at 1440, 1024 and 390 px, compare each page with the reference captures
+(left panel + map + list rows with thumbnails and dates, big pins, dashboard with all-time and last-7-days blocks), log every gap in
+`documentation/log/omarchy.md` and fix in order of visibility. For the app, build the web target locally for visual QA only
+(`flutter create --platforms web .` in a scratch copy under `.local/`, `flutter build web`, serve it, open in Chrome with the neutral
+theme, check the wizard screens one by one against the reference list) and also run the Linux desktop build.
+
+**Pitch-readiness queue (after the functional jobs, in this order; each is a Codex job with a brief in `documentation/prompts/`):**
+1. Demo storyline in the seed: a Guatemala City neighborhood with ~60 coherent reports (potholes, sidewalks, accessibility ramps, lights),
+   a visible improvement over 60 days, three "fixed" reports with before/after photos (synthetic), and a script `documentation/demo-script.md`
+   (5 minutes: citizen reports, verifier explains, staff triages, report is fixed, dashboard shows the effect).
+2. Backend hardening: rate limits on public POSTs, strict CORS, security headers, request size limits, structured JSON logs without
+   coordinates tied to a person, `/api/health` with dependency status, backup/restore note, OpenAPI polish (examples, descriptions in Spanish
+   for citizen-facing fields), Open311 endpoint documented with a sample call for city IT teams.
+3. Portal polish for non-technical municipal staff: empty/loading/error states, onboarding hint, printable report page and PDF-friendly CSV
+   summary, language and accessibility check (keyboard, contrast, zoom 200 %), Lighthouse-style budget (page weight, LCP) measured in Chrome.
+4. App polish: store-quality screens (consistent spacing, icons, empty states), micro-interactions that respect reduced motion, offline
+   states, copy review in Guatemalan Spanish, privacy text and consent screen before the first report.
+5. Adoption material in `documentation/pitch/` (public-safe, no strategy or budgets): one-pager (problem, how Aldia works, what a municipality
+   gets, data protection, limits of the evidence), architecture diagram, integration options (Open311, CSV, API), and a pilot proposal outline.
+6. Quality pass with the Cursor skill `hks-thermo-nuclear-code-quality-review`, one job per area, 2 in parallel (job 10 above).

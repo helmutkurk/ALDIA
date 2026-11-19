@@ -80,29 +80,64 @@ auth (citizen device, government portal login) is an open decision (`documentati
 
 ## Verifier API (`backend/verifier`)
 
-`GET /health` returns `{"status": "ok", "mode": "stub"}`.
+`GET /health` returns `{"status": "ok", "mode": "heuristic"}` without a model.
+`VERIFIER_MODE=model` fails startup with an explicit `NotImplementedError` until Lorenz integrates a model.
+The legacy configuration value `stub` is accepted as an alias for `heuristic`; responses never use `mode: "stub"`.
 
-`POST /verify` (`multipart/form-data`: `photo`, `category`, `latitude`, `longitude`, `captured_at`) returns:
+`POST /verify` (`multipart/form-data`: `photo`, `category`, `latitude`, `longitude`, `captured_at`) returns
+all existing v0.2 fields, adding a machine-readable `code` to every named check:
 
 ```json
 {
   "passed": true,
-  "mode": "stub",
+  "mode": "heuristic",
   "phash": "f0e4c2a1b3d5978f",
   "checks": [
-    {"name": "image", "passed": true, "detail": "1280x960 jpeg"},
-    {"name": "place", "passed": true, "detail": "inside GT"},
-    {"name": "freshness", "passed": true, "detail": "age 5 s"},
-    {"name": "category", "passed": true, "detail": "stub: not classified"}
+    {"name": "image", "passed": true, "detail": "1280x960; mínimo 640x480", "code": "image_ok"},
+    {"name": "place", "passed": true, "detail": "inside GT", "code": "place_ok"},
+    {"name": "freshness", "passed": true, "detail": "antigüedad 5 s", "code": "freshness_ok"},
+    {"name": "sharpness", "passed": true, "detail": "varianza laplaciana 240.00; mínimo 80.00", "code": "sharpness_ok"},
+    {"name": "exposure", "passed": true, "detail": "luminancia media 128.00; píxeles recortados 0.0000", "code": "exposure_ok"},
+    {"name": "exif_time", "passed": true, "detail": "sin EXIF", "code": "exif_missing"},
+    {"name": "exif_gps", "passed": true, "detail": "sin EXIF", "code": "exif_missing"},
+    {"name": "screen_photo", "passed": true, "detail": "sin patrón periódico significativo", "code": "screen_clear"},
+    {"name": "category", "passed": true, "detail": "no clasificado (sin modelo)", "code": "category_stub"}
   ]
 }
 ```
 
-`phash` is a 64-bit difference hash as 16 hex characters. The API compares it with stored reports of the same category
-(Hamming distance <= 4 within 50 m) and appends the `duplicate` check. Checks: `image` (decodes, min 640x480),
-`place` (inside the bounding boxes of Guatemala, Colombia or Mexico), `freshness` (captured within
-`MAX_AGE_SECONDS`, default 600, and not more than 60 s in the future), `category` (classifier; the stub accepts and
-says it did not classify). `mode` is `stub` or `model`; a stub result is never presented as real verification.
+`phash` remains a 64-bit difference hash as 16 hex characters. The API compares it with stored reports of the
+same category (Hamming distance <= 4 within 50 m) and appends its own `duplicate` check.
+Overall `passed` is the conjunction of the hard checks; `screen_photo` always passes and cannot reject a report.
+
+| Check | Rule and codes |
+|---|---|
+| `image` | JPEG/PNG decodes safely, oriented size >= 640x480 (`image_ok`, `image_too_small`). Undecodable/unsupported content returns 422. |
+| `place` | Inside the broad bounding boxes of Guatemala, Colombia or Mexico (`place_ok`, `place_outside`). These are not country polygons or proof of location. |
+| `freshness` | Submitted capture time within `MAX_AGE_SECONDS` of server time, with at most 60 s future tolerance (`freshness_ok`, `freshness_outside`). |
+| `sharpness` | Variance of signed four-neighbor Laplacian on grayscale, aspect-preserving downscale to at most 320x320, excluding borders; >= `SHARPNESS_MIN` (`sharpness_ok`, `blurry`). Detail includes measured variance. |
+| `exposure` | Mean grayscale luminance in the inclusive configured range and fraction of pixels <= 5 or >= 250 at most `EXPOSURE_MAX_CLIPPED_RATIO`, on the same downscale (`exposure_ok`, `underexposed`, `overexposed`, `exposure_clipped`). Detail includes both measurements. |
+| `exif_time` | EXIF DateTimeOriginal age must be in [-60, `MAX_AGE_SECONDS`] and within ±120 s of submitted `captured_at` (`exif_time_ok`, `exif_time_outside`, `exif_time_mismatch`, `exif_time_invalid`). OffsetTimeOriginal is honored; absent offset is explicitly interpreted as UTC because camera EXIF often has no timezone. Missing DateTimeOriginal passes as `exif_missing`, detail exactly `sin EXIF`; malformed present metadata fails. |
+| `exif_gps` | Present EXIF GPS must parse as valid DMS coordinates and be <= 150 m from the submitted point by haversine (`exif_gps_ok`, `exif_gps_mismatch`, `exif_gps_invalid`); detail includes distance, never coordinates. Missing GPS passes as `exif_missing`, detail exactly `sin EXIF`. |
+| `screen_photo` | **Soft** periodic-pattern hint using FFT-free autocorrelation of second differences of row/column mean luminance on an at-most-128x128 downscale. A strong local correlation peak produces `possible_screen` with an explanation, otherwise `screen_clear`; both have `passed: true`. The API may route the hint to manual review later; no routing is added here. |
+| `category` | Placeholder accepts supported category IDs with `category_stub`, detail exactly `no clasificado (sin modelo)`. Real category recognition requires Lorenz's model. |
+
+Heuristic thresholds (process environment, validated in `backend/verifier/app/config.py`):
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `VERIFIER_MODE` | `heuristic` | `heuristic`, legacy alias `stub`, or explicit unimplemented `model`. |
+| `MAX_AGE_SECONDS` | `600` | Maximum age for submitted and EXIF times, seconds. |
+| `SHARPNESS_MIN` | `80` | Minimum Laplacian variance after downscaling. |
+| `EXPOSURE_MIN_MEAN` | `12` | Minimum mean luminance, 0–255. |
+| `EXPOSURE_MAX_MEAN` | `243` | Maximum mean luminance, 0–255. |
+| `EXPOSURE_MAX_CLIPPED_RATIO` | `0.95` | Maximum combined near-black/near-white pixel fraction, 0–1. |
+| `SCREEN_MIN_CORRELATION` | `0.85` | Minimum periodic local correlation peak (lags 2–16). |
+
+These deterministic checks measure image usability and metadata consistency, **not** authenticity, trusted capture,
+category recognition or proof of a street problem. EXIF can be absent or forged; texture/noise can pass sharpness,
+repeating real-world patterns can trigger the soft screen hint, and some screen photographs will evade it.
+Defaults are calibrated only against reproducible synthetic Pillow fixtures, not validated on a real-photo dataset.
 
 ## Configuration (environment variables)
 
@@ -113,7 +148,7 @@ says it did not classify). `mode` is `stub` or `model`; a stub result is never p
 | api | `VERIFIER_URL` | `http://verifier:8001` |
 | api | `MAX_UPLOAD_BYTES` | `8388608` |
 | api | `CORS_ORIGINS` | `http://localhost:5173` |
-| verifier | `VERIFIER_MODE` | `stub` |
+| verifier | `VERIFIER_MODE` | `heuristic` |
 | verifier | `MAX_AGE_SECONDS` | `600` |
 | portal | `VITE_API_BASE_URL` | `/api` |
 | app | `--dart-define=API_BASE_URL=...` | `http://10.0.2.2:8000/api` (Android emulator) |
@@ -265,3 +300,46 @@ from these new fields. This makes category totals agree with `by_category` and t
 
 The portal displays repair-time and stacked frequency SVG charts with textual labels, hover/focus tooltips,
 and a keyboard-operable **Ver tabla** disclosure containing the same values (including sample counts and nulls).
+
+## v0.4 additions: staff accounts and sessions
+
+This section supersedes v0.2 shared staff authentication; v0.2 state rules and v0.3 statistics remain binding.
+Roles are `operator`, `supervisor`, `admin`. Admin inherits supervisor case permissions; only admin manages users.
+
+| Method and path | Request and response |
+|---|---|
+| `GET /api/auth/config` | Public: `{"enabled": true, "dev_tokens": false}`. The fallback flag is true only with both `ENV=dev` and `AUTH_DEV_TOKENS=true`. |
+| `POST /api/auth/login` | JSON `{"username": "…", "password": "…"}`; 200 `{"user": {"username": "…", "role": "operator"}}`. Sets session and CSRF cookies. |
+| `GET /api/auth/me` | 200 same user envelope for a valid session; otherwise 401. |
+| `POST /api/auth/logout` | Session + CSRF; 204, revokes the session and expires both cookies. |
+| `GET /api/admin/users` | Admin: `{"items": [{"id": "uuid", "username": "…", "role": "operator", "disabled": false}]}`. No password/hash/session data. |
+| `POST /api/admin/users` | Admin + CSRF: `{"username": "…", "password": "…", "role": "operator"}`; 201 user object. Duplicate username: 409. |
+| `PATCH /api/admin/users/{id}` | Admin + CSRF: any non-empty subset of `disabled` (boolean), `password` (reset), `role`; 200 user object, 404 if absent. Revokes all target sessions and clears lockout on password reset. |
+
+Usernames are lowercase ASCII `[a-z0-9_][a-z0-9_.-]{2,63}`; passwords are 12–1024 characters and never trimmed.
+Password hashing is Argon2id v19, memory 65536 KiB, time cost 3, parallelism 4, salt 16 bytes, hash 32 bytes.
+Failed/unknown/disabled logins return a generic 401. Five failures lock an account for 15 minutes (423, including
+the fifth attempt); successful authentication resets failures. Login requests are limited to 10 per 15 minutes per
+normalized username + direct peer IP (429 + Retry-After). The in-memory limiter is per process; lockouts persist in SQL.
+
+`aldia_session` contains a signed random opaque id, with a server-side SQL session expiring absolutely after 12 h.
+Login rotates the presented session. Cookie flags: `HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=43200`;
+only `ENV=dev` disables Secure. `aldia_csrf` has the same lifetime, Secure/SameSite/Path, but is readable by JavaScript.
+Every session-authenticated state-changing staff request (including logout and user management) must send
+`X-CSRF-Token` matching both the CSRF cookie and the server-side session value, using constant-time comparison;
+missing/mismatching values return 403. Login validates any supplied Origin against the configured allowlist or
+its own origin to prevent login CSRF. Passwords and session credentials never enter browser storage or URLs.
+Auth responses use `Cache-Control: no-store`. Credentialed CORS permits explicit origins, PATCH and X-CSRF-Token.
+
+Staff reads/writes accept the session cookie. `X-Staff-Token` is rejected with 401 by default; it is accepted only
+when `ENV=dev` and `AUTH_DEV_TOKENS=true`, logging a warning without the credential. This explicit header fallback
+does not require CSRF and never grants admin permissions. A supplied session takes precedence over the fallback.
+The portal exposes a dev-token panel only when config reports `dev_tokens: true`.
+
+Report events add `actor` (real username, or `system`; legacy events use `legacy:<role>` because their identity is
+unknown) and retain `actor_role`, extended with `admin`. Dev fallback actors use `dev:<role>`.
+Login successes/failures, logout and user creation/updates are stored in a separate audit table with actor,
+actor_role, action, target and time; no passwords, cookie values or headers are audited.
+The seed creates `operador` and `supervisor` accounts only with `ENV=dev`, printing a random password once per newly
+created account. Production bootstrap uses `python -m app.cli create-admin`, with a password prompt or stdin,
+never a password argument. See `decisions/staff-auth.md` for operational limits.
