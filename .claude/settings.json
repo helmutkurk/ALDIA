@@ -3,8 +3,6 @@
   "permissions": {
     "disableBypassPermissionsMode": "disable",
     "allow": [
-      "Bash(bash scripts/context-ack.sh *)",
-      "Bash(bash scripts/task.sh *)",
       "Bash(gh issue list *)",
       "Bash(gh issue view *)",
       "Bash(gh pr checks *)",
@@ -44,12 +42,9 @@
       "Bash(npx prettier *)",
       "Bash(npx tsc *)",
       "Bash(npx vitest *)",
-      "WebFetch(domain:docs.blockfrost.io)",
-      "WebFetch(domain:docs.cardano.org)",
-      "WebFetch(domain:docs.masumi.network)",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:preprod.cardanoscan.io)",
-      "WebFetch(domain:www.x402.org)"
+      "WebFetch(domain:docs.flutter.dev)",
+      "WebFetch(domain:dart.dev)"
     ],
     "ask": [
       "Bash(git commit *)",
@@ -124,17 +119,6 @@
     "DISABLE_FEEDBACK_COMMAND": "1"
   },
   "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session-context.sh",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
     "UserPromptSubmit": [
       {
         "hooks": [

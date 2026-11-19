@@ -1,15 +1,12 @@
 name: Security
 
-# Secret scan and dependency audit. Baseline: diseno/security.md section 4.8.
-# Actions are pinned by commit SHA (tags resolved via the GitHub API on 2026-10-29):
-#   actions/checkout v4.2.2, actions/setup-node v4.1.0, gitleaks/gitleaks-action v2.3.9.
-# Re-check the tags against the SHAs before bumping; no automatic bumps during the event.
+# Secret scan on every push and pull request (the repo is public).
 
 on:
   pull_request:
-    branches: [main, dev]
+    branches: [main, develop]
   push:
-    branches: [main, dev]
+    branches: [main, develop]
 
 permissions:
   contents: read
@@ -35,15 +32,3 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # A personal-account repo needs no license key. If this repo moves to an organisation,
           # add GITLEAKS_LICENSE as an Actions secret (human step) or switch to the gitleaks CLI.
-      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
-        with:
-          node-version: 24
-      - name: npm audit (skips while no application code exists)
-        run: |
-          if [ -f codigo/package.json ]; then
-            cd codigo
-            npm ci --ignore-scripts
-            npm audit --audit-level=high
-          else
-            echo "No codigo/package.json yet: skipping npm audit."
-          fi
