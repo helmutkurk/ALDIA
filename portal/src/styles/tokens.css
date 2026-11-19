@@ -1,0 +1,38 @@
+/*
+  ALDÍA palette, provisional (to agree with app/).
+  Base: the light blue ("celeste") and white of Guatemala's flag, a deep navy for the header,
+  and quetzal green for "verified / fixed". Status colors are separate from the brand colors.
+*/
+:root {
+  --gt-celeste: #4997d0;
+  --gt-celeste-600: #2f78b4;
+  --gt-celeste-800: #174f82;
+  --gt-navy: #0f3a63;
+  --gt-celeste-50: #eaf3fb;
+  --gt-white: #ffffff;
+  --quetzal: #1e7b4c;
+  --quetzal-50: #e2f2e9;
+
+  --bg: #f3f7fb;
+  --surface: #ffffff;
+  --ink: #13263a;
+  --muted: #586a7d;
+  --line: #d6e2ed;
+  --focus: #f2b705;
+
+  --danger: #c62828;
+  --warn: #b85c00;
+
+  /* Case status */
+  --st-new: #d64545;
+  --st-in_review: #c88a00;
+  --st-scheduled: #7a5cc4;
+  --st-in_progress: #2f78b4;
+  --st-fix_claimed: #138a8a;
+  --st-reopened: #b0245a;
+  --st-fixed: #1e7b4c;
+  --st-closed: #7d8a97;
+
+  --radius: 10px;
+  --font: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}

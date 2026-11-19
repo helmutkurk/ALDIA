@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ALDÍA · Portal de gobierno</title>
+    <link rel="icon" href="public/favicon.svg" type="image/svg+xml" />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <link rel="stylesheet" href="src/styles/tokens.css" />
+    <link rel="stylesheet" href="src/styles/app.css" />
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+      defer
+    ></script>
+    <script type="module" src="src/main.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <svg class="logo" viewBox="0 0 40 40" aria-hidden="true">
+          <path d="M20 3c-7.2 0-13 5.6-13 12.6C7 25 20 37 20 37s13-12 13-21.4C33 8.6 27.2 3 20 3z" fill="#4997D0" />
+          <path d="M14 16.5l4.2 4.2L26.5 12" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <div>
+          <p class="wordmark">ALDÍA</p>
+          <p class="tagline">Portal de gobierno · reportes verificados</p>
+        </div>
+      </div>
+      <div class="topbar-mid">
+        <p id="municipality" class="municipality"></p>
+        <p id="sync" class="sync" role="status">Cargando casos…</p>
+      </div>
+      <div class="topbar-actions">
+        <button id="export-geojson" type="button" class="btn on-dark">Exportar GeoJSON</button>
+        <button id="export-open311" type="button" class="btn on-dark">Exportar Open311</button>
+      </div>
+    </header>
+    <p id="demo-banner" class="demo-banner" hidden>
+      Datos de ejemplo: todos los casos, lugares, personas y fotos son sintéticos.
+    </p>
+
+    <section id="kpis" class="kpis" aria-label="Resumen"></section>
+
+    <main class="workspace">
+      <section class="map-panel" aria-label="Mapa">
+        <div id="filters" class="filters"></div>
+        <div id="map" class="map" role="region" aria-label="Mapa de casos"></div>
+        <div id="legend" class="legend"></div>
+      </section>
+      <aside class="side-panel">
+        <div id="list-view">
+          <h2 class="side-title">Casos por prioridad <span id="list-count"></span></h2>
+          <ol id="case-list" class="case-list"></ol>
+        </div>
+        <div id="detail-view" class="detail" hidden></div>
+      </aside>
+    </main>
+
+    <div id="toasts" class="toasts" aria-live="polite"></div>
+  </body>
+</html>

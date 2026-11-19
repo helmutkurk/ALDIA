@@ -1,0 +1,14 @@
+{
+  "name": "aldia-portal",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Aldia government portal: map and work queue of verified street reports.",
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/serve.mjs",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
