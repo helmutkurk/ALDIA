@@ -212,3 +212,56 @@ second token `SUPERVISOR_TOKEN` (optional) gives role `supervisor` for overrides
   open verified reports of that category created in the last 30 days, nearest first, max 10, each with a thumbnail url. The app
   calls it before the details step to avoid duplicates. Declare it before the `/{id}` route.
 - Each event in `events` also carries `public_note` so the citizen timeline can show official messages.
+
+## v0.3 additions: category statistics
+
+Additive extension of `GET /api/stats`; all v0.1/v0.2 fields and their formulas stay unchanged.
+Inspired by Isabel Sagastume's dashboard statistics and accessible chart/table ideas, adapted to this contract.
+Calculations live on the API, never on a paginated portal list.
+
+### Category cohort and filters
+
+The new fields use the same public visibility and filters as `GET /api/reports`: `bbox`, `category`, `status`,
+`resolution`, `state`, `state_group`, `assignee`, `created_from`, `created_to`, `include_old`. The creation-date
+window uses `America/Guatemala` day boundaries and defaults to the last 30 days. Pagination and `sort` do not
+affect statistics. Hidden reports are always excluded.
+
+Unlike the existing v0.2 aggregate resolution metrics (which select resolutions in the period), every new
+category metric describes reports **created in the filtered period**, including their current handling state
+and repair duration even if resolved after that period. An older report resolved during the period is excluded
+from these new fields. This makes category totals agree with `by_category` and the filtered list.
+
+### Response additions
+
+`por_categoria` contains one row per stable category id (including zero-count rows), ordered by category id:
+
+```json
+{
+  "category": "pothole",
+  "total": 6,
+  "resueltos": 3,
+  "abiertos": 2,
+  "cerrados": 1,
+  "mediana_reparacion_horas": 10.0,
+  "p90_reparacion_horas": 18.0,
+  "n_resueltos": 3
+}
+```
+
+- `total`: all reports in the category cohort.
+- `resueltos`: current state `resuelto`.
+- `abiertos`: groups `pending`, `open` and `in_work` (includes pending verification).
+- `cerrados`: group `closed` (includes verifier rejections as well as staff closures).
+  Thus `total = resueltos + abiertos + cerrados`. These category buckets are not the v0.2 top-level counters.
+- Repair times: `(resolved_at - verified_at)` in hours, only for current state `resuelto` with both timestamps.
+  Reopened reports do not contribute. `n_resueltos` is the count of valid duration samples, which can be lower
+  than `resueltos` for incomplete legacy data. Median is the middle sorted sample, or the mean of the two middle
+  samples. p90 uses linear interpolation at index `(n - 1) * 0.9`; no intermediate rounding.
+  Both times are `null` when `n_resueltos = 0`; a real zero-hour duration remains `0`.
+- `top_categorias`: up to five of the same row objects with `total > 0`, ordered by `total` descending,
+  then category id ascending to break ties. Empty cohort: `[]`.
+- `por_municipio_zona` is **omitted**: reports have no municipality/zone field. Coordinates and demo-note zone
+  text are not a reliable zone classification; no zone is inferred.
+
+The portal displays repair-time and stacked frequency SVG charts with textual labels, hover/focus tooltips,
+and a keyboard-operable **Ver tabla** disclosure containing the same values (including sample counts and nulls).

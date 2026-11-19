@@ -44,6 +44,25 @@ export const t = Object.freeze({
     ages: 'Antigüedad de abiertos',
     days: 'días',
     categoryGroups: 'Categoría y grupo de estado',
+    categoryRepair: 'Tiempo de reparación por categoría',
+    categoryRepairNote:
+      'Reportes creados en el periodo consultado y actualmente resueltos. Horas desde la verificación hasta la resolución; n indica cuántos tienen ambas fechas. Las barras muestran la mediana.',
+    categoryFrequency: 'Frecuencia por categoría',
+    categoryFrequencyNote:
+      'Estado actual de los reportes creados en el periodo consultado. Abiertos incluye pendientes de verificación y en trabajo; cerrados incluye rechazos del verificador.',
+    categoryBuckets: Object.freeze({
+      resueltos: 'Resueltos',
+      abiertos: 'Abiertos',
+      cerrados: 'Cerrados',
+    }),
+    repairSamples: 'Muestras (n)',
+    seeTable: 'Ver tabla',
+    seeTableFor: (title) => `Ver tabla: ${title}`,
+    repairDescription: (category, median, p90, n) =>
+      `${category}: mediana ${median}; p90 ${p90}; n = ${n}`,
+    frequencyDescription: (category, row) =>
+      `${category}: Total: ${row.total} · Resueltos: ${row.resueltos} · Abiertos: ${row.abiertos} · Cerrados: ${row.cerrados}`,
+    kpiStrip: 'Resumen de indicadores',
     groups: Object.freeze({
       pending: 'Pendientes',
       open: 'Abiertos',

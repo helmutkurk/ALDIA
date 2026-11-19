@@ -3,6 +3,7 @@ import { RESOLUTIONS, STATUSES, t, staffError } from './i18n.js';
 import { element } from './panel.js';
 import { filtersHash } from './filters.js';
 import { GROUP_COLORS } from './states.js';
+import { categoryCharts } from './category-charts.js';
 
 const groups = Object.keys(t.dash.groups);
 const number = new Intl.NumberFormat('es-GT', { maximumFractionDigits: 1 });
@@ -81,7 +82,7 @@ export function createDashboard(root, { api, filters }) {
     return section;
   }
   /** @param {object} stats */
-  function metricCards(stats) {
+  function metricCards(stats, headline = false) {
     const cards = element('dl', 'metric-cards');
     /** @param {string} key @param {string} value @param {number} [n] @param {object} [patch] */
     function card(key, value, n, patch) {
@@ -94,13 +95,20 @@ export function createDashboard(root, { api, filters }) {
       wrapper.append(label, data);
       cards.append(wrapper);
     }
-    for (const key of [
-      'recibidos',
-      'rechazados_verificador',
-      'abiertos',
-      'resueltos',
-      'cerrados_sin_solucion',
-    ]) {
+    if (headline) cards.classList.add('kpi-strip');
+    cards.setAttribute(
+      'aria-label',
+      headline ? t.dash.kpiStrip : t.dash.indicators,
+    );
+    for (const key of headline
+      ? [
+          'recibidos',
+          'rechazados_verificador',
+          'abiertos',
+          'resueltos',
+          'cerrados_sin_solucion',
+        ]
+      : []) {
       card(
         key,
         quantity(stats[key]),
@@ -110,6 +118,7 @@ export function createDashboard(root, { api, filters }) {
           : undefined,
       );
     }
+    if (headline) return cards;
     const denominator =
       stats.recibidos -
       (stats.by_state.duplicado ?? 0) -
@@ -595,20 +604,19 @@ export function createDashboard(root, { api, filters }) {
         side.append(zone, exportBox);
         const pair = element('div', 'dash-pair');
         pair.append(lastWeekSection(stats.weekly), side);
-        const top = Object.entries(stats.by_category)
+        const topCounts = stats.top_categorias
+          ? Object.fromEntries(
+              stats.top_categorias.map((row) => [row.category, row.total]),
+            )
+          : stats.by_category;
+        const top = Object.entries(topCounts)
           .filter(([, count]) => count > 0)
           .sort((a, b) => b[1] - a[1])
           .slice(0, 5)
           .map(([id]) => CATEGORIES.find((category) => category.id === id))
           .filter(Boolean);
         const topSection = top.length
-          ? bars(
-              t.dash.topCategories,
-              top,
-              stats.by_category,
-              stats.total,
-              'category',
-            )
+          ? bars(t.dash.topCategories, top, topCounts, stats.total, 'category')
           : element('section', 'bar-section');
         if (!top.length)
           topSection.append(
@@ -645,6 +653,8 @@ export function createDashboard(root, { api, filters }) {
         );
         groupBars.classList.add('dash-block');
         body.append(
+          metricCards(stats, true),
+          ...(stats.por_categoria ? [categoryCharts(stats.por_categoria)] : []),
           allTimeSection(stats),
           pair,
           detail,
@@ -653,34 +663,54 @@ export function createDashboard(root, { api, filters }) {
           element('p', 'muted', t.dash.filterLimits),
           element('p', 'muted', t.dash.zoneLimits),
         );
-        const categories = filters.category
-          ? CATEGORIES.filter(({ id }) => id === filters.category)
-          : CATEGORIES;
         const cross = element('div');
-        body.append(cross);
-        try {
-          const rows = await Promise.all(
-            categories.map(async (category) => ({
-              category,
-              stats: filters.category
-                ? stats
-                : await api.getStats(
-                    { ...filters, category: category.id },
-                    { signal: controller.signal },
-                  ),
-            })),
+        async function loadCategoryGroups() {
+          const categories = filters.category
+            ? CATEGORIES.filter(({ id }) => id === filters.category)
+            : CATEGORIES;
+          try {
+            const rows = await Promise.all(
+              categories.map(async (category) => ({
+                category,
+                stats: filters.category
+                  ? stats
+                  : await api.getStats(
+                      { ...filters, category: category.id },
+                      { signal: controller.signal },
+                    ),
+              })),
+            );
+            if (current !== generation) return;
+            cross.replaceChildren(categoryTable(rows));
+          } catch (error) {
+            if (current !== generation || error.name === 'AbortError') return;
+            const retry = element('button', 'retry-button', t.retry);
+            retry.type = 'button';
+            retry.addEventListener('click', load);
+            cross.replaceChildren(
+              element('p', 'error-message', t.dash.crossError),
+              retry,
+            );
+          }
+        }
+        if (stats.por_categoria) {
+          // Preserve the detailed v0.2 cross-tab without six eager stats calls.
+          const details = element(
+            'details',
+            'category-group-detail dash-block',
           );
-          if (current !== generation) return;
-          cross.replaceChildren(categoryTable(rows));
-        } catch (error) {
-          if (current !== generation || error.name === 'AbortError') return;
-          const retry = element('button', 'retry-button', t.retry);
-          retry.type = 'button';
-          retry.addEventListener('click', load);
-          cross.replaceChildren(
-            element('p', 'error-message', t.dash.crossError),
-            retry,
-          );
+          details.append(element('summary', '', t.dash.categoryGroups), cross);
+          let loaded = false;
+          details.addEventListener('toggle', () => {
+            if (current === generation && details.open && !loaded) {
+              loaded = true;
+              loadCategoryGroups();
+            }
+          });
+          body.append(details);
+        } else {
+          body.append(cross);
+          await loadCategoryGroups();
         }
       }
       title.focus({ preventScroll: true });

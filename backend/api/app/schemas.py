@@ -190,6 +190,17 @@ class WeeklyStats(StrictModel):
     resueltos: int
 
 
+class CategoryStats(StrictModel):
+    category: str
+    total: int
+    resueltos: int
+    abiertos: int
+    cerrados: int
+    mediana_reparacion_horas: float | None
+    p90_reparacion_horas: float | None
+    n_resueltos: int
+
+
 class StatsOut(StrictModel):
     total: int
     by_category: dict[str, int]
@@ -210,6 +221,8 @@ class StatsOut(StrictModel):
     by_state: dict[str, int]
     by_state_group: dict[str, int]
     weekly: list[WeeklyStats]
+    por_categoria: list[CategoryStats]
+    top_categorias: list[CategoryStats]
 
 
 class TransitionIn(StrictModel):

@@ -59,6 +59,14 @@ def test_seed_covers_states_categories_and_is_idempotent(
             "street_light",
         }
         assert all(r.note and r.note.startswith("[demo]") for r in reports)
+        # New deterministic samples have exact repair hours in every category.
+        for category, hours in seed_module.EXTRA_REPAIRS.items():
+            actual = {
+                (r.resolved_at - r.verified_at).total_seconds() / 3600
+                for r in reports
+                if r.category == category and r.state == "resuelto"
+            }
+            assert set(hours) <= actual
         assert all(storage.path(r.id).exists() for r in reports)
         # Spread over roughly 60 days, nothing in the future, GT bounding area.
         ages = [(now - r.created_at.replace(tzinfo=UTC)).days for r in reports]
@@ -105,7 +113,10 @@ def test_seeded_reports_are_served_by_the_api(
     assert listing.status_code == 200
     assert listing.json()["total"] >= 40  # hidden reports are excluded
     states = client.get("/api/stats", params={"include_old": "true"}).json()["by_state"]
-    assert states["resuelto"] == 8
+    assert states["resuelto"] == 26
+    # Each category has three new samples even in the default 30-day window.
+    categories = client.get("/api/stats").json()["por_categoria"]
+    assert all(row["n_resueltos"] >= 3 for row in categories)
     first = listing.json()["items"][0]
     assert client.get(first["photo_url"]).status_code == 200
 

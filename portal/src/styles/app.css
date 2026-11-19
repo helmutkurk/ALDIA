@@ -1384,3 +1384,100 @@ label.filter-field {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Category charts use the shared tokens so theme changes reach every series. */
+.kpi-strip {
+  grid-template-columns: repeat(auto-fit, minmax(min(9rem, 100%), 1fr));
+  margin-top: 1.5rem;
+}
+.category-charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 2rem;
+}
+.category-chart-list,
+.category-chart-legend {
+  padding: 0;
+  list-style: none;
+}
+.category-chart-row {
+  position: relative;
+  margin-block: 1.5rem;
+}
+.category-chart-values {
+  margin: 0.25rem 0 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+.category-chart-svg {
+  display: block;
+  width: 100%;
+  height: 2rem;
+  overflow: visible;
+}
+.category-chart-track {
+  fill: var(--background);
+}
+.category-chart-bar--repair {
+  fill: var(--primary);
+}
+.category-chart-bar--resueltos {
+  fill: var(--state-resolved);
+}
+.category-chart-bar--abiertos {
+  fill: var(--state-open);
+}
+.category-chart-bar--cerrados {
+  fill: var(--state-closed);
+}
+.category-chart-svg [tabindex]:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 3px;
+}
+.category-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  font-size: 0.875rem;
+}
+.category-chart-legend li::before {
+  content: '';
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-inline-end: 0.35rem;
+  background: var(--state-closed);
+}
+.category-chart-legend .category-legend--resueltos::before {
+  background: var(--state-resolved);
+}
+.category-chart-legend .category-legend--abiertos::before {
+  background: var(--state-open);
+}
+.category-chart-tip {
+  position: absolute;
+  z-index: 2;
+  inset-inline-start: 0;
+  top: 100%;
+  max-width: 100%;
+  padding: 0.5rem 0.75rem;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-raised);
+  font-size: 0.875rem;
+}
+.chart-table-scroll {
+  overflow-x: auto;
+}
+.chart-table-scroll table {
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 48rem) {
+  .category-charts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

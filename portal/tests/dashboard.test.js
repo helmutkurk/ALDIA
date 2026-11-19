@@ -231,9 +231,9 @@ describe('municipal dashboard', () => {
     };
     page = createDashboard(root, { api, filters: { category: 'pothole' } });
     await flushAll();
-    expect(root.querySelector('.metric-cards').textContent).toContain(
-      'Sin datos',
-    );
+    expect(
+      root.querySelector('.metric-cards:not(.kpi-strip)').textContent,
+    ).toContain('Sin datos');
     expect(root.querySelector('.weekly-table').textContent).toContain(hostile);
     expect(root.querySelector('img')).toBeNull();
   });
@@ -380,4 +380,135 @@ it('integrates dashboard and API through mocked fetch with every CSV filter reta
       'delimiter',
     ),
   ).toBe('semicolon');
+});
+
+describe('v0.3 category charts', () => {
+  const categories = [
+    {
+      category: 'pothole',
+      total: 8,
+      resueltos: 4,
+      abiertos: 3,
+      cerrados: 1,
+      mediana_reparacion_horas: 6,
+      p90_reparacion_horas: 17,
+      n_resueltos: 4,
+    },
+    {
+      category: 'open_drain',
+      total: 1,
+      resueltos: 0,
+      abiertos: 1,
+      cerrados: 0,
+      mediana_reparacion_horas: null,
+      p90_reparacion_horas: null,
+      n_resueltos: 0,
+    },
+    {
+      category: 'street_light',
+      total: 1,
+      resueltos: 1,
+      abiertos: 0,
+      cerrados: 0,
+      mediana_reparacion_horas: 0,
+      p90_reparacion_horas: 0,
+      n_resueltos: 1,
+    },
+  ];
+  it('uses one filtered API response for charts, tables, ranking and a KPI strip', async () => {
+    const root = document.createElement('section');
+    document.body.append(root);
+    const filters = { assignee: 'Equipo A', created_from: '2026-11-01' };
+    const api = {
+      getStats: vi.fn().mockResolvedValue(
+        municipalStats({
+          por_categoria: categories,
+          top_categorias: [categories[0]],
+        }),
+      ),
+      getCsvUrl: vi.fn(() => '/api/reports.csv'),
+    };
+    page = createDashboard(root, { api, filters });
+    await flushAll();
+    expect(api.getStats).toHaveBeenCalledTimes(1);
+    expect(api.getStats).toHaveBeenCalledWith(filters, {
+      signal: expect.any(AbortSignal),
+    });
+    expect(root.querySelectorAll('.kpi-strip .metric-card')).toHaveLength(5);
+    expect(root.querySelectorAll('.top-categories li')).toHaveLength(1);
+    const repair = root.querySelector('.category-repair');
+    const frequency = root.querySelector('.category-frequency');
+    expect(repair.querySelectorAll('svg')).toHaveLength(3);
+    expect(frequency.querySelectorAll('svg')).toHaveLength(3);
+    const tableRows = (section) =>
+      [...section.querySelectorAll('tbody tr')].map((row) =>
+        [...row.children].map((cell) => cell.textContent),
+      );
+    expect(tableRows(repair)).toEqual([
+      ['Bache', '6 h', '17 h', '4'],
+      ['Alcantarilla abierta', 'Sin datos', 'Sin datos', '0'],
+      ['Luminaria dañada', '0 h', '0 h', '1'],
+    ]);
+    expect(tableRows(frequency)[0]).toEqual(['Bache', '8', '4', '3', '1']);
+    for (const section of [repair, frequency]) {
+      const details = section.querySelector('details');
+      expect(details.open).toBe(false);
+      expect(details.querySelector('summary').textContent).toBe('Ver tabla');
+      details.querySelector('summary').click();
+      expect(details.open).toBe(true);
+      expect(section.querySelector('th[scope="row"]')).not.toBeNull();
+      expect(
+        section.querySelectorAll('th[scope="col"]').length,
+      ).toBeGreaterThan(3);
+      const point = section.querySelector('[tabindex="0"]');
+      const tooltip = section.querySelector('[role="tooltip"]');
+      point.focus();
+      expect(document.activeElement).toBe(point);
+      expect(tooltip.hidden).toBe(false);
+      expect(point.getAttribute('aria-describedby')).toBe(tooltip.id);
+      expect(tooltip.textContent).toContain('Bache');
+      expect(tooltip.textContent).toContain(
+        section === repair ? '17 h' : 'Cerrados: 1',
+      );
+      point.dispatchEvent(
+        new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+      );
+      expect(tooltip.hidden).toBe(true);
+      point.blur();
+      const row = point.closest('.category-chart-row');
+      row.dispatchEvent(new window.Event('pointerenter'));
+      expect(tooltip.hidden).toBe(false);
+      row.dispatchEvent(new window.Event('pointerleave'));
+      expect(tooltip.hidden).toBe(true);
+    }
+    // The existing detailed category/group table remains available on demand.
+    const detailed = root.querySelector('.category-group-detail');
+    detailed.open = true;
+    detailed.dispatchEvent(new window.Event('toggle'));
+    await flushAll();
+    expect(api.getStats).toHaveBeenCalledTimes(7);
+    expect(root.querySelectorAll('.category-groups tbody tr')).toHaveLength(6);
+  });
+  it('shows empty charts and never turns absent repair samples into zero', async () => {
+    const root = document.createElement('section');
+    const api = {
+      getStats: vi.fn().mockResolvedValue(
+        municipalStats({
+          por_categoria: [],
+          top_categorias: [],
+        }),
+      ),
+      getCsvUrl: vi.fn(() => '/api/reports.csv'),
+    };
+    page = createDashboard(root, { api, filters: {} });
+    await flushAll();
+    expect(root.querySelector('.category-repair').textContent).toContain(
+      'No hay reportes por categoría',
+    );
+    expect(root.querySelector('.category-frequency').textContent).toContain(
+      'No hay reportes por categoría',
+    );
+    expect(root.querySelectorAll('.category-charts svg')).toHaveLength(0);
+    expect(api.getStats).toHaveBeenCalledTimes(1);
+  });
 });

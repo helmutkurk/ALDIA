@@ -111,7 +111,18 @@ COLORS = {
 }
 LABELS = dict(CATEGORIES)
 
-# State -> how many reports to create (44 in total, all 11 states).
+# Explicit repair-hour samples for each category; all are synthetic.
+EXTRA_REPAIRS = {
+    "accessibility": (24, 240, 600),
+    "sidewalk": (12, 168, 480),
+    "pothole": (6, 48, 288),
+    "graffiti": (48, 192, 576),
+    "open_drain": (2, 18, 96),
+    "street_light": (4, 36, 216),
+}
+EXTRA_RESOLVED = sum(len(hours) for hours in EXTRA_REPAIRS.values())
+
+# State -> how many reports to create (62 in total, all 11 states).
 PLAN: dict[str, int] = {
     "pendiente_verificacion": 2,
     "rechazado_verificador": 3,
@@ -119,7 +130,7 @@ PLAN: dict[str, int] = {
     "en_revision": 5,
     "programado": 3,
     "en_proceso": 4,
-    "resuelto": 8,
+    "resuelto": 8 + EXTRA_RESOLVED,
     "no_procede": 2,
     "fuera_de_competencia": 2,
     "duplicado": 3,
@@ -151,6 +162,7 @@ class Spec:
     seed: int
     master: int | None = None  # index of the report this one duplicates
     rejection: str | None = None  # "freshness" | "image" | "duplicate"
+    repair_hours: float | None = None
 
 
 class ProductionRefused(RuntimeError):
@@ -205,6 +217,8 @@ def build_specs(now: datetime) -> list[Spec]:
     for state, count in PLAN.items():
         if state in {"duplicado", "rechazado_verificador"}:
             continue
+        if state == "resuelto":
+            count -= EXTRA_RESOLVED  # preserve the original 44 report ids/states
         for _ in range(count):
             add(state)
     # Staff-marked duplicates share category, place and photo with an open master.
@@ -228,9 +242,19 @@ def build_specs(now: datetime) -> list[Spec]:
             spec.lat = round(master.lat + 0.0001, 6)
             spec.lon = round(master.lon - 0.0001, 6)
             spec.seed = master.seed
+    # Append rather than insert: an existing demo gains new rows on its next seed.
+    for category, hours in EXTRA_REPAIRS.items():
+        for repair_hours in hours:
+            spec = add("resuelto", repair_hours=repair_hours)
+            spec.category = category
     # Spread creation times over 60 days: the age needed for the later states is
     # kept, so every report has room for its events before "now".
     for spec in specs:
+        if spec.repair_hours is not None:
+            spec.created_at = now - timedelta(
+                hours=spec.repair_hours + rng.uniform(24, 72)
+            )
+            continue
         needed_days = len(PATHS.get(spec.state, [])) * 2 + 1
         if spec.state in {"pendiente_verificacion", "nuevo"}:
             days = rng.uniform(0.02, 40)
@@ -398,8 +422,12 @@ def build_rows(
     span = max((now - last_at).total_seconds() - 3600, 3600)
     step = span / (len(path) + 2)
     assignee = rng.choice(ASSIGNEES) if path else None
-    for target in path:
-        at = last_at + timedelta(seconds=step * (0.6 + 0.4 * rng.random()))
+    for position, target in enumerate(path, start=1):
+        at = (
+            answered + timedelta(hours=spec.repair_hours * position / len(path))
+            if spec.repair_hours is not None and answered is not None
+            else last_at + timedelta(seconds=step * (0.6 + 0.4 * rng.random()))
+        )
         public = PUBLIC_NOTES.get(target)
         internal = None
         if target == "duplicado":
