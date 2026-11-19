@@ -53,6 +53,10 @@ const PATHS = {
   duplicate: ["new", "duplicate"],
 };
 
+const FIXED_AFTER_REOPEN = ["new", "in_progress", "fix_claimed", "reopened", "in_progress", "fix_claimed", "fixed"];
+
+const REPAIR_BASE_DAYS = { drain_cover: 3, street_light: 6, signage: 9, pothole: 12, sidewalk: 24, ramp: 30 };
+
 const STATUS_PLAN = [
   ["new", 12],
   ["in_review", 8],
@@ -60,7 +64,7 @@ const STATUS_PLAN = [
   ["in_progress", 7],
   ["fix_claimed", 4],
   ["reopened", 2],
-  ["fixed", 9],
+  ["fixed", 26],
   ["not_responsible", 1],
   ["duplicate", 1],
 ];
@@ -129,7 +133,7 @@ export function createMockSource({ now = Date.now(), seed = 1902 } = {}) {
       in_progress: between(4, 25),
       fix_claimed: between(6, 30),
       reopened: between(10, 40),
-      fixed: between(8, 60),
+      fixed: 0,
       not_responsible: between(5, 30),
       duplicate: between(2, 20),
     }[status];
@@ -148,8 +152,10 @@ export function createMockSource({ now = Date.now(), seed = 1902 } = {}) {
       reports: [],
       history: [],
     };
-    const start = at - ageDays * DAY_MS;
-    const end = status === "fixed" ? start + between(0.3, 0.85) * (at - start) : at;
+    // Fixed cases: repair time depends on the category (synthetic, only to give the statistics shape).
+    const repairDays = status === "fixed" ? REPAIR_BASE_DAYS[category] * between(0.5, 1.6) : 0;
+    const start = at - (status === "fixed" ? repairDays + between(1, 50) : ageDays) * DAY_MS;
+    const end = status === "fixed" ? start + repairDays * DAY_MS : at;
 
     // Problem reports: 1-6, mostly from different people; sometimes the same person twice.
     const count = weighted([[1, 5], [2, 4], [3, 3], [4, 2], [6, 1]]);
@@ -174,10 +180,19 @@ export function createMockSource({ now = Date.now(), seed = 1902 } = {}) {
     }
 
     // History along the path, spread between the first report and `end`.
-    const path = PATHS[status];
+    const path = status === "fixed" && rand() < 0.25 ? FIXED_AFTER_REOPEN : PATHS[status];
     path.forEach((s, i) => {
-      const t = i === 0 ? start : start + ((end - start) * i) / path.length;
+      const t = i === 0 ? start : start + ((end - start) * i) / (path.length - (status === "fixed" ? 1 : 0));
       c.history.push({ status: s, at: new Date(t).toISOString(), by: SYSTEM_STATUSES.has(s) ? "sistema" : "gobierno", note: NOTES[s] });
+      if (s === "reopened" && status === "fixed") {
+        c.reports.push(
+          makeReport(c, {
+            at: t,
+            kind: "repair_check",
+            verification: { status: "failed", reason: "La foto de después todavía muestra el problema." },
+          }),
+        );
+      }
     });
     if (status === "fixed") {
       c.reports.push(makeReport(c, { at: end, kind: "repair_check", after: true }));

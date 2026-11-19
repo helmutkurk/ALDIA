@@ -29,6 +29,10 @@ Node 22 or newer. To use the backend instead of demo data, open
   The government cannot set "fixed": only a verified after photo closes the case.
 - **Live**: polls every 15 s and shows a notice for each new report.
 - **Export**: GeoJSON and Open311 (GeoReport v2) of the visible cases, without reporter ids.
+- **Statistics page** (`#estadisticas`): repair time per problem type (median), most frequent
+  problems (fixed / open / closed), new vs fixed cases per week, share fixed within the deadline
+  per severity, share of repairs whose after photo failed, and a table per zone. Period: 30 days,
+  90 days or all. Every chart has a hover tooltip and a table view.
 
 ## Decisions
 
@@ -51,9 +55,9 @@ Node 22 or newer. To use the backend instead of demo data, open
 index.html            page shell
 src/main.js           wiring: data source, state, rendering
 src/config.js         demo or API, map tiles, polling
-src/domain/           pure logic (tested): schema, statuses, cases, priority, metrics, filters, exports
+src/domain/           pure logic (tested): schema, statuses, cases, priority, metrics, filters, exports, stats
 src/data/             mock-source.js (synthetic Guatemala City data), api-source.js (backend)
-src/ui/               map-view.js (map adapter), views.js, detail-view.js, dom.js, format.js
+src/ui/               map-view.js (map adapter), views.js, detail-view.js, stats-view.js, dom.js, format.js
 src/styles/           tokens.css (palette), app.css
 tests/                node:test suites
 scripts/serve.mjs     local static server (127.0.0.1 only, strict CSP)

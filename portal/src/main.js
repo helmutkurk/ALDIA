@@ -13,6 +13,7 @@ import { statusLabel } from "./domain/statuses.js";
 import { createMapView } from "./ui/map-view.js";
 import { createFilters, renderKpis, renderLegend, renderQueue } from "./ui/views.js";
 import { renderDetail } from "./ui/detail-view.js";
+import { createStatsView } from "./ui/stats-view.js";
 import { downloadJson, h } from "./ui/dom.js";
 
 const config = readConfig(location.search);
@@ -42,6 +43,27 @@ createFilters($("filters"), state.filters, (filters) => {
   render();
 });
 renderLegend($("legend"));
+const stats = createStatsView($("stats-view"), { isDemo: source.kind === "mock" });
+
+/** Two pages, chosen by the URL hash: #mapa (default) and #estadisticas. */
+const currentPage = () => (location.hash === "#estadisticas" ? "estadisticas" : "mapa");
+
+function showPage() {
+  const page = currentPage();
+  for (const id of ["mapa", "estadisticas"]) {
+    const tab = $(`tab-${id}`);
+    if (id === page) tab.setAttribute("aria-current", "page");
+    else tab.removeAttribute("aria-current");
+  }
+  const onStats = page === "estadisticas";
+  $("stats-view").hidden = !onStats;
+  $("kpis").hidden = onStats;
+  document.querySelector(".workspace").hidden = onStats;
+  document.body.classList.toggle("on-stats", onStats);
+  render();
+  if (!onStats) requestAnimationFrame(() => map.resize());
+}
+window.addEventListener("hashchange", showPage);
 
 function toast(text, tone = "") {
   const el = h("div", { class: `toast ${tone}` }, text);
@@ -103,6 +125,12 @@ function render() {
   const all = [...state.cases.values()].map((c) => summarizeCase(c, now));
   visible = sortForQueue(applyFilters(all, state.filters, now));
 
+  if (currentPage() === "estadisticas") {
+    stats.render(all, now);
+    renderSyncStatus();
+    return;
+  }
+
   renderKpis($("kpis"), computeMetrics(all, now));
   map.render(visible, state.selectedId);
   renderQueue($("case-list"), $("list-count"), visible, { selectedId: state.selectedId, now, onSelect: select });
@@ -146,6 +174,6 @@ document.addEventListener("keydown", (e) => {
 });
 window.addEventListener("resize", () => map.resize());
 
-refresh().then(() => requestAnimationFrame(() => map.resize()));
+refresh().then(showPage);
 setInterval(refresh, config.pollMs);
 setInterval(renderSyncStatus, 1_000);
