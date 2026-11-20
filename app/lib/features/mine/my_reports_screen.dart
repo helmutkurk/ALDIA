@@ -38,6 +38,11 @@ class MyReportsScreen extends StatefulWidget {
 class _MyReportsScreenState extends State<MyReportsScreen> {
   late Future<List<Report>> _sent;
   List<DraftRecord> _drafts = const [];
+  bool _draftsLoading = true;
+  bool _draftsFailed = false;
+  int _draftLoadGeneration = 0;
+  final Set<String> _pendingOperations = {};
+  bool _queueRetrying = false;
 
   @override
   void initState() {
@@ -56,8 +61,26 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
   }
 
   Future<void> _loadDrafts() async {
-    final drafts = await context.read<DraftStore?>()?.loadAll();
-    if (mounted) setState(() => _drafts = drafts ?? const []);
+    final generation = ++_draftLoadGeneration;
+    final store = context.read<DraftStore?>();
+    setState(() {
+      _draftsLoading = true;
+      _draftsFailed = false;
+    });
+    try {
+      final drafts = await store?.loadAll() ?? const <DraftRecord>[];
+      if (!mounted || generation != _draftLoadGeneration) return;
+      setState(() {
+        _drafts = drafts;
+        _draftsLoading = false;
+      });
+    } catch (_) {
+      if (!mounted || generation != _draftLoadGeneration) return;
+      setState(() {
+        _draftsFailed = true;
+        _draftsLoading = false;
+      });
+    }
   }
 
   void _reloadSent() {
@@ -73,34 +96,92 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
     unawaited(_loadDrafts());
   }
 
-  Future<bool> _confirmDelete(String question) async =>
-      await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          content: Text(question),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text(S.cancel),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text(S.delete),
-            ),
-          ],
-        ),
-      ) ??
-      false;
+  Future<bool> _confirmDelete(String question) async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    final scheme = Theme.of(context).colorScheme;
+    return await showDialog<bool>(
+          context: context,
+          animationStyle: MediaQuery.disableAnimationsOf(context)
+              ? AnimationStyle.noAnimation
+              : const AnimationStyle(
+                  duration: Duration(milliseconds: 180),
+                  reverseDuration: Duration(milliseconds: 120),
+                ),
+          builder: (context) => AlertDialog(
+            content: Text(question),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text(S.cancel),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: scheme.error,
+                  foregroundColor: scheme.onError,
+                ),
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text(S.delete),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
 
   Future<void> _deleteDraft(DraftRecord draft) async {
-    if (!await _confirmDelete(S.deleteDraftQuestion) || !mounted) return;
-    await context.read<DraftStore?>()?.delete(draft.id);
-    await _loadDrafts();
+    if (_pendingOperations.contains(draft.id)) return;
+    final store = context.read<DraftStore?>();
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _pendingOperations.add(draft.id));
+    try {
+      final confirmed = await _confirmDelete(S.deleteDraftQuestion);
+      if (!mounted || !confirmed) return;
+      await store?.delete(draft.id);
+      if (!mounted) return;
+      setState(
+        () => _drafts = _drafts.where((item) => item.id != draft.id).toList(),
+      );
+      await _loadDrafts();
+    } catch (_) {
+      if (mounted) {
+        messenger.showSnackBar(const SnackBar(content: Text(S.storageError)));
+      }
+    } finally {
+      if (mounted) setState(() => _pendingOperations.remove(draft.id));
+    }
   }
 
   Future<void> _deleteQueued(OutboxService outbox, OutboxEntry entry) async {
-    if (!await _confirmDelete(S.deleteOutboxQuestion)) return;
-    await outbox.remove(entry.draft.id);
+    final id = entry.draft.id;
+    if (_pendingOperations.contains(id)) return;
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _pendingOperations.add(id));
+    try {
+      final confirmed = await _confirmDelete(S.deleteOutboxQuestion);
+      if (!mounted || !confirmed) return;
+      await outbox.remove(id);
+    } catch (_) {
+      if (mounted) {
+        messenger.showSnackBar(const SnackBar(content: Text(S.storageError)));
+      }
+    } finally {
+      if (mounted) setState(() => _pendingOperations.remove(id));
+    }
+  }
+
+  Future<void> _retryQueue(OutboxService outbox) async {
+    if (_queueRetrying) return;
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _queueRetrying = true);
+    try {
+      await outbox.retry();
+    } catch (_) {
+      if (mounted) {
+        messenger.showSnackBar(const SnackBar(content: Text(S.storageError)));
+      }
+    } finally {
+      if (mounted) setState(() => _queueRetrying = false);
+    }
   }
 
   @override
@@ -118,95 +199,157 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
               final loading = snapshot.connectionState != ConnectionState.done;
               final sent = snapshot.data ?? const <Report>[];
               final empty = queued.isEmpty && _drafts.isEmpty && sent.isEmpty;
-              if (!loading && !snapshot.hasError && empty) {
+              if (!loading &&
+                  !snapshot.hasError &&
+                  !_draftsLoading &&
+                  !_draftsFailed &&
+                  outbox?.persistenceError == null &&
+                  empty) {
                 return _EmptyState(onStart: _openFlow);
               }
-              return ListView(
-                padding: const EdgeInsets.fromLTRB(
-                  AldiaSpace.l,
-                  0,
-                  AldiaSpace.l,
-                  AldiaSpace.fabClearance,
-                ),
-                children: [
-                  if (queued.isNotEmpty) ...[
-                    const _SectionHeader(S.outbox),
-                    for (final entry in queued)
-                      _LocalCard(
-                        categoryId: entry.draft.categoryId,
-                        status: S.waitingNetwork,
-                        statusIcon: Icons.cloud_off,
-                        help: entry.missingPhoto
-                            ? S.missingPhoto
-                            : S.outboxWillRetry,
-                        actions: [
-                          if (!entry.missingPhoto)
-                            _CardAction(
-                              icon: Icons.refresh,
-                              label: S.retryNow,
-                              onPressed: () => unawaited(outbox!.retry()),
-                            ),
-                          _CardAction(
-                            icon: Icons.delete_outline,
-                            label: S.delete,
-                            onPressed: () => _deleteQueued(outbox!, entry),
-                          ),
-                        ],
-                      ),
-                  ],
-                  if (_drafts.isNotEmpty) ...[
-                    const _SectionHeader(S.savedDrafts),
-                    for (final draft in _drafts)
-                      _LocalCard(
-                        categoryId: draft.categoryId,
-                        status: S.draft,
-                        statusIcon: Icons.edit_note,
-                        help: S.age(draft.createdAt, DateTime.now()),
-                        actions: [
-                          _CardAction(
-                            icon: Icons.edit,
-                            label: S.continueDraft,
-                            onPressed: () => _openFlow(draft),
-                          ),
-                          _CardAction(
-                            icon: Icons.delete_outline,
-                            label: S.deleteDraft,
-                            onPressed: () => _deleteDraft(draft),
-                          ),
-                        ],
-                      ),
-                  ],
-                  if (queued.isNotEmpty || _drafts.isNotEmpty)
-                    const _SectionHeader(S.sentReports),
-                  if (loading)
-                    const Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Center(child: CircularProgressIndicator()),
+              return Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 680),
+                  child: ListView(
+                    padding: EdgeInsets.fromLTRB(
+                      MediaQuery.sizeOf(context).width < 600
+                          ? AldiaSpace.l
+                          : AldiaSpace.xl,
+                      AldiaSpace.l,
+                      MediaQuery.sizeOf(context).width < 600
+                          ? AldiaSpace.l
+                          : AldiaSpace.xl,
+                      AldiaSpace.xl,
                     ),
-                  if (snapshot.hasError)
-                    Center(
-                      child: Column(
-                        children: [
-                          const Text(S.loadError),
-                          TextButton(
-                            onPressed: _reloadSent,
-                            child: const Text(S.retry),
+                    children: [
+                      if (queued.isNotEmpty) ...[
+                        const _SectionHeader(S.outbox),
+                        for (final entry in queued)
+                          _LocalCard(
+                            categoryId: entry.draft.categoryId,
+                            status: S.waitingNetwork,
+                            statusIcon: Icons.cloud_off,
+                            help: entry.missingPhoto
+                                ? S.missingPhoto
+                                : S.outboxWillRetry,
+                            actions: [
+                              if (!entry.missingPhoto)
+                                _CardAction(
+                                  icon: Icons.refresh,
+                                  label: S.retryNow,
+                                  onPressed: _queueRetrying
+                                      ? null
+                                      : () => _retryQueue(outbox!),
+                                ),
+                              _CardAction(
+                                icon: Icons.delete_outline,
+                                label: S.delete,
+                                onPressed:
+                                    _pendingOperations.contains(entry.draft.id)
+                                    ? null
+                                    : () => _deleteQueued(outbox!, entry),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                    ),
-                  for (final report in sent)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AldiaSpace.s),
-                      child: ReportTile(
-                        report: report,
-                        onTap: () => AldiaRoute.open<void>(
-                          context,
-                          ReportDetailScreen(report: report),
+                      ],
+                      if (outbox?.persistenceError != null)
+                        Semantics(
+                          liveRegion: true,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(S.storageError),
+                              TextButton(
+                                onPressed: _queueRetrying
+                                    ? null
+                                    : () => _retryQueue(outbox!),
+                                child: const Text(S.retry),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ),
-                ],
+                      if (_draftsLoading || _draftsFailed) ...[
+                        const _SectionHeader(S.savedDrafts),
+                        if (_draftsLoading)
+                          const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Center(child: CircularProgressIndicator()),
+                          ),
+                        if (_draftsFailed)
+                          Semantics(
+                            liveRegion: true,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'No se pudieron cargar los borradores.',
+                                ),
+                                TextButton(
+                                  onPressed: () => unawaited(_loadDrafts()),
+                                  child: const Text(S.retry),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                      if (_drafts.isNotEmpty) ...[
+                        if (!_draftsLoading && !_draftsFailed)
+                          const _SectionHeader(S.savedDrafts),
+                        for (final draft in _drafts)
+                          _LocalCard(
+                            categoryId: draft.categoryId,
+                            status: S.draft,
+                            statusIcon: Icons.edit_note,
+                            help: S.age(draft.createdAt, DateTime.now()),
+                            actions: [
+                              _CardAction(
+                                icon: Icons.edit,
+                                label: S.continueDraft,
+                                onPressed: () => _openFlow(draft),
+                              ),
+                              _CardAction(
+                                icon: Icons.delete_outline,
+                                label: S.deleteDraft,
+                                onPressed: _pendingOperations.contains(draft.id)
+                                    ? null
+                                    : () => _deleteDraft(draft),
+                              ),
+                            ],
+                          ),
+                      ],
+                      if (queued.isNotEmpty || _drafts.isNotEmpty)
+                        const _SectionHeader(S.sentReports),
+                      if (loading)
+                        const Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Center(child: CircularProgressIndicator()),
+                        ),
+                      if (snapshot.hasError)
+                        Center(
+                          child: Column(
+                            children: [
+                              const Text(S.loadError),
+                              TextButton(
+                                onPressed: _reloadSent,
+                                child: const Text(S.retry),
+                              ),
+                            ],
+                          ),
+                        ),
+                      for (final report in sent)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: AldiaSpace.m),
+                          child: ReportTile(
+                            report: report,
+                            onTap: () => AldiaRoute.open<void>(
+                              context,
+                              ReportDetailScreen(report: report),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
               );
             },
           );
@@ -224,8 +367,8 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) => Semantics(
     header: true,
     child: Padding(
-      padding: const EdgeInsets.fromLTRB(0, AldiaSpace.l, 0, AldiaSpace.s),
-      child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+      padding: const EdgeInsets.fromLTRB(0, AldiaSpace.xl, 0, AldiaSpace.m),
+      child: Text(title, style: Theme.of(context).textTheme.titleLarge),
     ),
   );
 }
@@ -238,7 +381,7 @@ class _CardAction {
   });
   final IconData icon;
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 }
 
 /// A draft or a queued report: status as icon plus text, actions as text buttons.
@@ -261,9 +404,9 @@ class _LocalCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final category = categoryId == null ? null : categoryById(categoryId!);
     return Card(
-      margin: const EdgeInsets.only(bottom: AldiaSpace.s),
+      margin: const EdgeInsets.only(bottom: AldiaSpace.m),
       child: Padding(
-        padding: const EdgeInsets.all(AldiaSpace.m),
+        padding: const EdgeInsets.all(AldiaSpace.l),
         child: Semantics(
           container: true,
           child: Column(
@@ -273,22 +416,38 @@ class _LocalCard extends StatelessWidget {
                 category?.label ?? S.draft,
                 style: Theme.of(context).textTheme.titleMedium,
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: AldiaSpace.s),
               Row(
                 children: [
-                  Icon(statusIcon, size: 18),
-                  const SizedBox(width: 6),
-                  Expanded(child: Text(status)),
+                  Icon(statusIcon, size: 24),
+                  const SizedBox(width: AldiaSpace.s),
+                  Expanded(
+                    child: Text(
+                      status,
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                  ),
                 ],
               ),
-              Text(help),
+              const SizedBox(height: AldiaSpace.s),
+              Text(
+                help,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: AldiaSpace.m),
               Wrap(
                 spacing: 8,
+                runSpacing: AldiaSpace.s,
                 children: [
                   for (final action in actions)
                     TextButton.icon(
                       style: TextButton.styleFrom(
                         minimumSize: const Size(48, 48),
+                        foregroundColor: action.icon == Icons.delete_outline
+                            ? Theme.of(context).colorScheme.error
+                            : Theme.of(context).colorScheme.primary,
                       ),
                       onPressed: action.onPressed,
                       icon: Icon(action.icon),
@@ -312,6 +471,7 @@ class _EmptyState extends StatelessWidget {
   Widget build(BuildContext context) => EmptyState(
     icon: Icons.add_a_photo_outlined,
     title: S.emptyMine,
+    help: 'Toma una foto del problema y sigue aquí sus cambios de estado.',
     actionLabel: S.firstReport,
     onAction: onStart,
   );

@@ -30,12 +30,27 @@ class EmptyState extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 56, color: theme.colorScheme.primary),
-              const SizedBox(height: AldiaSpace.l),
+              ExcludeSemantics(
+                child: Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(
+                    icon,
+                    size: 32,
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                ),
+              ),
+              const SizedBox(height: AldiaSpace.xl),
               Text(
                 title,
                 textAlign: TextAlign.center,
-                style: theme.textTheme.titleMedium,
+                style: theme.textTheme.titleLarge,
               ),
               if (help != null) ...[
                 const SizedBox(height: AldiaSpace.s),
@@ -49,7 +64,13 @@ class EmptyState extends StatelessWidget {
               ],
               if (actionLabel != null) ...[
                 const SizedBox(height: AldiaSpace.xl),
-                FilledButton(onPressed: onAction, child: Text(actionLabel!)),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: onAction,
+                    child: Text(actionLabel!),
+                  ),
+                ),
               ],
             ],
           ),

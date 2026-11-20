@@ -57,6 +57,62 @@ void main() {
   });
 
   for (final theme in [buildTheme(), buildDarkTheme()]) {
+    test('${theme.brightness.name} selection uses primary theme colors', () {
+      final selection = theme.textSelectionTheme;
+      expect(selection.cursorColor, theme.colorScheme.primary);
+      expect(selection.selectionHandleColor, theme.colorScheme.primary);
+      expect(
+        selection.selectionColor,
+        theme.colorScheme.primary.withValues(alpha: 0.25),
+      );
+    });
+
+    test('${theme.brightness.name} focused button boundaries are visible', () {
+      final scheme = theme.colorScheme;
+      final filledSide = theme.filledButtonTheme.style!.side!.resolve({
+        WidgetState.focused,
+      })!;
+      final outlinedSide = theme.outlinedButtonTheme.style!.side!.resolve({
+        WidgetState.focused,
+      })!;
+      final textSide = theme.textButtonTheme.style!.side!.resolve({
+        WidgetState.focused,
+      })!;
+      final iconSide = theme.iconButtonTheme.style!.side!.resolve({
+        WidgetState.focused,
+      })!;
+      expect(
+        _contrast(filledSide.color, scheme.primary),
+        greaterThanOrEqualTo(3),
+      );
+      for (final side in [outlinedSide, textSide, iconSide]) {
+        expect(_contrast(side.color, scheme.surface), greaterThanOrEqualTo(3));
+      }
+    });
+
+    test(
+      '${theme.brightness.name} disabled filled colors use Material defaults',
+      () {
+        final style = theme.filledButtonTheme.style!;
+        expect(style.backgroundColor!.resolve({WidgetState.disabled}), isNull);
+        expect(style.foregroundColor!.resolve({WidgetState.disabled}), isNull);
+        expect(
+          theme.outlinedButtonTheme.style!.side!.resolve({
+            WidgetState.disabled,
+          }),
+          isNull,
+        );
+        expect(
+          theme.textButtonTheme.style!.side!.resolve({WidgetState.disabled}),
+          isNull,
+        );
+        expect(
+          theme.iconButtonTheme.style!.side!.resolve({WidgetState.disabled}),
+          isNull,
+        );
+      },
+    );
+
     test('${theme.brightness.name} text token pairs meet 4.5:1', () {
       final s = theme.colorScheme;
       final pairs = <String, (Color, Color)>{
