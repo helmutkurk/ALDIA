@@ -124,7 +124,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _signingOut = true);
     String? message;
     try {
-      await context.read<ReportRepository>().auth.signOut();
+      final repository = context.read<ReportRepository>();
+      await repository.testAccount?.end();
+      if (repository.auth.isSignedIn) await repository.auth.signOut();
     } on CitizenAuthException catch (e) {
       message = e.message;
     } catch (_) {
@@ -174,6 +176,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
       await repository.clearLocalData();
       try {
+        await repository.testAccount?.end();
         await repository.auth.signOut();
       } catch (_) {}
       if (!mounted) return;
@@ -205,7 +208,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 680),
         child: AnimatedBuilder(
-          animation: Listenable.merge([local, auth]),
+          animation: Listenable.merge([local, auth, repository.testAccount]),
           builder: (context, _) => ListView(
             padding: const EdgeInsets.all(AldiaSpace.xl),
             children: [
@@ -227,10 +230,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 leading: const Icon(Icons.phone_outlined),
                 title: const Text('Número de teléfono'),
                 subtitle: Text(
-                  auth.maskedPhone ?? 'Sin verificar. Verifica tu número para consultar tus reportes desde tu cuenta.',
+                  (repository.testAccount?.active ?? false)
+                      ? 'Cuenta de prueba'
+                      : auth.maskedPhone ?? 'Sin verificar. Verifica tu número para consultar tus reportes desde tu cuenta.',
                 ),
               ),
-              if (auth.isSignedIn)
+              if (repository.hasAccount)
                 OutlinedButton.icon(
                   onPressed: _signingOut ? null : _signOut,
                   icon: const Icon(Icons.logout),

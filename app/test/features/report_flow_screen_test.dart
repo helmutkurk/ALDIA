@@ -67,7 +67,6 @@ Future<void> advanceToPhoto(WidgetTester tester) async {
   await tapText(tester, S.confirmLocation);
   await tapText(tester, 'Bache');
   await tapText(tester, S.next);
-  await tapText(tester, S.differentProblem);
 }
 
 Future<void> advanceToReview(WidgetTester tester) async {
@@ -159,28 +158,6 @@ void main() {
     handle.dispose();
   });
 
-  testWidgets('nearby duplicates are listed with both choices', (tester) async {
-    tester.view.physicalSize = const Size(800, 3000);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-    await tester.pumpWidget(
-      host(
-        fakeRepository(
-          nearby: [reportJson(id: 'aaaa1111-1111-4111-8111-111111111111')],
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tapText(tester, S.useMyLocation);
-    await tapText(tester, S.confirmLocation);
-    await tapText(tester, 'Bache');
-    await tapText(tester, S.next);
-
-    expect(find.text(S.stepDuplicates), findsWidgets);
-    expect(find.text(S.followReport), findsOneWidget);
-    expect(find.text(S.differentProblem), findsOneWidget);
-  });
-
   testWidgets(
     'a rejected result explains each failed check and offers the fixes',
     (tester) async {
@@ -201,7 +178,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       await advanceToReview(tester);
-      await tapText(tester, 'Continuar sin avisos');
+      await tapText(tester, S.send);
 
       expect(find.textContaining('(prueba)'), findsWidgets);
       expect(find.text(S.freshnessReason), findsOneWidget);
@@ -233,7 +210,7 @@ void main() {
       await tester.pumpWidget(host(fakeRepository(createdStatus: 'pending')));
       await tester.pumpAndSettle();
       await advanceToReview(tester);
-      await tapText(tester, 'Continuar sin avisos');
+      await tapText(tester, S.send);
       expect(find.text(S.pendingHelp), findsOneWidget);
     },
   );

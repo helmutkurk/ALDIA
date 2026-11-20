@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/config.dart';
 import '../../services/citizen_auth_service.dart';
 import '../../services/identity_services.dart';
 
@@ -17,8 +18,20 @@ Future<bool> showCitizenLogin(BuildContext context, AuthService auth) async =>
 
 /// Phone/code input is transient and disposed when the sheet closes.
 class CitizenLoginSheet extends StatefulWidget {
-  const CitizenLoginSheet({super.key, required this.auth});
+  const CitizenLoginSheet({
+    super.key,
+    required this.auth,
+    this.standalone = false,
+    this.onTestAccount,
+  });
   final AuthService auth;
+
+  /// MVP: enters with the local test account (shown only when allowed).
+  final Future<void> Function()? onTestAccount;
+
+  /// Full-screen login at app start: no close button, and success is shown by
+  /// the app gate reacting to [AuthService] instead of popping a route.
+  final bool standalone;
   @override
   State<CitizenLoginSheet> createState() => _CitizenLoginSheetState();
 }
@@ -100,7 +113,7 @@ class _CitizenLoginSheetState extends State<CitizenLoginSheet> {
           'No se pudo verificar el número. Inténtalo de nuevo.',
         );
       }
-      if (mounted) Navigator.pop(context, true);
+      if (mounted && !widget.standalone) Navigator.pop(context, true);
     } on CitizenAuthException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
@@ -130,13 +143,17 @@ class _CitizenLoginSheetState extends State<CitizenLoginSheet> {
           Semantics(
             header: true,
             child: Text(
-              'Para recibir avisos de tu reporte verifica tu número',
+              widget.standalone
+                  ? 'Entra a Aldia'
+                  : 'Para recibir avisos de tu reporte, verifica tu número.',
               style: Theme.of(context).textTheme.titleLarge,
             ),
           ),
           const SizedBox(height: 12),
-          const Text(
-            'Tu número no será público. El acceso dura 90 días en este dispositivo. Los avisos se consultan en Aldia; las notificaciones push aún no están disponibles.',
+          Text(
+            widget.standalone
+                ? 'Ingresa tu número de teléfono y te enviaremos un código de 6 dígitos. Tu número nunca será público.'
+                : 'Tu número no será público. El acceso dura 90 días en este dispositivo. Los avisos se consultan en Aldia; las notificaciones push aún no están disponibles.',
           ),
           const SizedBox(height: 16),
           TextField(
@@ -231,11 +248,40 @@ class _CitizenLoginSheetState extends State<CitizenLoginSheet> {
               child: const Text('Cambiar número'),
             ),
           ],
-          TextButton(
-            onPressed: _busy ? null : () => Navigator.pop(context, false),
-            child: const Text('Cerrar'),
-          ),
+          if (widget.onTestAccount != null && AppConfig.allowTestAccount)
+            OutlinedButton(
+              onPressed: _busy ? null : widget.onTestAccount,
+              child: const Text('Entrar con cuenta de prueba'),
+            ),
+          if (!widget.standalone)
+            TextButton(
+              onPressed: _busy ? null : () => Navigator.pop(context, false),
+              child: const Text('Cerrar'),
+            ),
         ],
+      ),
+    ),
+  );
+}
+
+/// Shown at app start when the deployment requires a citizen account.
+class CitizenLoginScreen extends StatelessWidget {
+  const CitizenLoginScreen({super.key, required this.auth, this.onTestAccount});
+  final AuthService auth;
+  final Future<void> Function()? onTestAccount;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: SafeArea(
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: CitizenLoginSheet(
+            auth: auth,
+            standalone: true,
+            onTestAccount: onTestAccount,
+          ),
+        ),
       ),
     ),
   );

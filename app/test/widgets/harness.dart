@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:aldia_app/services/test_account.dart';
 import 'package:aldia_app/core/theme.dart';
 import 'package:aldia_app/data/api_client.dart';
 import 'package:aldia_app/data/clusters_api.dart';
@@ -43,6 +44,7 @@ ReportRepository repositoryWith({
   List<http.Request>? posts,
   AuthService auth = const NoopAuthService(),
   bool requireCitizenLogin = false,
+  TestAccountSession? testAccount,
   VoidCallback? onPost,
 }) {
   final client = MockClient((request) async {
@@ -92,6 +94,7 @@ ReportRepository repositoryWith({
   return ReportRepository(
     api: ApiClient(client: client, baseUrl: 'http://api.test/api', auth: auth),
     requireCitizenLogin: requireCitizenLogin,
+    testAccount: testAccount,
     store: MemoryStore()..saved.addAll(byId.keys),
   );
 }

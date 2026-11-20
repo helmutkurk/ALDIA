@@ -1,10 +1,15 @@
+import 'package:aldia_app/app.dart';
 import 'package:aldia_app/features/citizen/login_sheet.dart';
 import 'package:aldia_app/features/citizen/citizen_screens.dart';
+import 'package:aldia_app/services/test_account.dart';
 import 'package:aldia_app/core/strings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../support/fake_auth.dart';
+import '../../support/fakes.dart';
+import '../../support/offline_tiles.dart';
 import '../../widgets/harness.dart';
 import '../report_flow_screen_test.dart' show advanceToReview, tapText, host;
 
@@ -94,25 +99,26 @@ void main() {
   });
 
   testWidgets(
-    'required wizard blocks upload until verified and then sends once',
+    'required login shows the login screen first and opens home once verified',
     (tester) async {
-      tester.view.physicalSize = const Size(800, 3000);
+      tester.view.physicalSize = const Size(800, 1800);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       final auth = FakeCitizenAuth();
-      final posts = <dynamic>[];
-      final repository = repositoryWith(
-        auth: auth,
-        requireCitizenLogin: true,
-        onPost: () => posts.add(true),
+      await tester.pumpWidget(
+        AldiaApp(
+          repository: repositoryWith(auth: auth, requireCitizenLogin: true),
+          location: FakeLocation(const LatLng(14.6, -90.5)),
+          photos: FakePhotos(),
+          tileProvider: OfflineTileProvider(),
+        ),
       );
-      await tester.pumpWidget(host(repository));
       await tester.pumpAndSettle();
-      await advanceToReview(tester);
-      expect(find.text('Continuar sin avisos'), findsNothing);
-      await tapText(tester, S.send);
-      expect(posts, isEmpty);
-      expect(find.byType(CitizenLoginSheet), findsOneWidget);
+      expect(find.byType(CitizenLoginScreen), findsOneWidget);
+      expect(find.text('Entra a Aldia'), findsOneWidget);
+      expect(find.text('Cerrar'), findsNothing);
+      expect(find.text(S.newReport), findsNothing);
+
       await fillPhone(tester);
       await tester.enterText(
         find.byKey(const Key('citizen-code')),
@@ -120,12 +126,57 @@ void main() {
       );
       await tester.tap(find.text('Verificar número'));
       await tester.pumpAndSettle();
-      expect(posts, hasLength(1));
       expect(auth.isSignedIn, isTrue);
+      expect(find.byType(CitizenLoginScreen), findsNothing);
+      expect(find.text(S.newReport), findsOneWidget);
     },
   );
 
-  testWidgets('optional wizard explicitly offers anonymous submission', (
+  testWidgets('the MVP test account enters, sends and logs out', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final saved = <bool>[];
+    final testAccount = TestAccountSession(
+      onChanged: (active) async => saved.add(active),
+    );
+    final posts = <dynamic>[];
+    final repository = repositoryWith(
+      requireCitizenLogin: true,
+      testAccount: testAccount,
+      onPost: () => posts.add(true),
+    );
+    await tester.pumpWidget(
+      AldiaApp(
+        repository: repository,
+        location: FakeLocation(const LatLng(14.6, -90.5)),
+        photos: FakePhotos(),
+        tileProvider: OfflineTileProvider(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Entrar con cuenta de prueba'));
+    await tester.pumpAndSettle();
+    expect(find.byType(CitizenLoginScreen), findsNothing);
+    expect(repository.hasAccount, isTrue);
+    expect(saved, [true]);
+
+    await repository.submit(
+      photo: (await FakePhotos().takePhoto())!,
+      category: 'pothole',
+      position: const LatLng(14.6, -90.5),
+    );
+    expect(posts, hasLength(1));
+
+    await testAccount.end();
+    await tester.pumpAndSettle();
+    expect(find.byType(CitizenLoginScreen), findsOneWidget);
+    expect(saved, [true, false]);
+  });
+
+  testWidgets('a signed-in citizen sends without any phone prompt', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(800, 3000);
@@ -133,11 +184,17 @@ void main() {
     addTearDown(tester.view.reset);
     final posts = <dynamic>[];
     await tester.pumpWidget(
-      host(repositoryWith(onPost: () => posts.add(true))),
+      host(
+        repositoryWith(
+          auth: FakeCitizenAuth(signedIn: true),
+          requireCitizenLogin: true,
+          onPost: () => posts.add(true),
+        ),
+      ),
     );
     await tester.pumpAndSettle();
     await advanceToReview(tester);
-    await tapText(tester, 'Continuar sin avisos');
+    await tapText(tester, S.send);
     expect(posts, hasLength(1));
     expect(find.byType(CitizenLoginSheet), findsNothing);
   });

@@ -10,7 +10,6 @@ import '../../core/config.dart';
 import '../../core/strings.dart';
 import '../../core/theme.dart';
 import '../../data/report_repository.dart';
-import '../../services/connectivity_service.dart';
 import '../../services/location_service.dart';
 import '../../services/geocoder_service.dart';
 import '../../services/photo_service.dart';
@@ -23,7 +22,6 @@ import '../drafts/draft_record.dart';
 import '../drafts/draft_store.dart';
 import '../outbox/outbox_service.dart';
 import 'report_flow_controller.dart';
-import '../citizen/login_sheet.dart';
 
 class ReportFlowScreen extends StatelessWidget {
   const ReportFlowScreen({super.key, this.draft});
@@ -38,7 +36,6 @@ class ReportFlowScreen extends StatelessWidget {
         photos: context.read<PhotoService>(),
         drafts: context.read<DraftStore?>(),
         outbox: context.read<OutboxService?>(),
-        connectivity: context.read<ConnectivityService?>(),
       );
       unawaited(controller.loadCategories());
       if (draft != null) unawaited(controller.restore(draft!));
@@ -100,16 +97,6 @@ class _FlowViewState extends State<_FlowView> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  Future<void> _submit(ReportFlowController controller) async {
-    final repository = context.read<ReportRepository>();
-    final auth = repository.auth;
-    if (!auth.isSignedIn) {
-      final verified = await showCitizenLogin(context, auth);
-      if (!mounted || !verified) return;
-    }
-    await controller.submit();
-  }
-
   @override
   Widget build(BuildContext context) {
     final c = context.watch<ReportFlowController>();
@@ -132,7 +119,7 @@ class _FlowViewState extends State<_FlowView> with WidgetsBindingObserver {
               builder: (context) => AlertDialog(
                 title: const Text('Tu reporte, paso a paso'),
                 content: const Text(
-                  'Confirma el lugar, elige una categoría y revisa los reportes cercanos. Luego toma una foto en el momento y revisa los datos antes de enviar.',
+                  'Confirma el lugar y elige una categoría. Luego toma una foto en el momento y revisa los datos antes de enviar.',
                 ),
                 actions: [
                   TextButton(
@@ -160,22 +147,14 @@ class _FlowViewState extends State<_FlowView> with WidgetsBindingObserver {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (c.lookingForDuplicates) const LinearProgressIndicator(),
                     if (c.step.index > 0)
                       OutlinedButton(
                         onPressed: c.back,
                         child: const Text(S.back),
                       ),
-                    if (c.isLastStep &&
-                        !context.read<ReportRepository>().requireCitizenLogin &&
-                        !context.read<ReportRepository>().auth.isSignedIn)
-                      TextButton(
-                        onPressed: c.canAdvance ? c.submit : null,
-                        child: const Text('Continuar sin avisos'),
-                      ),
                     FilledButton(
                       onPressed: c.canAdvance
-                          ? (c.isLastStep ? () => _submit(c) : c.next)
+                          ? (c.isLastStep ? c.submit : c.next)
                           : null,
                       child: Text(
                         c.isLastStep
@@ -184,8 +163,6 @@ class _FlowViewState extends State<_FlowView> with WidgetsBindingObserver {
                             ? S.confirmLocation
                             : c.step == FlowStep.photo
                             ? S.usePhoto
-                            : c.step == FlowStep.duplicates
-                            ? S.differentProblem
                             : S.next,
                       ),
                     ),
@@ -241,7 +218,6 @@ class _FlowViewState extends State<_FlowView> with WidgetsBindingObserver {
                     FlowStep.photo => _PhotoStep(controller: c),
                     FlowStep.location => _LocationStep(controller: c),
                     FlowStep.category => _CategoryStep(controller: c),
-                    FlowStep.duplicates => _DuplicatesStep(controller: c),
                     FlowStep.note => _NoteStep(controller: c),
                     FlowStep.review => _ReviewStep(controller: c),
                   },
@@ -261,7 +237,6 @@ String _title(FlowStep step) => switch (step) {
   FlowStep.photo => S.stepPhoto,
   FlowStep.location => S.stepLocation,
   FlowStep.category => S.stepCategory,
-  FlowStep.duplicates => S.stepDuplicates,
   FlowStep.note => S.stepNote,
   FlowStep.review => S.stepReview,
 };
@@ -816,73 +791,6 @@ class _CategoryRow extends StatelessWidget {
   }
 }
 
-class _DuplicatesStep extends StatelessWidget {
-  const _DuplicatesStep({required this.controller});
-  final ReportFlowController controller;
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      const Text(
-        'Revisa si alguien ya reportó el mismo problema cerca de este lugar. Puedes seguirlo para consultarlo después.',
-      ),
-      if (controller.duplicates.isEmpty)
-        const _Notice(
-          'No hay coincidencias disponibles. Puedes continuar con tu reporte.',
-        ),
-      for (final report in controller.duplicates) ...[
-        ReportTile(
-          report: report,
-          onTap: () => showModalBottomSheet<void>(
-            context: context,
-            isScrollControlled: true,
-            builder: (_) => SafeArea(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      categoryById(report.category).label,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    StatusChips(report: report),
-                    if (report.note != null) Text(report.note!),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute<void>(
-                            builder: (_) => ReportDetailScreen(report: report),
-                          ),
-                        );
-                      },
-                      child: const Text(S.viewDetail),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-        OutlinedButton(
-          onPressed: () => controller.follow(report),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.favorite_border),
-              SizedBox(width: 8),
-              Flexible(child: Text(S.followReport)),
-            ],
-          ),
-        ),
-        const Divider(),
-      ],
-    ],
-  );
-}
-
 class _NoteStep extends StatelessWidget {
   const _NoteStep({required this.controller});
   final ReportFlowController controller;
@@ -955,12 +863,6 @@ class _ReviewStep extends StatelessWidget {
           S.uploadSize((c.photo?.bytes.length ?? 0) + 1024 + c.note.length * 4),
         ),
         const _Notice(S.publicPhotoNotice),
-        const SizedBox(height: 16),
-        Text(
-          context.read<ReportRepository>().auth.isSignedIn
-              ? 'Tu número está verificado. Podrás consultar este reporte desde tu cuenta.'
-              : 'Para recibir avisos de tu reporte verifica tu número.',
-        ),
       ],
     );
   }

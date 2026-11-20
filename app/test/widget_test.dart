@@ -32,7 +32,7 @@ void main() {
   });
 
   testWidgets(
-    'the report button opens the six-step wizard on the location step',
+    'the report button opens the five-step wizard on the location step',
     (tester) async {
       tester.view.physicalSize = const Size(800, 3000);
       tester.view.devicePixelRatio = 1;
@@ -51,7 +51,7 @@ void main() {
 
       // One heading and a progress line instead of the full step list.
       expect(find.text(S.stepLocation), findsWidgets);
-      expect(find.text(S.stepProgress(1, 6)), findsOneWidget);
+      expect(find.text(S.stepProgress(1, 5)), findsOneWidget);
       expect(find.text(S.confirmLocation), findsOneWidget);
     },
   );

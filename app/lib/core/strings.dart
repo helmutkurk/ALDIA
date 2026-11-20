@@ -17,7 +17,7 @@ class S {
   static const onboardingBodies = [
     'Baches, aceras, luminarias y más. Envías una foto y el punto en el mapa; el municipio da seguimiento.',
     'Toma la foto desde la acera, justo donde está el problema. No se aceptan fotos de la galería ni de personas.',
-    'La foto y el punto del reporte son públicos. No necesitas cuenta; no pedimos tu nombre ni tu teléfono.',
+    'La foto y el punto del reporte son públicos. Entras con tu número de teléfono, que nunca se publica.',
   ];
   static String onboardingPage(int current, int total) =>
       'Página $current de $total';
@@ -90,10 +90,8 @@ class S {
   static const stubNotice =
       'Verificación de prueba: aún no se clasifica la foto.';
 
-  static const stepDuplicates = '¿Ya está reportado?';
   static const stepReview = 'Revisar y enviar';
   static const usePhoto = 'Usar esta foto';
-  static const differentProblem = 'Es un problema distinto';
   static const followReport = 'Seguir este reporte';
   static const following = 'Reporte guardado en Mis reportes';
   static const changeCategory = 'Cambiar categoría';

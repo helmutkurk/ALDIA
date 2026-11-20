@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
+import 'core/config.dart';
 import 'data/api_client.dart';
 import 'data/local_citizen_store.dart';
 import 'data/clusters_api.dart';
@@ -17,8 +18,10 @@ import 'services/location_service.dart';
 import 'services/geocoder_service.dart';
 import 'services/photo_service.dart';
 import 'services/citizen_auth_service.dart';
+import 'services/test_account.dart';
 
 const _onboardingKey = 'onboarding_seen';
+const _testAccountKey = 'test_account_active';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,10 +36,16 @@ Future<void> main() async {
   try {
     await auth.initialize();
   } catch (_) {}
+  final testAccount = TestAccountSession(
+    active: prefs.getBool(_testAccountKey) ?? false,
+    onChanged: (active) => prefs.setBool(_testAccountKey, active),
+  );
   final repository = ReportRepository(
     api: ApiClient(client: client, auth: auth),
     store: PrefsMyReportsStore(),
     local: LocalCitizenStore(preferences: prefs),
+    requireCitizenLogin: AppConfig.requireCitizenLogin,
+    testAccount: AppConfig.allowTestAccount ? testAccount : null,
   );
   final connectivity = PlusConnectivityService();
   final drafts = JsonDraftStore();

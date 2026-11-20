@@ -10,6 +10,7 @@ import 'core/theme.dart';
 import 'data/clusters_api.dart';
 import 'data/report_repository.dart';
 import 'features/drafts/draft_store.dart';
+import 'features/citizen/login_sheet.dart';
 import 'features/home/home_screen.dart';
 import 'features/onboarding/onboarding_screen.dart';
 import 'features/outbox/outbox_service.dart';
@@ -127,7 +128,20 @@ class _AldiaAppState extends State<AldiaApp> with WidgetsBindingObserver {
         supportedLocales: const [Locale('es', 'GT'), Locale('es')],
         home: _onboarding
             ? OnboardingScreen(onDone: _finishOnboarding)
-            : const HomeScreen(),
+            : ListenableBuilder(
+                // Logging out returns to the login screen.
+                listenable: Listenable.merge([
+                  repository.auth,
+                  repository.testAccount,
+                ]),
+                builder: (context, _) =>
+                    repository.requireCitizenLogin && !repository.hasAccount
+                    ? CitizenLoginScreen(
+                        auth: repository.auth,
+                        onTestAccount: repository.testAccount?.start,
+                      )
+                    : const HomeScreen(),
+              ),
       ),
     );
   }
