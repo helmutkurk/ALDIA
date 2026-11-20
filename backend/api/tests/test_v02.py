@@ -128,12 +128,15 @@ def test_nearby_clusters_queue(client: TestClient) -> None:
         second["id"],
         third["id"],
     ]
-    assert result.json()["items"][0]["thumbnail_url"] == first["photo_url"]
+    assert (
+        result.json()["items"][0]["thumbnail_url"]
+        == f"/api/reports/{first['id']}/thumbnail"
+    )
     nearby = client.get(f"/api/reports/{first['id']}/nearby").json()
     assert [r["id"] for r in nearby["items"]] == [second["id"]]
     bbox = "-91,14,-90,15"
     low = client.get(f"/api/reports/clusters?bbox={bbox}&zoom=1").json()
-    high = client.get(f"/api/reports/clusters?bbox={bbox}&zoom=17").json()
+    high = client.get(f"/api/reports/clusters?bbox={bbox}&zoom=15").json()
     assert low["total"] == high["total"] == 3
     assert len(low["clusters"]) == 1
     assert low["clusters"][0]["count"] == 3

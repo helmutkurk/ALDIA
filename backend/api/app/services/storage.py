@@ -7,6 +7,8 @@ from uuid import UUID
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
+THUMBNAIL_EDGE = 320
+
 
 class PhotoStorage:
     def __init__(self, root: Path) -> None:
@@ -18,6 +20,43 @@ class PhotoStorage:
         except ValueError as exc:
             raise ValueError("Photo ID must be a UUID") from exc
         return self.root / f"{validated}.jpg"
+
+    def thumbnail_path(self, report_id: UUID | str) -> Path:
+        return self.path(report_id).with_name(f"{self.path(report_id).stem}.thumb.jpg")
+
+    def thumbnail(self, report_id: UUID | str) -> Path | None:
+        """Return the cached JPEG thumbnail, generating it atomically on first use."""
+        source = self.path(report_id)
+        target = self.thumbnail_path(report_id)
+        if target.is_file():
+            return target
+        if not source.is_file():
+            return None
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", Image.DecompressionBombWarning)
+                with Image.open(source) as image:
+                    image.load()
+                    small = image.convert("RGB")
+        except (UnidentifiedImageError, OSError, Image.DecompressionBombWarning):
+            return None
+        small.thumbnail((THUMBNAIL_EDGE, THUMBNAIL_EDGE), Image.Resampling.LANCZOS)
+        clean = Image.new("RGB", small.size)
+        clean.paste(small)
+        output = BytesIO()
+        clean.save(output, format="JPEG", quality=72, optimize=True)
+        temporary: str | None = None
+        try:
+            with tempfile.NamedTemporaryFile(dir=self.root, delete=False) as file:
+                temporary = file.name
+                file.write(output.getvalue())
+                file.flush()
+                os.fsync(file.fileno())
+            os.replace(temporary, target)
+        finally:
+            if temporary is not None:
+                Path(temporary).unlink(missing_ok=True)
+        return target
 
     def ensure_private(self) -> None:
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -70,3 +109,4 @@ class PhotoStorage:
 
     def delete(self, report_id: UUID) -> None:
         self.path(report_id).unlink(missing_ok=True)
+        self.thumbnail_path(report_id).unlink(missing_ok=True)

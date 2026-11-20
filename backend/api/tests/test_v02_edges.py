@@ -214,7 +214,10 @@ def test_nearby_window_verified_open_and_nearest_ten(client: TestClient) -> None
     assert [item["distance_m"] for item in items] == sorted(
         item["distance_m"] for item in items
     )
-    assert all(item["thumbnail_url"] == item["photo_url"] for item in items)
+    assert all(
+        item["thumbnail_url"] == item["photo_url"].replace("/photo", "/thumbnail")
+        for item in items
+    )
 
 
 @pytest.mark.parametrize(

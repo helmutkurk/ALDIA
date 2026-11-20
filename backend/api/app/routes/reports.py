@@ -259,6 +259,24 @@ def get_photo(
     )
 
 
+@router.get("/{report_id}/thumbnail", response_class=FileResponse)
+def get_thumbnail(
+    report_id: UUID, session: SessionDep, services: ServicesDep, role: OptionalStaffDep
+) -> FileResponse:
+    find_report(report_id, session, staff=role is not None)
+    path = services.storage.thumbnail(report_id)
+    if path is None:
+        raise HTTPException(404)
+    return FileResponse(
+        path,
+        media_type="image/jpeg",
+        headers={
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "public, max-age=86400",
+        },
+    )
+
+
 @router.post(
     "/{report_id}/transition",
     response_model=ReportOut,

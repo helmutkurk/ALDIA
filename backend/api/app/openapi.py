@@ -187,6 +187,16 @@ OPERATIONS: dict[tuple[str, str], tuple[str, str, str, Any]] = {
         ),
         None,
     ),
+    ("/api/reports/{report_id}/thumbnail", "get"): (
+        "Ciudadanía",
+        "Ver miniatura de la foto",
+        (
+            "JPEG de hasta 320 px en el lado largo, sin EXIF ni GPS, generado "
+            "a partir de la foto y guardado en caché (un día). Las mismas reglas "
+            "de visibilidad del reporte protegen esta imagen."
+        ),
+        None,
+    ),
     ("/api/reports/nearby", "get"): (
         "Ciudadanía",
         "Buscar problemas cercanos",
@@ -726,6 +736,14 @@ def install_openapi(app: FastAPI, *, max_upload_bytes: int) -> None:
             "image/jpeg": {
                 "schema": {"type": "string", "format": "binary"},
                 "example": "(bytes JPEG sin EXIF)",
+            }
+        }
+        schema["paths"]["/api/reports/{report_id}/thumbnail"]["get"]["responses"][
+            "200"
+        ]["content"] = {
+            "image/jpeg": {
+                "schema": {"type": "string", "format": "binary"},
+                "example": "(bytes JPEG miniatura sin EXIF)",
             }
         }
         schema["paths"]["/api/reports.csv"]["get"]["responses"]["200"]["content"] = {

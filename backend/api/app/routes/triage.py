@@ -81,7 +81,7 @@ def nearby_reports(
         items=[
             NearbyItem(
                 **serialize(row).model_dump(exclude_unset=True),
-                thumbnail_url=f"/api/reports/{row.id}/photo",
+                thumbnail_url=f"/api/reports/{row.id}/thumbnail",
                 distance_m=distance,
             )
             for distance, _id, row in candidates[:10]
@@ -124,14 +124,14 @@ def clusters(
     filters: Annotated[ClusterFilters, Query()], session: SessionDep
 ) -> ClustersOut:
     # Anchor the grid globally so panning does not move cell boundaries.
-    cell_size = 360.0 / (2**filters.zoom)
+    cell_size = 360.0 / (2 ** (filters.zoom + 4))
     cells: dict[tuple[float, float] | tuple[UUID], list[Report]] = {}
     total = 0
     for report in session.scalars(report_query(filters).order_by(Report.id)):
         total += 1
         key: tuple[float, float] | tuple[UUID] = (
             (report.id,)
-            if filters.zoom >= 17
+            if filters.zoom >= 15
             else (
                 math.floor((report.longitude + 180) / cell_size),
                 math.floor((report.latitude + 90) / cell_size),

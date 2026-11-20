@@ -215,7 +215,7 @@ second token `SUPERVISOR_TOKEN` (optional) gives role `supervisor` for overrides
 | `POST /api/reports/{id}/transition` | staff. Body `{"to": state, "public_note"?: str(<=280), "internal_note"?: str(<=500), "duplicate_of"?: uuid}`. Validates the table above, stores an event, returns the report. |
 | `POST /api/reports/{id}/assign` | staff. Body `{"assignee": str(<=60) or null}`; stores an event-free assignment record (`assigned_at`). |
 | `GET /api/reports/{id}/nearby` | open reports of the same category within 100 m created in the last 30 days (excludes itself), nearest first, max 10, with thumbnail url. For duplicate suggestions. |
-| `GET /api/reports/clusters` | `bbox` (required), `zoom` (0-20). Grid-clustered pins: `{"clusters": [{"lat","lon","count","ids"?: [first 5 ids]}], "total"}`. At zoom >= 17 returns single reports. Max 500 items. Light payload (no photos). |
+| `GET /api/reports/clusters` | `bbox` (required), `zoom` (0-20). Grid-clustered pins: `{"clusters": [{"lat","lon","count","ids"?: [first 5 ids]}], "total"}`. At zoom >= 15 returns single reports (see v0.5). Max 500 items. Light payload (no photos). |
 | `GET /api/queue` | staff-friendly triage list: `?tab=review|rejected`; `review` = state `nuevo` and no assignee, oldest `verified_at` first, each with `age_hours`; `rejected` = state `rechazado_verificador`. Same pagination as the list. |
 
 ### List, stats and export changes
@@ -445,3 +445,13 @@ must never be enabled with real users. Provider refusal still returns request 20
 verification cannot succeed without a delivered development challenge. Missing production
 key configuration returns `503 citizen_unavailable` from verification. See
 [the citizen-login decision](decisions/citizen-login.md) for privacy and operational limits.
+
+### Thumbnails and finer clusters (v0.5)
+
+| Method and path | Purpose |
+|---|---|
+| `GET /api/reports/{id}/thumbnail` | public, same visibility rules as `/photo` (`404` for hidden reports without a staff session; id validated as UUID). JPEG, long edge at most 320 px, quality 72, no EXIF. Generated with Pillow on first request and cached next to the photo (`<id>.thumb.jpg`, atomic write). `Cache-Control: public, max-age=86400`. |
+
+- `thumbnail_url` is `/api/reports/{id}/thumbnail` in every nearby item (`photo_url` keeps pointing to the full photo).
+- `GET /api/reports/clusters` uses a finer grid (cell = 360 / 2^(zoom+4) degrees, about 600 m at zoom 12 and 150 m at
+  zoom 14) and returns single reports from zoom >= 15 (relaxed from 17). Max 500 items.
