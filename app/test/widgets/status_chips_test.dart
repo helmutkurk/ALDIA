@@ -35,8 +35,24 @@ void main() {
         }
         for (final chip in tester.widgetList<Chip>(find.byType(Chip))) {
           expect(chip.backgroundColor, theme.colorScheme.surface);
-          expect(chip.labelStyle?.color, theme.colorScheme.onSurface);
+          expect(
+            (chip.label as Text).style?.color,
+            theme.colorScheme.onSurface,
+          );
           expect(chip.side?.color, (chip.avatar as Icon).color);
+          expect(
+            chip.shape,
+            isA<RoundedRectangleBorder>().having(
+              (shape) => shape.borderRadius,
+              'border radius',
+              BorderRadius.circular(8),
+            ),
+          );
+          expect(
+            chip.padding,
+            const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          );
+          expect((chip.avatar as Icon).size, 18);
         }
         expect(tester.takeException(), isNull);
       },

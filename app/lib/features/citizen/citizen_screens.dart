@@ -38,70 +38,136 @@ class _NoticesScreenState extends State<NoticesScreen> {
   @override
   Widget build(BuildContext context) {
     final repository = context.read<ReportRepository>();
+    final theme = Theme.of(context);
+    final gutter = MediaQuery.sizeOf(context).width < 600 ? 16.0 : 24.0;
     return AnimatedBuilder(
       animation: repository.local,
       builder: (context, _) {
         final notices = repository.local.notices;
         return RefreshIndicator(
           onRefresh: _refresh,
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(AldiaSpace.l),
-            children: [
-              const Text(
-                'Aquí aparecen los cambios de estado que Aldia detecta al actualizar tus reportes en este dispositivo. Los avisos push todavía no están disponibles.',
-              ),
-              const SizedBox(height: 16),
-              OutlinedButton.icon(
-                onPressed: _loading ? null : _refresh,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Actualizar avisos'),
-              ),
-              if (_loading) const LinearProgressIndicator(),
-              if (_failed)
-                const Text(
-                  'No se pudo actualizar. Los avisos guardados siguen disponibles.',
-                ),
-              if (notices.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 48),
-                  child: Column(
-                    children: [
-                      Icon(Icons.notifications_none, size: 56),
-                      SizedBox(height: 16),
-                      Text(
-                        'Todavía no tienes avisos.',
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
-              for (final notice in notices)
-                Card(
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.all(16),
-                    minTileHeight: 64,
-                    leading: Icon(citizenStateFor(notice.state).icon),
-                    title: Text(categoryById(notice.category).label),
-                    subtitle: Text(
-                      '${citizenStateFor(notice.state).label}\n${notice.at.day}/${notice.at.month}/${notice.at.year} · ${S.reference(notice.reportId)}',
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 680),
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: EdgeInsets.fromLTRB(gutter, 16, gutter, 24),
+                children: [
+                  Text(
+                    'Aquí aparecen los cambios de estado que Aldia detecta al actualizar tus reportes en este dispositivo. Los avisos push todavía no están disponibles.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
-                    isThreeLine: false,
-                    onTap: () async {
-                      try {
-                        final report = await repository.get(notice.reportId);
-                        if (mounted) widget.onOpen(report);
-                      } catch (_) {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text(S.loadError)),
-                          );
-                        }
-                      }
-                    },
                   ),
-                ),
-            ],
+                  const SizedBox(height: AldiaSpace.l),
+                  OutlinedButton.icon(
+                    onPressed: _loading ? null : _refresh,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Actualizar avisos'),
+                  ),
+                  if (_loading) ...[
+                    const SizedBox(height: AldiaSpace.l),
+                    const LinearProgressIndicator(),
+                  ],
+                  if (_failed)
+                    Padding(
+                      padding: const EdgeInsets.only(top: AldiaSpace.l),
+                      child: Semantics(
+                        liveRegion: true,
+                        child: Container(
+                          padding: const EdgeInsets.all(AldiaSpace.m),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.errorContainer,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'No se pudo actualizar. Los avisos guardados siguen disponibles.',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onErrorContainer,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (notices.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: AldiaSpace.xxl,
+                      ),
+                      child: Column(
+                        children: [
+                          ExcludeSemantics(
+                            child: Container(
+                              width: 72,
+                              height: 72,
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primaryContainer,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              alignment: Alignment.center,
+                              child: Icon(
+                                Icons.notifications_none,
+                                size: 32,
+                                color: theme.colorScheme.onPrimaryContainer,
+                              ),
+                            ),
+                          ),
+                          SizedBox(height: AldiaSpace.l),
+                          Text(
+                            'Todavía no tienes avisos.',
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.titleLarge,
+                          ),
+                          SizedBox(height: AldiaSpace.s),
+                          Text(
+                            'Los cambios de estado de tus reportes aparecerán aquí.',
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  for (var i = 0; i < notices.length; i++)
+                    Padding(
+                      padding: EdgeInsets.only(
+                        top: i == 0 ? AldiaSpace.l : AldiaSpace.m,
+                      ),
+                      child: Card(
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.all(16),
+                          minTileHeight: 64,
+                          leading: Icon(citizenStateFor(notices[i].state).icon),
+                          title: Text(
+                            categoryById(notices[i].category).label,
+                            style: theme.textTheme.titleMedium,
+                          ),
+                          subtitle: Text(
+                            '${citizenStateFor(notices[i].state).label}\n${notices[i].at.day}/${notices[i].at.month}/${notices[i].at.year} · ${S.reference(notices[i].reportId)}',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                          isThreeLine: false,
+                          onTap: () async {
+                            try {
+                              final report = await repository.get(
+                                notices[i].reportId,
+                              );
+                              if (mounted) widget.onOpen(report);
+                            } catch (_) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text(S.loadError)),
+                                );
+                              }
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
         );
       },
@@ -140,8 +206,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _clear() async {
+    FocusManager.instance.primaryFocus?.unfocus();
     final confirmed = await showDialog<bool>(
       context: context,
+      animationStyle: MediaQuery.disableAnimationsOf(context)
+          ? AnimationStyle.noAnimation
+          : const AnimationStyle(
+              duration: Duration(milliseconds: 180),
+              reverseDuration: Duration(milliseconds: 120),
+            ),
       builder: (context) => AlertDialog(
         title: const Text('¿Borrar mis datos de este dispositivo?'),
         content: const Text(
@@ -154,6 +227,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
+            style:
+                FilledButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                  foregroundColor: Theme.of(context).colorScheme.onError,
+                ).copyWith(
+                  side: WidgetStateProperty.resolveWith((states) {
+                    if (states.contains(WidgetState.disabled)) return null;
+                    if (!states.contains(WidgetState.focused)) {
+                      return const BorderSide(color: Colors.transparent);
+                    }
+                    return BorderSide(
+                      color: Theme.of(context).colorScheme.onError,
+                      width: 2,
+                    );
+                  }),
+                ),
             child: const Text('Borrar datos locales'),
           ),
         ],
@@ -201,19 +290,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final repository = context.read<ReportRepository>();
     final local = repository.local;
     final auth = repository.auth;
+    final theme = Theme.of(context);
+    final gutter = MediaQuery.sizeOf(context).width < 600 ? 16.0 : 24.0;
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 680),
         child: AnimatedBuilder(
           animation: Listenable.merge([local, auth]),
           builder: (context, _) => ListView(
-            padding: const EdgeInsets.all(AldiaSpace.xl),
+            padding: EdgeInsets.fromLTRB(gutter, 16, gutter, 24),
             children: [
-              const CircleAvatar(
-                radius: 40,
-                child: Icon(Icons.person_outline, size: 48),
+              Center(
+                child: ExcludeSemantics(
+                  child: Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    alignment: Alignment.center,
+                    child: Icon(
+                      Icons.person_outline,
+                      size: 32,
+                      color: theme.colorScheme.onPrimaryContainer,
+                    ),
+                  ),
+                ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: AldiaSpace.xl),
               Semantics(
                 header: true,
                 child: Text(
@@ -221,7 +326,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AldiaSpace.xl),
+              Text('Tu cuenta', style: theme.textTheme.titleMedium),
+              const SizedBox(height: AldiaSpace.s),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.phone_outlined),
@@ -255,6 +362,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   'Al verificar tu número puedes elegir un nombre y autorizar su publicación en reportes nuevos. Tu número siempre es privado.',
                 ),
               ),
+              const SizedBox(height: AldiaSpace.xl),
+              Text('Acerca de Aldia', style: theme.textTheme.titleMedium),
+              const SizedBox(height: AldiaSpace.s),
               const ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.language),
@@ -267,11 +377,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 title: Text('Versión de Aldia'),
                 subtitle: Text('0.1.0+1'),
               ),
-              const Divider(height: 32),
+              const SizedBox(height: AldiaSpace.xl),
+              const Divider(),
+              const SizedBox(height: AldiaSpace.xl),
               OutlinedButton.icon(
                 onPressed: _deleting ? null : _clear,
                 icon: const Icon(Icons.delete_outline),
                 label: const Text('Borrar mis datos'),
+                style:
+                    OutlinedButton.styleFrom(
+                      foregroundColor: theme.colorScheme.error,
+                    ).copyWith(
+                      side: WidgetStateProperty.resolveWith((states) {
+                        if (states.contains(WidgetState.disabled)) return null;
+                        return BorderSide(
+                          color: theme.colorScheme.error,
+                          width: states.contains(WidgetState.focused) ? 2 : 1,
+                        );
+                      }),
+                    ),
               ),
               if (_deleting) const LinearProgressIndicator(),
             ],

@@ -60,8 +60,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Corresponde a otra entidad'), findsOneWidget);
 
-    await tester.ensureVisible(find.text('LISTA'));
-    await tester.tap(find.text('LISTA'));
+    await tester.ensureVisible(find.text(S.navList));
+    await tester.tap(find.text(S.navList));
     await tester.pumpAndSettle();
     expect(find.byType(ReportTile), findsWidgets);
 

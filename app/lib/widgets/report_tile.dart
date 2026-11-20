@@ -5,6 +5,7 @@ import '../core/categories.dart';
 import '../core/citizen_states.dart';
 import '../core/strings.dart';
 import '../core/theme.dart';
+import 'report_photo.dart';
 import 'status_chips.dart';
 import '../data/report.dart';
 import '../data/report_repository.dart';
@@ -27,79 +28,93 @@ class ReportTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Semantics(
-            button: true,
-            label: '${category.label}. ${state.label}. Ver detalle',
-            child: InkWell(
-              onTap: onTap,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Image.network(
-                    repository.photoUrl(report),
-                    height: 190,
-                    fit: BoxFit.cover,
-                    semanticLabel: S.photoLabel(category.label, state.label),
-                    errorBuilder: (_, _, _) => Container(
-                      height: 190,
-                      color: theme.colorScheme.surfaceContainerHighest,
-                      child: Icon(
-                        category.icon,
-                        size: 56,
-                        color: theme.colorScheme.onSurfaceVariant,
+          MergeSemantics(
+            child: Semantics(
+              hint: 'Ver detalle',
+              child: InkWell(
+                onTap: onTap,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ExcludeSemantics(
+                      child: ReportPhoto(
+                        url: repository.thumbnailUrl(report),
+                        height: 190,
+                        fit: BoxFit.cover,
+                        semanticLabel: S.photoLabel(
+                          category.label,
+                          state.label,
+                        ),
                       ),
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(AldiaSpace.l),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Wrap(
-                          alignment: WrapAlignment.spaceBetween,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          spacing: AldiaSpace.s,
-                          runSpacing: AldiaSpace.xs,
-                          children: [
-                            Text(
-                              S.age(report.createdAt, DateTime.now()),
-                              style: theme.textTheme.labelMedium?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
+                    Padding(
+                      padding: const EdgeInsets.all(AldiaSpace.l),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  category.label,
+                                  style: theme.textTheme.titleLarge,
+                                ),
+                              ),
+                              ExcludeSemantics(
+                                child: Icon(
+                                  Icons.chevron_right,
+                                  size: 24,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AldiaSpace.s),
+                          Wrap(
+                            spacing: AldiaSpace.m,
+                            runSpacing: AldiaSpace.s,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              StatusLabel(state: report.citizenState),
+                              Text(
+                                S.age(report.createdAt, DateTime.now()),
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AldiaSpace.s),
+                          Text(
+                            'Punto: ${report.position.latitude.toStringAsFixed(5)}, ${report.position.longitude.toStringAsFixed(5)}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          if (report.note?.isNotEmpty == true)
+                            Padding(
+                              padding: const EdgeInsets.only(top: AldiaSpace.s),
+                              child: Semantics(
+                                label: report.note,
+                                excludeSemantics: true,
+                                child: Text(
+                                  report.note!,
+                                  style: theme.textTheme.bodyMedium,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
                             ),
-                            StatusLabel(state: report.citizenState),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(category.label, style: theme.textTheme.titleLarge),
-                        const SizedBox(height: AldiaSpace.xs),
-                        Text(
-                          'Punto: ${report.position.latitude.toStringAsFixed(5)}, ${report.position.longitude.toStringAsFixed(5)}',
-                          style: theme.textTheme.bodySmall,
-                        ),
-                        if (report.note?.isNotEmpty == true)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: Text(report.note!),
-                          ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '${report.createdAt.day}/${report.createdAt.month}/${report.createdAt.year} · ${S.age(report.createdAt, DateTime.now())}',
-                          style: theme.textTheme.bodySmall,
-                        ),
-                        Text(
-                          S.reference(report.id),
-                          style: theme.textTheme.bodySmall,
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
@@ -132,19 +147,32 @@ class ReportTile extends StatelessWidget {
                     );
                   },
                 ),
+                const SizedBox(width: 8),
                 IconButton(
                   tooltip: 'Compartir reporte',
                   icon: const Icon(Icons.share_outlined),
                   onPressed: () async {
-                    final shared = await ShareService.shareReport(report.id);
-                    if (!shared && context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Enlace copiado. Pégalo en WhatsApp o donde quieras compartirlo.',
+                    try {
+                      final shared = await ShareService.shareReport(report.id);
+                      if (!shared && context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Enlace copiado. Pégalo en WhatsApp o donde quieras compartirlo.',
+                            ),
                           ),
-                        ),
-                      );
+                        );
+                      }
+                    } catch (_) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'No se pudo compartir el reporte. Inténtalo de nuevo.',
+                            ),
+                          ),
+                        );
+                      }
                     }
                   },
                 ),

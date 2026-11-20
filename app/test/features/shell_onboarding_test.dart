@@ -58,7 +58,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Explorar mi ciudad'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('LISTA'));
+    await tester.tap(find.text(S.navList));
     await tester.pumpAndSettle();
     expect(find.byType(Card), findsWidgets);
     expect(find.text('Bache'), findsOneWidget);
@@ -71,7 +71,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Explorar mi ciudad'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('LISTA'));
+    await tester.tap(find.text(S.navList));
     await tester.pumpAndSettle();
     expect(find.byType(EmptyState), findsOneWidget);
     expect(find.text(S.emptyNearby), findsOneWidget);
@@ -158,9 +158,7 @@ void main() {
     expect(bar.animationDuration, Duration.zero);
     await tester.tap(find.text('Explorar mi ciudad'));
     await tester.pumpAndSettle();
-    final tabs = tester.widget<DefaultTabController>(
-      find.byType(DefaultTabController),
-    );
-    expect(tabs.animationDuration, Duration.zero);
+    final tabs = tester.widget<TabBar>(find.byType(TabBar));
+    expect(tabs.controller!.animationDuration, Duration.zero);
   });
 }

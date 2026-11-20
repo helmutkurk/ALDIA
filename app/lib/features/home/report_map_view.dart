@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/config.dart';
@@ -33,7 +34,7 @@ class MapView extends StatefulWidget {
   State<MapView> createState() => MapViewState();
 }
 
-class MapViewState extends State<MapView> {
+class MapViewState extends State<MapView> with AutomaticKeepAliveClientMixin {
   final _controller = MapController();
   Timer? _debounce;
   var _token = 0;
@@ -41,13 +42,29 @@ class MapViewState extends State<MapView> {
   List<ReportCluster> _clusters = const [];
   List<Report> _pins = const [];
   bool _clustersFailed = false;
+  bool _loading = false;
+  bool _loadFailed = false;
+  bool _hasSuccessfulLoad = false;
   bool _showReports = true;
+  bool _locating = false;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void didUpdateWidget(MapView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.state != widget.state ||
         oldWidget.category != widget.category) {
+      _debounce?.cancel();
+      ++_token;
+      _clusters = const [];
+      _pins = const [];
+      _clustersFailed = false;
+      _loading = false;
+      _loadFailed = false;
+      _hasSuccessfulLoad = false;
+      setState(() {});
       unawaited(_load());
     }
   }
@@ -60,8 +77,17 @@ class MapViewState extends State<MapView> {
   }
 
   Future<void> locate() async {
-    final point = await context.read<LocationService>().currentPosition();
-    if (!mounted) return;
+    if (!mounted || !_ready || _locating) return;
+    _locating = true;
+    LatLng? point;
+    try {
+      point = await context.read<LocationService>().currentPosition();
+    } catch (_) {
+      point = null;
+    } finally {
+      _locating = false;
+    }
+    if (!mounted || !_ready) return;
     if (point != null) {
       _controller.move(point, 16);
     } else {
@@ -77,12 +103,21 @@ class MapViewState extends State<MapView> {
   }
 
   Future<void> _load() async {
+    if (!mounted || !_ready) return;
+    _debounce?.cancel();
     final camera = _controller.camera;
     final bounds = camera.visibleBounds;
     final token = ++_token;
     final api = context.read<ClustersApi?>();
     final repository = context.read<ReportRepository>();
-    final filtered = widget.state != null || widget.category != null;
+    final state = widget.state;
+    final category = widget.category;
+    final filtered = state != null || category != null;
+    setState(() {
+      _loading = true;
+      _loadFailed = false;
+      _clustersFailed = false;
+    });
     if (api != null && !filtered) {
       try {
         final clusters = await api.clusters(
@@ -95,33 +130,46 @@ class MapViewState extends State<MapView> {
           _clusters = clusters;
           _pins = const [];
           _clustersFailed = false;
+          _loading = false;
+          _loadFailed = false;
+          _hasSuccessfulLoad = true;
         });
         return;
       } catch (_) {
-        // Fall through to the plain list below.
+        // Fall through to the viewport reports when this request is current.
       }
     }
+    if (!mounted || token != _token) return;
     try {
       final reports = await repository.nearby(
         southWest: bounds.southWest,
         northEast: bounds.northEast,
-        state: widget.state,
-        category: widget.category,
+        state: state,
+        category: category,
       );
       if (!mounted || token != _token) return;
       setState(() {
         _clusters = const [];
         _pins = reports;
         _clustersFailed = api != null && !filtered;
+        _loading = false;
+        _loadFailed = false;
+        _hasSuccessfulLoad = true;
       });
     } catch (_) {
       if (!mounted || token != _token) return;
       setState(() {
-        _clusters = const [];
-        _pins = const [];
-        _clustersFailed = false;
+        _loading = false;
+        _loadFailed = true;
       });
     }
+  }
+
+  /// Reload reports for the current viewport and filters.
+  Future<void> refresh() {
+    _debounce?.cancel();
+    if (!mounted || !_ready) return Future<void>.value();
+    return _load();
   }
 
   Future<void> _showSummary(Report report) {
@@ -129,7 +177,10 @@ class MapViewState extends State<MapView> {
       context: context,
       sheetAnimationStyle: MediaQuery.disableAnimationsOf(context)
           ? AnimationStyle.noAnimation
-          : null,
+          : const AnimationStyle(
+              duration: Duration(milliseconds: 240),
+              reverseDuration: Duration(milliseconds: 180),
+            ),
       builder: (sheetContext) {
         void openDetail() {
           Navigator.of(sheetContext).pop();
@@ -162,6 +213,7 @@ class MapViewState extends State<MapView> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     return Stack(
       children: [
         Semantics(
@@ -212,62 +264,189 @@ class MapViewState extends State<MapView> {
           ),
         ),
         Positioned(
-          right: 8,
-          bottom: 16,
+          right: AldiaSpace.l,
+          bottom: AldiaSpace.xl,
           child: Card(
+            color: Theme.of(context).colorScheme.surface,
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(
+                color: Theme.of(context).colorScheme.outlineVariant,
+              ),
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                MapLayersButton(
-                  overlay: 'Reportes de la comunidad',
-                  visible: _showReports,
-                  onChanged: (value) => setState(() => _showReports = value),
-                ),
-                IconButton(
-                  tooltip: 'Acercar mapa',
-                  onPressed: () => _controller.move(
-                    _controller.camera.center,
-                    (_controller.camera.zoom + 1).clamp(3, 19),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: AldiaSpace.xs),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      MapLayersButton(
+                        overlay: 'Reportes de la comunidad',
+                        visible: _showReports,
+                        onChanged: (value) =>
+                            setState(() => _showReports = value),
+                      ),
+                      IconButton(
+                        tooltip: 'Acercar mapa',
+                        onPressed: _ready
+                            ? () => _controller.move(
+                                _controller.camera.center,
+                                (_controller.camera.zoom + 1).clamp(3, 19),
+                              )
+                            : null,
+                        icon: const Icon(Icons.add),
+                      ),
+                      IconButton(
+                        tooltip: 'Alejar mapa',
+                        onPressed: _ready
+                            ? () => _controller.move(
+                                _controller.camera.center,
+                                (_controller.camera.zoom - 1).clamp(3, 19),
+                              )
+                            : null,
+                        icon: const Icon(Icons.remove),
+                      ),
+                      IconButton(
+                        tooltip: S.useMyLocation,
+                        onPressed: locate,
+                        icon: const Icon(Icons.my_location),
+                      ),
+                    ],
                   ),
-                  icon: const Icon(Icons.add),
-                ),
-                IconButton(
-                  tooltip: 'Alejar mapa',
-                  onPressed: () => _controller.move(
-                    _controller.camera.center,
-                    (_controller.camera.zoom - 1).clamp(3, 19),
-                  ),
-                  icon: const Icon(Icons.remove),
-                ),
-                IconButton(
-                  tooltip: S.useMyLocation,
-                  onPressed: locate,
-                  icon: const Icon(Icons.my_location),
                 ),
               ],
             ),
           ),
         ),
-        const Positioned(
-          left: 4,
-          bottom: 4,
-          child: ColoredBox(
-            color: Colors.white,
-            child: Text(
-              '© OpenStreetMap contributors',
-              style: TextStyle(color: AldiaColors.text, fontSize: 11),
+        Positioned(
+          left: AldiaSpace.xs,
+          bottom: AldiaSpace.xs,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AldiaSpace.xs,
+                vertical: AldiaSpace.xs / 2,
+              ),
+              child: Text(
+                '© OpenStreetMap contributors',
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: Theme.of(context).colorScheme.onSurface),
+              ),
             ),
           ),
         ),
-        if (_clustersFailed)
-          const Positioned(
+        if (_loading ||
+            _loadFailed ||
+            _clustersFailed ||
+            (_showReports &&
+                _hasSuccessfulLoad &&
+                _clusters.isEmpty &&
+                _pins.isEmpty))
+          Positioned(
             left: 8,
             right: 8,
             top: 8,
-            child: Card(
-              child: Padding(
-                padding: EdgeInsets.all(8),
-                child: Text(S.mapFallback),
+            child: LayoutBuilder(
+              builder: (context, constraints) => ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: constraints.maxHeight * .4,
+                ),
+                child: Card(
+                  color: Theme.of(context).colorScheme.surface,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(AldiaSpace.m),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_loading) const LinearProgressIndicator(),
+                        if (_loading && (_loadFailed || _clustersFailed))
+                          const SizedBox(height: AldiaSpace.s),
+                        if (_loadFailed) ...[
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.error_outline,
+                                size: 20,
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                              const SizedBox(width: AldiaSpace.s),
+                              Expanded(
+                                child: Semantics(
+                                  liveRegion: true,
+                                  child: Text(
+                                    _hasSuccessfulLoad
+                                        ? 'No se pudieron actualizar los reportes. Se muestran los últimos datos disponibles.'
+                                        : 'No se pudieron cargar los reportes.',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurface,
+                                        ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AldiaSpace.s),
+                          TextButton.icon(
+                            style: TextButton.styleFrom(
+                              minimumSize: const Size(
+                                AldiaSpace.target,
+                                AldiaSpace.target,
+                              ),
+                            ),
+                            onPressed: refresh,
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Reintentar'),
+                          ),
+                        ] else ...[
+                          if (!_loading && _clustersFailed)
+                            Text(
+                              S.mapFallback,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface,
+                                  ),
+                            ),
+                          if (!_loading &&
+                              _clustersFailed &&
+                              _showReports &&
+                              _hasSuccessfulLoad &&
+                              _clusters.isEmpty &&
+                              _pins.isEmpty)
+                            const SizedBox(height: AldiaSpace.s),
+                          if (!_loading &&
+                              _showReports &&
+                              _hasSuccessfulLoad &&
+                              _clusters.isEmpty &&
+                              _pins.isEmpty)
+                            Text(
+                              'No hay reportes en esta zona.',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface,
+                                  ),
+                            ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
           ),

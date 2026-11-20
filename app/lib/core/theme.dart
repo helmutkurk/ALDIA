@@ -151,25 +151,119 @@ ThemeData _build(Brightness brightness) {
     surfaceTint: Colors.transparent,
   );
   final base = ThemeData(useMaterial3: true, colorScheme: scheme);
-  final text = base.textTheme;
+  final defaults = base.textTheme;
+  final text = defaults.copyWith(
+    headlineMedium: defaults.headlineMedium?.copyWith(
+      fontSize: 28,
+      height: 34 / 28,
+      fontWeight: FontWeight.w700,
+      letterSpacing: -0.3,
+    ),
+    headlineSmall: defaults.headlineSmall?.copyWith(
+      fontSize: 24,
+      height: 1.25,
+      fontWeight: FontWeight.w700,
+      letterSpacing: -0.2,
+    ),
+    titleLarge: defaults.titleLarge?.copyWith(
+      fontSize: 20,
+      height: 1.3,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0,
+    ),
+    titleMedium: defaults.titleMedium?.copyWith(
+      fontSize: 16,
+      height: 1.5,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 0,
+    ),
+    titleSmall: defaults.titleSmall?.copyWith(
+      fontSize: 14,
+      height: 20 / 14,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 0,
+    ),
+    bodyLarge: defaults.bodyLarge?.copyWith(
+      fontSize: 16,
+      height: 1.5,
+      fontWeight: FontWeight.w400,
+      letterSpacing: 0,
+    ),
+    bodyMedium: defaults.bodyMedium?.copyWith(
+      fontSize: 14,
+      height: 20 / 14,
+      fontWeight: FontWeight.w400,
+      letterSpacing: 0,
+    ),
+    bodySmall: defaults.bodySmall?.copyWith(
+      fontSize: 12,
+      height: 1.5,
+      fontWeight: FontWeight.w400,
+      letterSpacing: 0.1,
+    ),
+    labelLarge: defaults.labelLarge?.copyWith(
+      fontSize: 14,
+      height: 20 / 14,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 0.1,
+    ),
+    labelMedium: defaults.labelMedium?.copyWith(
+      fontSize: 12,
+      height: 16 / 12,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 0.1,
+    ),
+  );
   final linkColor = dark ? AldiaColors.darkPrimary : AldiaColors.primaryDark;
   const radius = 12.0;
+  final transparentSide = WidgetStateProperty.resolveWith<BorderSide?>((
+    states,
+  ) {
+    if (states.contains(WidgetState.disabled)) return null;
+    if (!states.contains(WidgetState.focused)) {
+      return const BorderSide(color: Colors.transparent);
+    }
+    return BorderSide(
+      color: states.contains(WidgetState.pressed) && dark
+          ? AldiaColors.onPrimary
+          : scheme.onPrimary,
+      width: 2,
+    );
+  });
+  final neutralFocusSide = WidgetStateProperty.resolveWith<BorderSide?>(
+    (states) => states.contains(WidgetState.disabled)
+        ? null
+        : BorderSide(
+            color: states.contains(WidgetState.focused)
+                ? scheme.primary
+                : Colors.transparent,
+            width: 2,
+          ),
+  );
+  final outlinedSide = WidgetStateProperty.resolveWith<BorderSide?>(
+    (states) => states.contains(WidgetState.disabled)
+        ? null
+        : BorderSide(
+            color: states.contains(WidgetState.focused)
+                ? scheme.primary
+                : scheme.outline,
+            width: states.contains(WidgetState.focused) ? 2 : 1,
+          ),
+  );
   return base.copyWith(
     scaffoldBackgroundColor: dark
         ? AldiaColors.darkBackground
         : AldiaColors.background,
-    // Type hierarchy: headline, title, body, caption; bold only for titles.
-    textTheme: text.copyWith(
-      headlineMedium: text.headlineMedium?.copyWith(
-        fontWeight: FontWeight.w700,
-      ),
-      headlineSmall: text.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
-      titleLarge: text.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-      titleMedium: text.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-      labelLarge: text.labelLarge?.copyWith(fontWeight: FontWeight.w600),
-    ),
+    materialTapTargetSize: MaterialTapTargetSize.padded,
+    visualDensity: VisualDensity.standard,
+    textTheme: text,
     splashFactory: InkRipple.splashFactory,
     focusColor: scheme.primary.withValues(alpha: 0.16),
+    textSelectionTheme: TextSelectionThemeData(
+      cursorColor: scheme.primary,
+      selectionColor: scheme.primary.withValues(alpha: 0.25),
+      selectionHandleColor: scheme.primary,
+    ),
     // Default app bar: sheet header (white). Explorar and the shell use the
     // dark `bar` through [AldiaColors.barOf].
     appBarTheme: AppBarTheme(
@@ -180,10 +274,7 @@ ThemeData _build(Brightness brightness) {
       elevation: 0,
       centerTitle: false,
       shape: Border(bottom: BorderSide(color: scheme.outlineVariant)),
-      titleTextStyle: text.titleLarge?.copyWith(
-        color: scheme.onSurface,
-        fontWeight: FontWeight.w700,
-      ),
+      titleTextStyle: text.titleLarge?.copyWith(color: scheme.onSurface),
     ),
     tabBarTheme: TabBarThemeData(
       indicatorColor: AldiaColors.accent,
@@ -191,8 +282,8 @@ ThemeData _build(Brightness brightness) {
       dividerColor: Colors.transparent,
       labelColor: scheme.onSurface,
       unselectedLabelColor: scheme.onSurfaceVariant,
-      labelStyle: text.labelLarge?.copyWith(letterSpacing: 1),
-      unselectedLabelStyle: text.labelLarge?.copyWith(letterSpacing: 1),
+      labelStyle: text.labelLarge,
+      unselectedLabelStyle: text.labelLarge,
     ),
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: scheme.surface,
@@ -203,7 +294,7 @@ ThemeData _build(Brightness brightness) {
         (states) => text.labelMedium?.copyWith(
           color: scheme.onSurface,
           fontWeight: states.contains(WidgetState.selected)
-              ? FontWeight.w700
+              ? FontWeight.w600
               : FontWeight.w500,
         ),
       ),
@@ -219,9 +310,7 @@ ThemeData _build(Brightness brightness) {
       backgroundColor: scheme.primary,
       foregroundColor: scheme.onPrimary,
       extendedPadding: const EdgeInsets.symmetric(horizontal: 24),
-      extendedTextStyle: text.titleMedium?.copyWith(
-        fontWeight: FontWeight.w700,
-      ),
+      extendedTextStyle: text.titleMedium,
     ),
     cardTheme: CardThemeData(
       elevation: 0,
@@ -234,19 +323,18 @@ ThemeData _build(Brightness brightness) {
       ),
     ),
     dividerTheme: DividerThemeData(color: scheme.outlineVariant, space: 1),
-    // Full-width teal-blue primary button; darker when pressed.
+    // Primary actions use the shared blue and preserve native pressed feedback.
     filledButtonTheme: FilledButtonThemeData(
       style:
           FilledButton.styleFrom(
-            minimumSize: const Size.fromHeight(AldiaSpace.target),
+            minimumSize: const Size(AldiaSpace.target, AldiaSpace.target),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
             ),
-            textStyle: text.labelLarge?.copyWith(
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.5,
-            ),
+            textStyle: text.labelLarge,
           ).copyWith(
+            side: transparentSide,
             backgroundColor: WidgetStateProperty.resolveWith((states) {
               if (states.contains(WidgetState.disabled)) return null;
               if (states.contains(WidgetState.pressed)) {
@@ -265,36 +353,53 @@ ThemeData _build(Brightness brightness) {
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        minimumSize: const Size.fromHeight(AldiaSpace.target),
+        minimumSize: const Size(AldiaSpace.target, AldiaSpace.target),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         foregroundColor: linkColor,
+        textStyle: text.labelLarge,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        side: BorderSide(color: scheme.outline),
-      ),
+      ).copyWith(side: outlinedSide),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         minimumSize: const Size(AldiaSpace.target, AldiaSpace.target),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         foregroundColor: linkColor,
-      ),
+        textStyle: text.labelLarge,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ).copyWith(side: neutralFocusSide),
     ),
     iconButtonTheme: IconButtonThemeData(
       style: IconButton.styleFrom(
         minimumSize: const Size(AldiaSpace.target, AldiaSpace.target),
-      ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ).copyWith(side: neutralFocusSide),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: scheme.surface,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      helperMaxLines: 3,
+      errorMaxLines: 3,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
         borderSide: BorderSide(color: scheme.outline),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(
-          color: dark ? AldiaColors.darkPrimary : AldiaColors.focus,
-          width: 2,
-        ),
+        borderSide: BorderSide(color: scheme.primary, width: 2),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(color: scheme.outline),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(color: scheme.error),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(color: scheme.error, width: 2),
       ),
     ),
     snackBarTheme: SnackBarThemeData(
@@ -305,9 +410,18 @@ ThemeData _build(Brightness brightness) {
       backgroundColor: scheme.surface,
       surfaceTintColor: Colors.transparent,
       showDragHandle: true,
+      constraints: const BoxConstraints(maxWidth: 680),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
+    ),
+    listTileTheme: ListTileThemeData(
+      iconColor: scheme.onSurfaceVariant,
+      titleTextStyle: text.titleMedium,
+      subtitleTextStyle: text.bodyMedium?.copyWith(
+        color: scheme.onSurfaceVariant,
+      ),
+      horizontalTitleGap: AldiaSpace.m,
     ),
     progressIndicatorTheme: ProgressIndicatorThemeData(
       color: scheme.primary,

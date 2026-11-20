@@ -17,7 +17,7 @@ class S {
   static const onboardingBodies = [
     'Baches, aceras, luminarias y más. Envías una foto y el punto en el mapa; el municipio da seguimiento.',
     'Toma la foto desde la acera, justo donde está el problema. No se aceptan fotos de la galería ni de personas.',
-    'La foto y el punto del reporte son públicos. No necesitas cuenta; no pedimos tu nombre ni tu teléfono.',
+    'La foto y el punto del reporte son públicos. Evita incluir personas o datos privados. Si verificas tu número, permanecerá privado.',
   ];
   static String onboardingPage(int current, int total) =>
       'Página $current de $total';
@@ -107,10 +107,10 @@ class S {
       'No hay señal de ubicación. Elige el punto en el mapa.';
   static const poorAccuracy =
       'La precisión supera 50 m. Reintenta el GPS o ajusta el punto en el mapa.';
-  static const confirmLocation = 'CONFIRMAR UBICACIÓN';
+  static const confirmLocation = 'Confirmar ubicación';
   static const locating = 'Buscando ubicación…';
   static const edit = 'Editar';
-  static const manualReview = 'Enviar para revisión manual';
+  static const manualReview = 'Guardar para revisión manual';
   static const manualSaved =
       'Reporte guardado en este dispositivo. La revisión manual aún no está disponible.';
   static const waitingNetwork = 'Esperando red';

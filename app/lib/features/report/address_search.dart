@@ -72,6 +72,7 @@ class _AddressSearchState extends State<AddressSearch> {
     children: [
       TextField(
         controller: _search,
+        style: Theme.of(context).textTheme.bodyLarge,
         decoration: const InputDecoration(
           labelText: 'Buscar dirección',
           hintText: 'Calle y municipio',
@@ -89,23 +90,58 @@ class _AddressSearchState extends State<AddressSearch> {
           });
         },
       ),
+      const SizedBox(height: 8),
       TextButton.icon(
         onPressed: _searchAddress,
         icon: const Icon(Icons.search),
         label: const Text('Buscar dirección en el mapa'),
       ),
+      if (_addresses.isNotEmpty) const SizedBox(height: 12),
       if (_searching) const LinearProgressIndicator(),
       if (_searchMessage != null) FlowNotice(_searchMessage!),
-      for (final address in _addresses)
-        ListTile(
-          minTileHeight: 56,
-          leading: const Icon(Icons.place_outlined),
-          title: Text(address.label),
-          onTap: () {
-            widget.onSelected(address);
-            setState(() => _addresses = const []);
-            FocusScope.of(context).unfocus();
-          },
+      if (_addresses.isNotEmpty)
+        Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var index = 0; index < _addresses.length; index++) ...[
+                if (index > 0)
+                  Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
+                Material(
+                  color: Theme.of(context).colorScheme.surface,
+                  child: ListTile(
+                    minTileHeight: 56,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
+                    leading: const Icon(Icons.place_outlined, size: 24),
+                    title: Text(
+                      _addresses[index].label,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    onTap: () {
+                      widget.onSelected(_addresses[index]);
+                      setState(() => _addresses = const []);
+                      FocusScope.of(context).unfocus();
+                    },
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
     ],
   );

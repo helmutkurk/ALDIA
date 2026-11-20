@@ -23,7 +23,7 @@ class ReportList extends StatelessWidget {
   final bool filtered;
   final String query;
   final void Function(Report) onOpen;
-  final VoidCallback onRetry;
+  final Future<void> Function() onRetry;
   final VoidCallback onClear;
 
   @override
@@ -31,10 +31,11 @@ class ReportList extends StatelessWidget {
     return FutureBuilder<List<Report>>(
       future: future,
       builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
+        if (snapshot.connectionState != ConnectionState.done &&
+            !snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        if (snapshot.hasError) {
+        if (snapshot.hasError && !snapshot.hasData) {
           return EmptyState(
             icon: Icons.cloud_off,
             title: S.loadError,
@@ -42,7 +43,7 @@ class ReportList extends StatelessWidget {
             onAction: onRetry,
           );
         }
-        final all = snapshot.data!;
+        final all = snapshot.data ?? const <Report>[];
         final needle = query.toLowerCase();
         final reports = needle.isEmpty
             ? all
@@ -76,19 +77,49 @@ class ReportList extends StatelessWidget {
                   help: S.emptyNearbyHelp,
                 );
         }
-        return RefreshIndicator(
-          onRefresh: () async => onRetry(),
-          child: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(
-              AldiaSpace.l,
-              AldiaSpace.s,
-              AldiaSpace.l,
-              AldiaSpace.fabClearance,
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 680),
+            child: RefreshIndicator(
+              onRefresh: onRetry,
+              child: ListView.separated(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: EdgeInsets.fromLTRB(
+                  MediaQuery.sizeOf(context).width < 600
+                      ? AldiaSpace.l
+                      : AldiaSpace.xl,
+                  AldiaSpace.l,
+                  MediaQuery.sizeOf(context).width < 600
+                      ? AldiaSpace.l
+                      : AldiaSpace.xl,
+                  AldiaSpace.xl,
+                ),
+                itemCount:
+                    reports.length +
+                    (snapshot.connectionState != ConnectionState.done ? 1 : 0),
+                separatorBuilder: (_, _) =>
+                    const SizedBox(height: AldiaSpace.l),
+                itemBuilder: (context, i) {
+                  if (snapshot.connectionState != ConnectionState.done &&
+                      i == 0) {
+                    return const LinearProgressIndicator(
+                      key: ValueKey('list-refresh-progress'),
+                    );
+                  }
+                  final reportIndex =
+                      i -
+                      (snapshot.connectionState != ConnectionState.done
+                          ? 1
+                          : 0);
+                  return ReportTile(
+                    report: reports[reportIndex],
+                    onTap: () => onOpen(reports[reportIndex]),
+                  );
+                },
+              ),
             ),
-            itemCount: reports.length,
-            separatorBuilder: (_, _) => const SizedBox(height: AldiaSpace.s),
-            itemBuilder: (context, i) =>
-                ReportTile(report: reports[i], onTap: () => onOpen(reports[i])),
           ),
         );
       },

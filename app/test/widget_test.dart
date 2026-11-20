@@ -26,7 +26,7 @@ void main() {
 
     await tester.tap(find.text('Explorar mi ciudad'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('LISTA'));
+    await tester.tap(find.text(S.navList));
     await tester.pumpAndSettle();
     expect(find.text('Bache'), findsOneWidget);
   });
