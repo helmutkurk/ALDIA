@@ -3,7 +3,7 @@ from io import BytesIO
 
 import pytest
 from fastapi.testclient import TestClient
-from PIL import Image
+from PIL import Image, ImageDraw
 
 from app.config import Settings
 from app.main import create_app
@@ -12,7 +12,11 @@ from app.phash import dhash
 
 def photo(size: tuple[int, int] = (640, 480), fmt: str = "JPEG") -> bytes:
     buffer = BytesIO()
-    Image.new("RGB", size, "orange").save(buffer, format=fmt)
+    image = Image.new("RGB", size, "orange")
+    draw = ImageDraw.Draw(image)
+    for x in range(0, size[0], 20):
+        draw.line((x, 0, size[0] - x, size[1] - 1), fill="navy", width=4)
+    image.save(buffer, format=fmt)
     return buffer.getvalue()
 
 
@@ -32,10 +36,10 @@ def client() -> TestClient:
 
 
 def test_health(client: TestClient) -> None:
-    assert client.get("/health").json() == {"status": "ok", "mode": "stub"}
+    assert client.get("/health").json() == {"status": "ok", "mode": "heuristic"}
 
 
-def test_verify_stub(client: TestClient) -> None:
+def test_verify_heuristic(client: TestClient) -> None:
     response = client.post(
         "/verify",
         data=fields(),
@@ -44,15 +48,20 @@ def test_verify_stub(client: TestClient) -> None:
     assert response.status_code == 200
     result = response.json()
     assert result["passed"] is True
-    assert result["mode"] == "stub"
+    assert result["mode"] == "heuristic"
     assert len(result["phash"]) == 16
     assert {check["name"] for check in result["checks"]} == {
         "image",
         "place",
         "freshness",
         "category",
+        "sharpness",
+        "exposure",
+        "exif_time",
+        "exif_gps",
+        "screen_photo",
     }
-    assert result["checks"][-1]["detail"] == "stub: not classified"
+    assert result["checks"][-1]["detail"] == "no clasificado (sin modelo)"
 
 
 @pytest.mark.parametrize(
@@ -157,7 +166,7 @@ def test_freshness_boundaries(age: int, passed: bool) -> None:
         longitude=-90.5,
         captured_at=now - timedelta(seconds=age),
     )
-    result = verify(photo(), report, StubClassifier(), "stub", 600, now=now)
+    result = verify(photo(), report, StubClassifier(), Settings(), now=now)
     assert (
         next(check for check in result.checks if check.name == "freshness").passed
         is passed

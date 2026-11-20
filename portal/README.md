@@ -2,8 +2,8 @@
 
 A plain JavaScript municipal portal with Leaflet, ES modules and JSDoc. Isa owns
 this folder. UI copy is Spanish; code and documentation are English. The binding
-API contract is `../documentation/api-contract.md`, including its additive v0.2
-section. The portal is original work based on our own clean-room behavior notes;
+API contract is `../documentation/api-contract.md`, including v0.2, v0.3 and v0.4.
+The portal is original work based on our own clean-room behavior notes;
 no FixMyStreet source, CSS, templates or translations are used.
 
 ## Install and develop
@@ -20,14 +20,22 @@ Open <http://localhost:5173>. The map starts in Guatemala City at
 `[14.6349, -90.5069]`. Vite proxies `/api` to `http://localhost:8000`.
 Run the API separately; development and production include no bundled reports or
 photographs. Tests use synthetic fixtures and mocked fetch.
+For HTTP development the API needs `ENV=dev` so its session cookie can work
+without HTTPS. Migrate and bootstrap an admin with
+`uv run python -m app.cli create-admin` from `backend/api/`, or seed the dev-only
+`operador`/`supervisor` accounts. The seed prints a newly generated password once;
+there is no published or built-in password. Use **Modo personal → Iniciar sesión**.
 
 `.env.example` lists optional **public** build-time names. Unset
 `VITE_API_BASE_URL` uses `/api`; an explicitly empty value uses the origin root.
 A separate origin must include the API prefix (for example,
 `https://api.example.org/api`) and requires a matching API CORS allowlist and
-explicit nginx CSP `connect-src`/`img-src` entries. Staff CORS must allow the
-`X-Staff-Token` and `Content-Type` headers and POST requests. Never put a staff
-or supervisor token in a Vite variable: build-time values are public.
+explicit nginx CSP `connect-src`/`img-src` entries. Staff CORS needs explicit
+origins, credential support, `X-CSRF-Token`, `Content-Type`, POST and PATCH.
+The staff portal must share the cookie origin through the existing `/api` proxy:
+double-submit CSRF reads the API's `aldia_csrf` cookie, which cannot be read from
+an unrelated API hostname. Public cross-origin reads remain possible with CORS.
+Never put a password or staff token in a Vite variable: build-time values are public.
 
 ## Pages and staff mode
 
@@ -60,12 +68,16 @@ or supervisor token in a Vite variable: build-time values are public.
   Category cross-tabs use separately filtered stats requests; the portal never
   derives population statistics from the current list page. CSV has a comma or
   semicolon selector and retains the same scope. Downloads use fetch with the
-  staff header when active, then a temporary object URL.
+  session cookie when active, then a temporary object URL.
 
-**Modo personal** is reachable on every route. Paste the operator or supervisor
-token, select the requested role and activate it. The requested role controls
-which actions are offered; it does not grant permissions. The API validates the
-token and permission for every action. Without a token, the portal is read-only.
+**Modo personal** is reachable on every route. Enter your username and password;
+the API sets an HttpOnly session cookie and returns the account's role. The portal
+restores an existing session with `/auth/me`. Operators manage ordinary cases;
+supervisors and admins also override rejections, reopen closed cases and moderate.
+The server checks every permission. **Cerrar sesión** revokes the server session.
+Public viewers see no write controls. A separate token form appears only after
+`GET /api/auth/config` reports `dev_tokens: true` (requires API `ENV=dev` and
+`AUTH_DEV_TOKENS=true`). Its role selector remains a UI hint, checked by the API.
 Assignment accepts a cuadrilla/responsible name (60 characters), or blank to clear.
 Public notes are limited to 280 characters and internal notes to 500.
 
@@ -77,7 +89,8 @@ case require a public or internal reason; skipping from `en_revision` to
 and a required master UUID. Hide restoration comes from the latest hide event;
 without that history the portal cannot guess a legal restore target. Unlisted
 forward skips are not offered. HTTP 409 explains a conflict/illegal transition;
-401/403 explain credentials/permissions and 503 explains unavailable staff setup.
+401 requests a fresh login, 403 explains denied permission or stale CSRF, 423
+explains the 15-minute account lockout, and 429 explains login throttling.
 
 ## Shared filters, ordering and map performance
 
@@ -104,8 +117,8 @@ client-side attempt to reconstruct a population of pins from one list page.
 
 ## Contract gaps and explicit limits
 
-- There is no role/session introspection endpoint. The role selector is a UI hint;
-  the API remains the security boundary.
+- User administration is available through the admin-only API; this portal has
+  no account-management screen yet.
 - `/reports/clusters` documents only bbox and zoom, not support for the other
   list filters. It must honor those supplied filters for map/list parity. To
   avoid singleton hydration, it should return a guaranteed report ID and group
@@ -132,15 +145,20 @@ client-side attempt to reconstruct a population of pins from one list page.
 
 ## Security and accessibility
 
-Tokens live only in a tab-local JavaScript closure. They never enter localStorage,
-sessionStorage, URLs, logs or the build. Activation clears the password input;
-logout, pagehide, reload and closing the tab discard the token. Changing staff
-mode clears private detail content and map results before reloading the view.
-All API requests use `X-Staff-Token` when active, `cache: no-store`,
-`credentials: omit` and reject redirects. Staff photos load through authenticated
+Passwords are cleared from the form immediately after submission and never enter
+localStorage, sessionStorage, URLs, logs or the build. Session credentials remain
+in the browser's HttpOnly cookie; JavaScript retains only the username/role.
+The API sets Secure outside `ENV=dev`, SameSite=Lax and a 12-hour expiry.
+The readable `aldia_csrf` cookie supplies `X-CSRF-Token` on writes, including
+logout (login instead receives server Origin validation). Development tokens
+live only in a tab-local closure and are discarded on logout/pagehide/reload.
+Changing staff mode clears private detail content and map results before reloading.
+All API requests use `cache: no-store`, `credentials: include` and reject redirects.
+Only the explicitly enabled development fallback uses `X-Staff-Token`.
+Staff photos load through authenticated
 fetch with cancellable, short-lived object URLs; public photos use their safe
-API URL. Photo object URLs are revoked when their view closes. A shared token is a temporary PoC mechanism; use only synthetic
-or consented photos until real authentication is deployed.
+API URL. Photo object URLs are revoked when their view closes. Use synthetic
+or consented photos for demos.
 
 API strings use `textContent`, never `innerHTML`. Photo URLs must match an
 approved UUID photo/thumbnail endpoint on the configured API origin/prefix.
@@ -185,12 +203,21 @@ prefetch. Review provider capacity before scaling.
 
 ```sh
 npm run check           # ESLint, Prettier, all Vitest tests, production build
+make lint test          # Existing JS checks; tests skip environment-file loading
 npm run test:watch
 npm run dev
 ```
 
 Tests use fake timers and mocked fetch; no live API, geocoder or photos are
-required. `tests/browser-review.sh` prints the desktop/mobile review checklist
+required. `tests/staff-auth.test.js` covers login/logout, session restoration,
+API-controlled dev fallback, admin gating, Spanish 401/403/423 and CSRF headers.
+This JavaScript portal uses ESLint, Prettier and runtime payload validation;
+Ruff and mypy do not apply. Shared JSDoc models live in `src/api-types.js`.
+`src/api-request.js` owns HTTP policy, `src/workspace-load.js` owns list/cluster
+loading, and `src/csv-export.js` owns the dashboard download lifecycle.
+The quality audit and verification record are in
+`../documentation/log/quality-portal.md`.
+`tests/browser-review.sh` prints the desktop/mobile review checklist
 and starts Vite. Run browser review outside the Codex sandbox, with the API
 running separately, or use an external connected browser.
 
@@ -226,12 +253,12 @@ portal/
 │   ├── router.js        # UUID/hash routes and history listeners
 │   ├── filters.js       # Whitelisted public filters and shareable hash codec
 │   ├── states.js        # 11-state table, groups, role targets, note requirements
-│   ├── staff.js         # Tab-memory session and credential panel
+│   ├── staff.js         # Cookie session identity, login/logout, optional dev panel
 │   ├── actions.js       # Legal state transitions, reasons, duplicate/assignment forms
 │   ├── triage.js        # Queue tabs, age and pagination
 │   ├── report.js        # Full details, modal photo, timeline and nearby duplicates
 │   ├── dashboard.js     # API metrics, samples, SVG/tables, authenticated CSV download
-│   ├── api.js           # Validated fetch, auth header, deadlines and endpoint methods
+│   ├── api.js           # Cookie/CSRF fetch, deadlines and validated endpoint methods
 │   ├── photo.js         # Safe public images/authenticated staff blobs and cleanup
 │   ├── map.js           # Leaflet viewport, clusters, pins and keyboard behavior
 │   ├── panel.js         # Safe details, filters, chips and paginated report list

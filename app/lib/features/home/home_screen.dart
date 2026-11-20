@@ -1,34 +1,24 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/categories.dart';
-import '../../core/citizen_states.dart';
-import '../../core/config.dart';
 import '../../core/strings.dart';
 import '../../core/theme.dart';
-import '../../data/clusters_api.dart';
 import '../../data/report.dart';
 import '../../data/report_repository.dart';
-import '../../widgets/empty_state.dart';
-import '../../widgets/report_tile.dart';
 import '../../widgets/routes.dart';
+import '../citizen/citizen_screens.dart';
 import '../detail/report_detail_screen.dart';
 import '../drafts/draft_record.dart';
 import '../drafts/draft_store.dart';
 import '../mine/my_reports_screen.dart';
 import '../report/report_flow_screen.dart';
-
-enum _Tab { map, list, mine }
-
-/// States a citizen can filter by (`oculto` is never public).
-final List<String> _filterStates = [
-  for (final state in citizenStates.keys)
-    if (state != 'oculto') state,
-];
+import 'explore_reports.dart';
+import 'home_landing.dart';
+import 'home_navigation.dart';
+import 'report_filters_sheet.dart';
+import 'report_map_view.dart';
 
 /// Nearby reports as a map or a list, with filters and the report button.
 class HomeScreen extends StatefulWidget {
@@ -39,9 +29,14 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  _Tab _tab = _Tab.map;
+  HomeTab _tab = HomeTab.home;
+  bool _exploring = false;
+  bool _searching = false;
+  String _query = '';
+  final _mapKey = GlobalKey<MapViewState>();
+  late Future<int?> _resolved;
   // Tabs are built on first visit and then kept (map camera, scroll position).
-  final _visited = <_Tab>{_Tab.map};
+  final _visited = <HomeTab>{HomeTab.home};
   int _mineToken = 0;
   String? _state;
   String? _category;
@@ -54,13 +49,37 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _list = _loadList();
+    _resolved = _loadResolved();
     unawaited(_loadDraft());
+    unawaited(_observeMine());
   }
 
-  Future<List<Report>> _loadList() => context.read<ReportRepository>().nearby(
-    state: _state,
-    category: _category,
-  );
+  Future<int?> _loadResolved() async {
+    try {
+      return await context.read<ReportRepository>().resolvedCount();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _observeMine() async {
+    try {
+      await context.read<ReportRepository>().mine();
+    } catch (_) {
+      /* The inbox remains available offline. */
+    }
+  }
+
+  Future<List<Report>> _loadList() {
+    final future = context.read<ReportRepository>().nearby(
+      state: _state,
+      category: _category,
+    );
+    // Explore is lazy. Observe failures now; FutureBuilder still receives the
+    // original error when the citizen opens Lista and offers Retry.
+    future.ignore();
+    return future;
+  }
 
   Future<void> _loadDraft() async {
     final drafts = await context.read<DraftStore?>()?.loadAll();
@@ -70,7 +89,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void _reload() {
     setState(() {
       _list = _loadList();
+      _resolved = _loadResolved();
     });
+    unawaited(_observeMine());
   }
 
   void _open(Report report) =>
@@ -96,8 +117,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final result = await showModalBottomSheet<(String?, String?)>(
       context: context,
       isScrollControlled: true,
-      sheetAnimationStyle: _sheetStyle(context),
-      builder: (_) => _FiltersSheet(state: _state, category: _category),
+      sheetAnimationStyle: MediaQuery.disableAnimationsOf(context)
+          ? AnimationStyle.noAnimation
+          : null,
+      builder: (_) => FiltersSheet(state: _state, category: _category),
     );
     if (result == null) return;
     setState(() {
@@ -107,29 +130,104 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  Widget _body(_Tab tab) {
+  Widget _body(HomeTab tab) {
     if (!_visited.contains(tab)) return const SizedBox.shrink();
     return switch (tab) {
-      _Tab.map => _MapView(state: _state, category: _category, onOpen: _open),
-      _Tab.list => _ReportList(
-        future: _list,
-        filtered: _filtered,
-        onOpen: _open,
-        onRetry: _reload,
-        onClear: _clearFilters,
+      HomeTab.home =>
+        _exploring
+            ? ExploreReports(
+                mapKey: _mapKey,
+                state: _state,
+                category: _category,
+                onOpen: _open,
+                reports: _list,
+                filtered: _filtered,
+                query: _query,
+                onRetry: _reload,
+                onClear: _clearFilters,
+              )
+            : Landing(
+                resolved: _resolved,
+                onExplore: () => setState(() => _exploring = true),
+                onReport: _startReport,
+              ),
+      HomeTab.notices => NoticesScreen(onOpen: _open),
+      HomeTab.mine => MyReportsScreen(embedded: true, reloadToken: _mineToken),
+      HomeTab.profile => ProfileScreen(
+        onCleared: () {
+          setState(() => _mineToken++);
+          _reload();
+          unawaited(_loadDraft());
+        },
       ),
-      _Tab.mine => MyReportsScreen(embedded: true, reloadToken: _mineToken),
+      HomeTab.report => const SizedBox.shrink(),
     };
   }
 
   @override
   Widget build(BuildContext context) {
     final filterCount = (_state != null ? 1 : 0) + (_category != null ? 1 : 0);
+    final exploring = _tab == HomeTab.home && _exploring;
     return Scaffold(
       appBar: AppBar(
-        title: const Text(S.appName),
+        backgroundColor: AldiaColors.barOf(context),
+        foregroundColor: AldiaColors.onBar,
+        iconTheme: const IconThemeData(color: AldiaColors.onBar),
+        actionsIconTheme: const IconThemeData(color: AldiaColors.onBar),
+        shape: null,
+        leading: exploring
+            ? IconButton(
+                tooltip: 'Volver a Inicio',
+                onPressed: () => setState(() {
+                  _exploring = false;
+                  _searching = false;
+                  _query = '';
+                }),
+                icon: const Icon(Icons.arrow_back),
+              )
+            : null,
+        title: exploring && _searching
+            ? TextField(
+                autofocus: true,
+                style: const TextStyle(color: AldiaColors.onBar),
+                cursorColor: AldiaColors.onBar,
+                textInputAction: TextInputAction.search,
+                decoration: const InputDecoration(
+                  hintText: 'Buscar reportes',
+                  hintStyle: TextStyle(color: Color(0xFFD9DEE3)),
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  filled: false,
+                ),
+                onChanged: (value) => setState(() => _query = value.trim()),
+              )
+            : Text(
+                exploring
+                    ? 'Explorar mi ciudad'
+                    : switch (_tab) {
+                        HomeTab.notices => 'Avisos',
+                        HomeTab.mine => S.myReports,
+                        HomeTab.profile => 'Perfil',
+                        _ => S.appName,
+                      },
+                style: const TextStyle(color: AldiaColors.onBar),
+              ),
         actions: [
-          if (_tab != _Tab.mine)
+          if (exploring) ...[
+            IconButton(
+              tooltip: _searching ? 'Cerrar búsqueda' : 'Buscar reportes',
+              onPressed: () => setState(() {
+                _searching = !_searching;
+                if (!_searching) _query = '';
+              }),
+              icon: Icon(_searching ? Icons.close : Icons.search),
+            ),
+            IconButton(
+              tooltip: S.useMyLocation,
+              onPressed: () => _mapKey.currentState?.locate(),
+              icon: const Icon(Icons.my_location),
+            ),
             IconButton(
               tooltip: S.filtersLabel,
               onPressed: _editFilters,
@@ -139,18 +237,32 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: const Icon(Icons.filter_list),
               ),
             ),
+            PopupMenuButton<String>(
+              tooltip: 'Más opciones',
+              iconColor: AldiaColors.onBar,
+              onSelected: (value) =>
+                  value == 'clear' ? _clearFilters() : _reload(),
+              itemBuilder: (_) => [
+                const PopupMenuItem(value: 'reload', child: Text('Actualizar')),
+                if (_filtered)
+                  const PopupMenuItem(
+                    value: 'clear',
+                    child: Text(S.clearFilters),
+                  ),
+              ],
+            ),
+          ],
         ],
       ),
       body: Column(
         children: [
-          if (_draft case final draft? when _tab != _Tab.mine)
-            // Capped so it never pushes the map or list off screen at 200 % text.
+          if (_draft case final draft? when _tab == HomeTab.home)
             ConstrainedBox(
               constraints: BoxConstraints(
                 maxHeight: MediaQuery.sizeOf(context).height * 0.3,
               ),
               child: SingleChildScrollView(
-                child: _DraftBanner(
+                child: DraftBanner(
                   draft: draft,
                   onTap: () => _startReport(draft),
                 ),
@@ -159,529 +271,26 @@ class _HomeScreenState extends State<HomeScreen> {
           Expanded(
             child: IndexedStack(
               index: _tab.index,
-              children: [for (final tab in _Tab.values) _body(tab)],
+              children: [for (final tab in HomeTab.values) _body(tab)],
             ),
           ),
         ],
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _startReport,
-        icon: const Icon(Icons.add_a_photo),
-        label: const Text(S.newReport),
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _tab.index,
-        animationDuration: MediaQuery.disableAnimationsOf(context)
-            ? Duration.zero
-            : const Duration(milliseconds: 500),
-        onDestinationSelected: (i) => setState(() {
-          _tab = _Tab.values[i];
-          _visited.add(_tab);
-        }),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.map_outlined),
-            selectedIcon: Icon(Icons.map),
-            label: S.navMap,
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.view_list_outlined),
-            selectedIcon: Icon(Icons.view_list),
-            label: S.navList,
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: S.myReports,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-AnimationStyle? _sheetStyle(BuildContext context) =>
-    MediaQuery.disableAnimationsOf(context) ? AnimationStyle.noAnimation : null;
-
-class _DraftBanner extends StatelessWidget {
-  const _DraftBanner({required this.draft, required this.onTap});
-  final DraftRecord draft;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final category = draft.categoryId == null
-        ? null
-        : categoryById(draft.categoryId!).label;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AldiaSpace.l,
-        AldiaSpace.s,
-        AldiaSpace.l,
-        0,
-      ),
-      child: Card(
-        color: Theme.of(context).colorScheme.secondaryContainer,
-        child: ListTile(
-          minTileHeight: 56,
-          leading: const Icon(Icons.edit_note),
-          title: const Text(S.continueDraft),
-          subtitle: Text(
-            [
-              S.draftBannerHelp,
-              ?category,
-              S.age(draft.createdAt, DateTime.now()),
-            ].join(' · '),
-          ),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: onTap,
-        ),
-      ),
-    );
-  }
-}
-
-class _FiltersSheet extends StatefulWidget {
-  const _FiltersSheet({this.state, this.category});
-  final String? state;
-  final String? category;
-
-  @override
-  State<_FiltersSheet> createState() => _FiltersSheetState();
-}
-
-class _FiltersSheetState extends State<_FiltersSheet> {
-  late String? _state = widget.state;
-  late String? _category = widget.category;
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(
-          16,
-          16,
-          16,
-          16 + MediaQuery.viewInsetsOf(context).bottom,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Semantics(
-              header: true,
-              child: Text(
-                S.filtersLabel,
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String?>(
-              initialValue: _state,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: S.filterState),
-              items: [
-                const DropdownMenuItem(child: Text(S.allStates)),
-                for (final state in _filterStates)
-                  DropdownMenuItem(
-                    value: state,
-                    child: Text(citizenStates[state]!.label),
-                  ),
-              ],
-              onChanged: (value) => setState(() => _state = value),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String?>(
-              initialValue: _category,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: S.filterCategory),
-              items: [
-                const DropdownMenuItem(child: Text(S.allCategories)),
-                for (final category in reportCategories)
-                  DropdownMenuItem(
-                    value: category.id,
-                    child: Text(category.label),
-                  ),
-              ],
-              onChanged: (value) => setState(() => _category = value),
-            ),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop((_state, _category)),
-              child: const Text(S.apply),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop((null, null)),
-              child: const Text(S.clearFilters),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ReportList extends StatelessWidget {
-  const _ReportList({
-    required this.future,
-    required this.filtered,
-    required this.onOpen,
-    required this.onRetry,
-    required this.onClear,
-  });
-
-  final Future<List<Report>> future;
-  final bool filtered;
-  final void Function(Report) onOpen;
-  final VoidCallback onRetry;
-  final VoidCallback onClear;
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<List<Report>>(
-      future: future,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return EmptyState(
-            icon: Icons.cloud_off,
-            title: S.loadError,
-            actionLabel: S.retry,
-            onAction: onRetry,
-          );
-        }
-        final reports = snapshot.data!;
-        if (reports.isEmpty) {
-          return filtered
-              ? EmptyState(
-                  icon: Icons.filter_list_off,
-                  title: S.emptyFiltered,
-                  actionLabel: S.clearFilters,
-                  onAction: onClear,
-                )
-              : const EmptyState(
-                  icon: Icons.map_outlined,
-                  title: S.emptyNearby,
-                  help: S.emptyNearbyHelp,
-                );
-        }
-        return RefreshIndicator(
-          onRefresh: () async => onRetry(),
-          child: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(
-              AldiaSpace.l,
-              AldiaSpace.s,
-              AldiaSpace.l,
-              AldiaSpace.fabClearance,
-            ),
-            itemCount: reports.length,
-            separatorBuilder: (_, _) => const SizedBox(height: AldiaSpace.s),
-            itemBuilder: (context, i) =>
-                ReportTile(report: reports[i], onTap: () => onOpen(reports[i])),
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// Clusters for the visible viewport; plain reports when clusters are not
-/// available or a filter is active (the clusters endpoint has no filters).
-class _MapView extends StatefulWidget {
-  const _MapView({
-    required this.state,
-    required this.category,
-    required this.onOpen,
-  });
-
-  final String? state;
-  final String? category;
-  final void Function(Report) onOpen;
-
-  @override
-  State<_MapView> createState() => _MapViewState();
-}
-
-class _MapViewState extends State<_MapView> {
-  final _controller = MapController();
-  Timer? _debounce;
-  var _token = 0;
-  var _ready = false;
-  List<ReportCluster> _clusters = const [];
-  List<Report> _pins = const [];
-  bool _clustersFailed = false;
-
-  @override
-  void didUpdateWidget(_MapView old) {
-    super.didUpdateWidget(old);
-    if (old.state != widget.state || old.category != widget.category) {
-      unawaited(_load());
-    }
-  }
-
-  @override
-  void dispose() {
-    _debounce?.cancel();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _scheduleLoad() {
-    if (!_ready) return;
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 400), _load);
-  }
-
-  Future<void> _load() async {
-    final camera = _controller.camera;
-    final bounds = camera.visibleBounds;
-    final token = ++_token;
-    final api = context.read<ClustersApi?>();
-    final repository = context.read<ReportRepository>();
-    final filtered = widget.state != null || widget.category != null;
-    if (api != null && !filtered) {
-      try {
-        final clusters = await api.clusters(
-          southWest: bounds.southWest,
-          northEast: bounds.northEast,
-          zoom: camera.zoom,
-        );
-        if (!mounted || token != _token) return;
-        setState(() {
-          _clusters = clusters;
-          _pins = const [];
-          _clustersFailed = false;
-        });
-        return;
-      } catch (_) {
-        // Fall through to the plain list below.
-      }
-    }
-    try {
-      final reports = await repository.nearby(
-        southWest: bounds.southWest,
-        northEast: bounds.northEast,
-        state: widget.state,
-        category: widget.category,
-      );
-      if (!mounted || token != _token) return;
-      setState(() {
-        _clusters = const [];
-        _pins = reports;
-        _clustersFailed = api != null && !filtered;
-      });
-    } catch (_) {
-      if (!mounted || token != _token) return;
-      setState(() {
-        _clusters = const [];
-        _pins = const [];
-        _clustersFailed = false;
-      });
-    }
-  }
-
-  Future<void> _showSummary(Report report) {
-    return showModalBottomSheet<void>(
-      context: context,
-      sheetAnimationStyle: _sheetStyle(context),
-      builder: (sheetContext) {
-        void openDetail() {
-          Navigator.of(sheetContext).pop();
-          widget.onOpen(report);
-        }
-
-        return SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AldiaSpace.l),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ReportTile(report: report, onTap: openDetail),
-                if (report.publicNote?.isNotEmpty == true)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(report.publicNote!),
-                  ),
-                const SizedBox(height: 8),
-                FilledButton(
-                  onPressed: openDetail,
-                  child: const Text(S.viewDetail),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _tapCluster(ReportCluster cluster) async {
-    if (cluster.count == 1 && cluster.ids.length == 1) {
-      try {
-        final report = await context.read<ReportRepository>().get(
-          cluster.ids.single,
-        );
-        if (mounted) await _showSummary(report);
-      } catch (_) {
-        if (mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(const SnackBar(content: Text(S.loadError)));
-        }
-      }
-      return;
-    }
-    final zoom = math.min(_controller.camera.zoom + 2, 18).toDouble();
-    _controller.move(cluster.position, zoom);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Semantics(
-          label: S.mapAlternative,
-          child: FlutterMap(
-            mapController: _controller,
-            options: MapOptions(
-              initialCenter: AppConfig.defaultCenter,
-              initialZoom: AppConfig.defaultZoom,
-              onMapReady: () {
-                _ready = true;
-                unawaited(_load());
-              },
-              onPositionChanged: (_, _) => _scheduleLoad(),
-            ),
-            children: [
-              TileLayer(
-                urlTemplate: AppConfig.tileUrl,
-                tileProvider: context.read<TileProvider>(),
-                userAgentPackageName: AppConfig.userAgentPackage,
-              ),
-              MarkerLayer(
-                markers: [
-                  for (final report in _pins)
-                    Marker(
-                      point: report.position,
-                      width: 104,
-                      height: 72,
-                      child: _StatePin(
-                        report: report,
-                        onTap: () => _showSummary(report),
-                      ),
-                    ),
-                  for (final cluster in _clusters)
-                    Marker(
-                      point: cluster.position,
-                      width: 56,
-                      height: 56,
-                      child: _ClusterPin(
-                        cluster: cluster,
-                        onTap: () => _tapCluster(cluster),
-                      ),
-                    ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        if (_clustersFailed)
-          const Positioned(
-            left: 8,
-            right: 8,
-            top: 8,
-            child: Card(
-              child: Padding(
-                padding: EdgeInsets.all(8),
-                child: Text(S.mapFallback),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-/// Pin with the state as icon and short text, so it is not color-only.
-class _StatePin extends StatelessWidget {
-  const _StatePin({required this.report, required this.onTap});
-  final Report report;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final state = citizenStateFor(report.citizenState);
-    final category = categoryById(report.category).label;
-    return Semantics(
-      button: true,
-      label: '$category. ${state.label}',
-      excludeSemantics: true,
-      onTap: onTap,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: AldiaColors.primaryDark,
-              child: Icon(state.icon, color: Colors.white, size: 22),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                state.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textScaler: TextScaler.noScaling,
-                style: const TextStyle(fontSize: 11),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ClusterPin extends StatelessWidget {
-  const _ClusterPin({required this.cluster, required this.onTap});
-  final ReportCluster cluster;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final single = cluster.count == 1;
-    return Semantics(
-      button: true,
-      label: single
-          ? S.pinReport
-          : '${S.clusterCount(cluster.count)}. ${S.zoomToCluster}',
-      excludeSemantics: true,
-      onTap: onTap,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: CircleAvatar(
-          backgroundColor: AldiaColors.primaryDark,
-          child: single
-              ? const Icon(Icons.location_on, color: Colors.white)
-              : Text(
-                  '${cluster.count}',
-                  textScaler: TextScaler.noScaling,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-        ),
+      bottomNavigationBar: HomeNavigationBar(
+        selected: _tab,
+        onSelected: (tab) {
+          if (tab == HomeTab.report) {
+            unawaited(_startReport());
+            return;
+          }
+          setState(() {
+            _tab = tab;
+            _visited.add(tab);
+          });
+          if (tab == HomeTab.notices || tab == HomeTab.mine) {
+            unawaited(_observeMine());
+          }
+        },
       ),
     );
   }

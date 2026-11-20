@@ -200,7 +200,10 @@ it('clears private timelines immediately when staff mode ends on a deep report l
   await flush();
   expect(pageElement.textContent).toContain('Público');
   expect(pageElement.querySelector('.transition-form')).toBeNull();
-  expect(document.querySelector('#staff-token').closest('[hidden]')).toBeNull();
+  expect(
+    document.querySelector('#staff-username').closest('[hidden]'),
+  ).toBeNull();
+  expect(document.querySelector('#staff-token')).toBeNull();
 });
 
 it('renders hostile timeline and nearby data literally, selects duplicates and submits with staff header', async () => {

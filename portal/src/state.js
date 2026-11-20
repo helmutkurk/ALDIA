@@ -2,11 +2,12 @@ import { parseFilters, filtersHash } from './filters.js';
 import { CATEGORIES } from './categories.js';
 import { RESOLUTIONS, STATUSES } from './i18n.js';
 
-/** @typedef {{category: string, status: string, resolution: string}} Filters */
+/** @typedef {Omit<import('./api-types.js').ReportQuery, 'bbox'|'offset'|'delimiter'>} Filters */
 /**
  * @typedef {object} State
  * @property {ReadonlyArray<import('./api.js').Report>} reports
  * @property {number} total
+ * @property {number} offset
  * @property {Readonly<Filters>} filters
  * @property {'idle'|'loading'|'success'|'error'} phase
  * @property {import('./api.js').ErrorDetail|null} error

@@ -9,7 +9,10 @@ it('exactly mirrors category IDs and Spanish labels in the binding API contract'
     'utf8',
   );
   const entries = [
-    ...contract.matchAll(/^\| `([a-z_]+)` \| ([^|]+) \|$/gm),
+    ...contract
+      .split('## Categories\n')[1]
+      .split('\n## ')[0]
+      .matchAll(/^\| `([a-z_]+)` \| ([^|]+) \|$/gm),
   ].map(([, id, label]) => ({ id, label: label.trim() }));
   expect(entries).toHaveLength(6);
   expect(CATEGORIES).toEqual(entries);

@@ -1,0 +1,177 @@
+# Local MVP plan (2026-11-19 night)
+
+Goal for the morning of 2026-11-20: **app, API, verifier and portal running together on a laptop**, one real flow end to end,
+demoable with `make seed`. Not a goal tonight: writing new tests, polishing docs, anything outside the four areas.
+(Keep existing checks green; run only the checks of the area you touched before each commit.)
+
+## Definition of "MVP local" (acceptance, in order)
+
+1. **Boot without Docker**: one command starts verifier, API (SQLite) and portal dev server; `make seed` loads demo reports.
+2. **Portal works in a real browser**: map loads reports (clusters/pins), filters, list, report page with photo and timeline,
+   dashboard numbers and CSV, staff mode with a token: a state transition shows up in the timeline.
+3. **API + verifier**: a report created by `curl`/the app with a real JPEG is verified by the stub, stored with EXIF stripped,
+   appears in the portal, and a retry with the same idempotency key creates nothing new.
+4. **App**: builds and runs on at least one target available on the machine (Flutter web or desktop if no emulator), talks to the
+   local API: wizard completes, result screen shows the verifier feedback, "Mis reportes" shows the new report. On Android/iOS it
+   is verified by Helmut tomorrow (no emulator on this laptop).
+5. `main` and `develop` identical, green CI.
+
+## Status on 2026-11-19 (honest)
+
+Done and merged: code for all four areas, contract v0.2, UI restyle, seed data, CI. Passing unit tests: API 358, verifier 27,
+portal 110, app 91. **Not verified**: nothing has been run end to end in a browser, on a device, with Docker or PostgreSQL.
+The verifier is a stub (it classifies nothing); a real model is Lorenz's work. Citizen login by phone and push are not built;
+staff access is a shared provisional token.
+
+Update 2026-11-20: citizen phone login now has a development-only OTP flow (v0.5, no real delivery).
+Push remains unbuilt. Staff accounts/sessions use contract v0.4; this citizen change preserves that interface.
+
+## Backlog (strict order, one item at a time)
+
+1. `scripts/dev-local.sh` + `make dev-all`: start verifier, API on SQLite, portal; seed; print URLs; stop with Ctrl-C.
+2. Drive the portal in a real browser (Chrome extension): fix every bug found on the acceptance items 2 and 3 (screenshots in
+   the log). Mobile width too.
+2b. **App UI parity with the SeeClickFix reference**: follow `documentation/ui/app-reference-seeclickfix.md` (task list at its end:
+   wizard order, location with address search, category search, nearby cards, new bottom navigation, Avisos and Perfil).
+   Principles only, Aldia name/copy/colors, no copied assets.
+3. Create a report with a real JPEG through the API as the app does (multipart, idempotency key); fix what breaks.
+4. App: find a runnable target (`flutter devices`); if none, add the `web` platform (do NOT commit generated platform folders you
+   do not need) and run the wizard against the local API; fix crashes. Record what only a phone can verify.
+5. Replace the shared staff token with real staff users (hashed passwords, HttpOnly session cookie, roles operator/supervisor),
+   keeping the old token only in dev mode behind a flag.
+6. Citizen login by phone code: implemented in backend/app with null/console providers and contract v0.5; no real SMS. See [citizen decision](decisions/citizen-login.md). Physical-device/PostgreSQL checks and real provider selection remain pending.
+7. PostgreSQL: if a local server or `pglite`/testcontainers is available without Docker, run migrations and the seed on it.
+8. Contract v0.3 stats from the harvest of Isabel's branch (**only after Helmut writes "Isabel OK" in the log**).
+9. Update documentation for whatever changed.
+
+## Rules (all agents and machines)
+
+- Work on `develop`, small commits, Conventional Commits, author = the person (no agent attribution), `git pull --rebase origin develop`
+  before `git push origin develop`. Never force-push, never push to `main`; release = PR `develop` → `main`, merge only with green CI.
+- Never read or print environment files or tokens; no real photos of people; synthetic data only.
+- No code, styles, text or images copied from FixMyStreet or SeeClickFix (licences). Do not run or install `rea` (rejected by the
+  scanner, score 100). Do not touch or delete the `dashboard` branch.
+- Third-party tools or repos: scan first (`hks-skillspector`); `DO_NOT_INSTALL` means no.
+- If an item is blocked twice, log it and go to the next one.
+
+## Two machines
+
+- **This laptop (main):** backlog items 1–9, plus integration and releases.
+- **Dell (optional helper):** only the `app/` area (items 4 and 6 app side) and Android/iOS platform files, after it is up to date
+  with the vault guide. Each machine writes its own log: `documentation/log/<hostname>.md` (never edit the other's file).
+  Contract changes go through `documentation/api-contract.md` and are announced in the log first.
+
+## Log
+
+Append one block per iteration to `documentation/log/<hostname>.md`: time, item, what changed, commit hash, what is next.
+
+## Decisions taken (2026-11-19, 21:00)
+
+- **Everything runs on the main laptop tonight** (the Dell is not used). Codex quota was reset by Helmut at 20:50 (5 h window until 01:51):
+  all code work goes to Codex until Claude's window resets at 23:20. Claude then orchestrates, verifies in a real browser and reviews.
+- **Phone:** Android only tonight. Plan: CI builds a debug APK as a downloadable artifact (no Android SDK on this laptop) and Helmut
+  installs it on his phone; the same CI job also checks the Linux desktop build. **iOS is not possible tonight** (needs a Mac with Xcode;
+  TestFlight needs a paid Apple developer account).
+- **Portal and backend** run on any computer: `make dev-all` (no Docker) or `make up` (Docker). Not yet verified end to end.
+- **Isabel's `dashboard` branch** adds a little our portal lacks: statistics logic (median repair time per category, frequency by category
+  split fixed/open/closed, per-zone table), chart tooltips with a "see table" alternative, KPI ideas and demo data. Everything else is
+  already implemented on develop. Decision: port those pieces as contract v0.3 (she stays author of the ported commit), tell her, and
+  delete the branch only after the port is merged. **Helmut approved this on 2026-11-19 21:10** (he will tell Isabel; the port keeps her as commit author).
+- Real staff login and phone-code login are queued after the first end-to-end run, with a fake SMS provider (nothing real is sent).
+
+## Roles
+
+| Role | Who | Does |
+|---|---|---|
+| Orchestrator | this Claude session (loop) | reads this plan, picks the next job, writes briefs, commits, merges, keeps the log, decides |
+| Builder | Codex `gpt-6.1-sol` high (terminal) | all code and investigation jobs; max 2 in parallel on disjoint folders |
+| Reader | Codex `gpt-6.1-terra` high | read-only review of diffs, security and contract checks |
+| Quick fixer | Codex `gpt-6.1-luna` | mechanical edits, formatting, small renames |
+| Verifier | Claude with the Chrome extension (after 23:20) | drives the portal in a real browser, screenshots, finds UI bugs, compares with the reference captures |
+| Reviewer | Opus | final review before a release PR |
+| Subagents (Claude, `[sonnet-ok]`) | only when Codex is out or the task needs Notion/Chrome tools | Notion edits, browser checks |
+
+## Job queue (briefs in `documentation/prompts/`)
+
+| # | Job | Folders | Status |
+|---|---|---|---|
+| 1 | `job-dev-local.md`: one-command local stack + smoke script + fixes | scripts, backend, portal | running (Codex) |
+| 2 | `job-app-ui-parity.md`: app UI parity + Linux desktop run | app | running (Codex) |
+| 2c | `job-neutral-palette.md`: apply the neutral tokens of documentation/design-tokens.md to app (theme.dart, status chips, pins) and portal (tokens.css, pins, charts), remove teal/amber everywhere, check contrast | app, portal | queued (after job 2) |
+| 3 | `job-android-apk-ci.md`: CI job that builds a debug APK artifact and the Linux build | .github, app | queued |
+| 4 | `job-stats-v03.md`: contract v0.3 stats from the harvest + portal charts (with "ver tabla") | backend/api, portal | queued |
+| 5 | `job-staff-auth.md`: real staff users, roles, session cookie | backend/api, portal | queued |
+| 6 | `job-phone-login.md`: phone-code login with a fake provider, API and app | backend/api, app | implemented locally, uncommitted; checks recorded below |
+| 7 | `job-postgres.md`: run migrations and seed on PostgreSQL without Docker if possible | backend/api | queued |
+| 8 | Browser verification of the portal vs the reference captures (Claude + Chrome) | portal | after 23:20 |
+| 9 | `job-mobile-release-ready.md` (replaces 3): everything for Android and iOS releases that does not depend on accounts: debug APK/AAB artifact in CI, Linux build check, release signing wired to CI secrets (placeholders, no real keys), `documentation/mobile-release.md` with the exact Play Console / TestFlight steps, iOS bundle id, Info.plist, Podfile, export options, app icons and splash assets generated in code, store listing text in Spanish. What stays for Helmut: create the Android keystore, the Apple team and certificates, and the store accounts | app, .github, documentation | queued |
+| 10 | Quality pass with the Cursor skill `hks-thermo-nuclear-code-quality-review` (`~/.local/share/agent-skills/cursor-plugins/`), one job per area (api, verifier, portal, app), 2 in parallel: Reader (terra) writes the audit using that skill's standards, Builder (sol) applies only behavior-preserving restructurings, checks stay green, no file crosses 1000 lines | all four | after jobs 1-7, or earlier if the queue is empty |
+| 11 | Notion hand-off: close the old tasks (Done) and create new ones per person from their roles (Notion MCP, Claude or `[sonnet-ok]` subagent; creation is allowed until 2026-11-22 on the free plan); add a status page (what exists, how to run it, what each person does next) | Notion | last |
+| 12 | Delete `origin/dashboard` after the v0.3 port is merged; final release PR `develop` → `main` with green CI; update `documentation/team-update.md` (message for the team: state of the code, how to start, next tasks) and send the summary | repo | last |
+
+Order rule: finish 1 and 2 first; run 3 and 4 in parallel next; then 5 and 6; 7 whenever a slot is free. After each job: the
+orchestrator runs the checks of the touched areas, commits on develop, pushes, appends the log.
+
+- **Job 13, last (rename on this computer):** Rename on this computer, LAST (it moves the working directory of every session): `mv ~/Projects/ciudadCheck ~/Projects/aldia`, rename `~/Projects/backups/ciudadCheck-*` to `aldia-*`, update Claude project memory pointers and vault notes that name the old project (vault renames only through the Obsidian API, skill `hks-mantener-vault`), then Helmut restarts Claude from `~/Projects/aldia` local machine
+
+## Goals by hour (targets)
+
+- 21:00-23:20: jobs 1, 2 (then 3, 4) with Codex.
+- 23:20-01:51: Claude window 2: browser verification (job 8), fixes, jobs 5 and 6 reviewed, release PR to main if CI is green.
+- 01:51-07:00: Codex window 2 and Claude window 3: jobs 6, 7, polish from the browser findings, final release PR `develop` → `main`.
+- 07:00: summary in the log and by email (`hks-ausente`); `main` = `develop`.
+
+
+## Quality bar and government-pitch readiness (Helmut, 2026-11-19 22:10)
+
+Goal beyond "it runs": a very good Android and iOS app, a very good portal and a very good backend, close in look and flow to the
+reference screenshots (`documentation/ui/app-reference-seeclickfix.md`; portal captures in `/home/hks/Pictures/screenshot/`), of
+high quality, able to convince a government to adopt it. Neutral colors (documentation/design-tokens.md).
+
+**Visual QA with Claude in Chrome (first thing when Claude's window resets at 23:20):** start `make dev-all` (+ `make seed`), open the
+portal at http://localhost:5173 in Chrome, take screenshots at 1440, 1024 and 390 px, compare each page with the reference captures
+(left panel + map + list rows with thumbnails and dates, big pins, dashboard with all-time and last-7-days blocks), log every gap in
+`documentation/log/omarchy.md` and fix in order of visibility. For the app, build the web target locally for visual QA only
+(`flutter create --platforms web .` in a scratch copy under `.local/`, `flutter build web`, serve it, open in Chrome with the neutral
+theme, check the wizard screens one by one against the reference list) and also run the Linux desktop build.
+
+**Pitch-readiness queue (after the functional jobs, in this order; each is a Codex job with a brief in `documentation/prompts/`):**
+1. Demo storyline in the seed: a Guatemala City neighborhood with ~60 coherent reports (potholes, sidewalks, accessibility ramps, lights),
+   a visible improvement over 60 days, three "fixed" reports with before/after photos (synthetic), and a script `documentation/demo-script.md`
+   (5 minutes: citizen reports, verifier explains, staff triages, report is fixed, dashboard shows the effect).
+2. Backend hardening: rate limits on public POSTs, strict CORS, security headers, request size limits, structured JSON logs without
+   coordinates tied to a person, `/api/health` with dependency status, backup/restore note, OpenAPI polish (examples, descriptions in Spanish
+   for citizen-facing fields), Open311 endpoint documented with a sample call for city IT teams.
+3. Portal polish for non-technical municipal staff: empty/loading/error states, onboarding hint, printable report page and PDF-friendly CSV
+   summary, language and accessibility check (keyboard, contrast, zoom 200 %), Lighthouse-style budget (page weight, LCP) measured in Chrome.
+4. App polish: store-quality screens (consistent spacing, icons, empty states), micro-interactions that respect reduced motion, offline
+   states, copy review in Guatemalan Spanish, privacy text and consent screen before the first report.
+5. Adoption material in `documentation/pitch/` (public-safe, no strategy or budgets): one-pager (problem, how Aldia works, what a municipality
+   gets, data protection, limits of the evidence), architecture diagram, integration options (Open311, CSV, API), and a pilot proposal outline.
+6. Quality pass with the Cursor skill `hks-thermo-nuclear-code-quality-review`, one job per area, 2 in parallel (job 10 above).
+
+
+## Citizen login implementation (2026-11-20)
+
+Contract v0.5 was written first, preserving the binding v0.4 staff interface.
+Migration `0005` adds keyed phone identities, OTP challenges, rotating device sessions
+and nullable report ownership. Anonymous submissions remain the default; required
+login is configurable in API and app. Console delivery exists only with exact
+`ENV=dev`, prints the development code privately in the API log and sends nothing.
+Null delivery is the default, including production. The app uses pinned secure
+storage, a submit-step verification sheet, masked profile/logout and merged local/
+server-owned reports. Real SMS/WhatsApp, push and production rollout remain pending.
+
+Work is directly on `develop`, without commits, branch changes or pushes, per the
+job instruction. Portal changes belong to another job. Validation: API `UV_CACHE_DIR=/tmp/aldia-uv-cache make -C backend/api lint test`
+passes Ruff, format, strict mypy and 423 tests (25 citizen cases), retaining one existing
+Starlette/httpx deprecation warning. App format is stable (65 files), analyze reports
+no issues and 124 tests pass. Direct `mise exec` commands hit the read-only installed
+SDK; equivalent checks used the existing writable `/tmp/aldia-flutter-sdk` and
+`/tmp/aldia-pub-cache`, same Flutter 3.47.9 / Dart 3.13.7, with `--no-pub` for
+analyze/test after dependency resolution. No new backend dependency was added;
+`flutter_secure_storage` is pinned to 11.2.0 and its lockfile generated by pub.
+Live browser/device/PostgreSQL tests remain separate. Root README is outside the
+job's allowed folders; quick start was updated in `backend/api/README.md` and linked
+from `documentation/README.md`. Vault/session maintenance is handed to the orchestrator
+because writes are restricted to backend/api, app and documentation.

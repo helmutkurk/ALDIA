@@ -2,11 +2,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createPanel, createReportDetails } from '../src/panel.js';
 import { createStore } from '../src/state.js';
 import { report } from './fixtures.js';
+import { formatDate } from '../src/i18n.js';
 
 let panel;
 afterEach(() => {
   panel?.destroy();
   document.body.replaceChildren();
+  vi.useRealTimers();
 });
 
 function setup() {
@@ -104,11 +106,18 @@ describe('list layout', () => {
     expect(row.querySelector('.report-date')).not.toBeNull();
     expect(row.querySelector('.state-chip').textContent).toBe('Nuevo');
     const thumb = row.querySelector('img.row-thumbnail');
-    expect(thumb.loading).toBe('lazy');
+    expect(thumb.getAttribute('loading')).toBe('lazy');
     expect(thumb.alt).toBe('');
+    expect(thumb.width).toBe(72);
+    expect(thumb.height).toBe(72);
+    expect(thumb.src).toContain('/thumbnail');
     thumb.dispatchEvent(new window.Event('error'));
     expect(row.querySelector('img')).toBeNull();
     expect(row.querySelector('p')).toBeNull();
+    expect(row.querySelector('.row-thumbnail.thumb-missing').textContent).toBe(
+      'sin foto',
+    );
+    expect(row.querySelector('.thumb-missing svg')).not.toBeNull();
   });
 
   it('never creates an image from a hostile photo URL', () => {
@@ -118,6 +127,7 @@ describe('list layout', () => {
       total: 1,
     });
     expect(root.querySelector('img')).toBeNull();
+    expect(root.querySelector('.thumb-missing').textContent).toBe('sin foto');
   });
 });
 
@@ -161,4 +171,32 @@ describe('popup content', () => {
         .textContent,
     ).toContain('Verificación pendiente');
   });
+});
+
+it('keeps compact filters closed, hides empty chips and includes the note', () => {
+  const { root, store } = setup();
+  store.setReports({
+    items: [report({ note: 'Junto a la escuela' })],
+    total: 1,
+  });
+  expect(root.querySelector('.filters-more').open).toBe(false);
+  expect(root.querySelector('.filter-chips').hidden).toBe(true);
+  expect(root.querySelector('.report-snippet').textContent).toBe(
+    'Junto a la escuela',
+  );
+  expect(root.querySelector('.report-date').tagName).toBe('TIME');
+});
+
+it('shows a relative date with the Guatemala absolute date as a title and a category icon', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-11-22T18:30:00Z'));
+  const { root, store } = setup();
+  store.setReports({ items: [report()], total: 1 });
+  const date = root.querySelector('.report-date');
+  expect(date.textContent).toBe('hace 3 días');
+  expect(date.title).toBe(formatDate(report().captured_at));
+  expect(date.dateTime).toBe(report().captured_at);
+  expect(
+    root.querySelector('.report-category svg[aria-hidden="true"]'),
+  ).not.toBeNull();
 });

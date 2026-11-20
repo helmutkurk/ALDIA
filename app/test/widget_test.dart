@@ -24,32 +24,35 @@ void main() {
     expect(find.text(S.appName), findsOneWidget);
     expect(find.text(S.newReport), findsOneWidget);
 
-    await tester.tap(find.text(S.navList));
+    await tester.tap(find.text('Explorar mi ciudad'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('LISTA'));
     await tester.pumpAndSettle();
     expect(find.text('Bache'), findsOneWidget);
   });
 
-  testWidgets('the report button opens the six-step wizard on the photo step', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(800, 3000);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-    await tester.pumpWidget(
-      AldiaApp(
-        repository: fakeRepository(),
-        location: FakeLocation(const LatLng(14.6, -90.5)),
-        photos: FakePhotos(),
-        tileProvider: OfflineTileProvider(),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text(S.newReport));
-    await tester.pumpAndSettle();
+  testWidgets(
+    'the report button opens the six-step wizard on the location step',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 3000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        AldiaApp(
+          repository: fakeRepository(),
+          location: FakeLocation(const LatLng(14.6, -90.5)),
+          photos: FakePhotos(),
+          tileProvider: OfflineTileProvider(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(S.newReport));
+      await tester.pumpAndSettle();
 
-    // One heading and a progress line instead of the full step list.
-    expect(find.text(S.stepPhoto), findsOneWidget);
-    expect(find.text(S.stepProgress(1, 6)), findsOneWidget);
-    expect(find.text(S.takePhoto), findsOneWidget);
-  });
+      // One heading and a progress line instead of the full step list.
+      expect(find.text(S.stepLocation), findsWidgets);
+      expect(find.text(S.stepProgress(1, 6)), findsOneWidget);
+      expect(find.text(S.confirmLocation), findsOneWidget);
+    },
+  );
 }

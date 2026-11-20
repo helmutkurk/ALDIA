@@ -20,7 +20,13 @@ class Database:
                 ),
             )
         else:
-            self.engine = create_engine(url, pool_pre_ping=True, hide_parameters=True)
+            self.engine = create_engine(
+                url,
+                pool_pre_ping=True,
+                hide_parameters=True,
+                connect_args={"connect_timeout": 3},
+                pool_timeout=3,
+            )
         self.sessions = sessionmaker(
             self.engine, class_=Session, expire_on_commit=False
         )

@@ -44,6 +44,25 @@ export const t = Object.freeze({
     ages: 'Antigüedad de abiertos',
     days: 'días',
     categoryGroups: 'Categoría y grupo de estado',
+    categoryRepair: 'Tiempo de reparación por categoría',
+    categoryRepairNote:
+      'Reportes creados en el periodo consultado y actualmente resueltos. Horas desde la verificación hasta la resolución; n indica cuántos tienen ambas fechas. Las barras muestran la mediana.',
+    categoryFrequency: 'Frecuencia por categoría',
+    categoryFrequencyNote:
+      'Estado actual de los reportes creados en el periodo consultado. Abiertos incluye pendientes de verificación y en trabajo; cerrados incluye rechazos del verificador.',
+    categoryBuckets: Object.freeze({
+      resueltos: 'Resueltos',
+      abiertos: 'Abiertos',
+      cerrados: 'Cerrados',
+    }),
+    repairSamples: 'Muestras (n)',
+    seeTable: 'Ver tabla',
+    seeTableFor: (title) => `Ver tabla: ${title}`,
+    repairDescription: (category, median, p90, n) =>
+      `${category}: mediana ${median}; p90 ${p90}; n = ${n}`,
+    frequencyDescription: (category, row) =>
+      `${category}: Total: ${row.total} · Resueltos: ${row.resueltos} · Abiertos: ${row.abiertos} · Cerrados: ${row.cerrados}`,
+    kpiStrip: 'Resumen de indicadores',
     groups: Object.freeze({
       pending: 'Pendientes',
       open: 'Abiertos',
@@ -136,6 +155,8 @@ export const t = Object.freeze({
   stubWarning: 'Verificación de prueba: no es una verificación real.',
   stubSuffix: ' (prueba)',
   modelVerification: 'Verificación automática',
+  heuristicVerification:
+    'Verificación técnica automática (lugar, hora, nitidez, exposición). No clasifica el tipo de problema.',
   passed: 'Superada',
   failed: 'No superada',
   noChecks: 'No hay comprobaciones disponibles.',
@@ -154,8 +175,6 @@ export const t = Object.freeze({
   httpError: (status) =>
     `El servidor devolvió un error (${status}). Inténtalo de nuevo.`,
   count: (shown, total) => `${shown} de ${total} reportes`,
-  limitHint:
-    'Se muestran hasta 500 reportes, del más reciente al más antiguo. Acerca el mapa o filtra para ver menos resultados.',
   selectReport: (category, status) => `Ver en el mapa: ${category}. ${status}.`,
 });
 
@@ -218,6 +237,20 @@ export const ui = Object.freeze({
     hidden: 'O',
   },
   staff: 'Modo personal',
+  username: 'Usuario',
+  password: 'Contraseña',
+  login: 'Iniciar sesión',
+  logout: 'Cerrar sesión',
+  loginHelp: 'Accede con tu cuenta de personal. La sesión dura hasta 12 horas.',
+  authLoading: 'Comprobando sesión…',
+  devTokens: 'Acceso de desarrollo con token',
+  signedIn: (user) => `${user.username} · ${ui[user.role]}`,
+  forbidden:
+    'No tienes permisos para esta acción. Si acabas de iniciar sesión, recarga la página y vuelve a intentarlo.',
+  locked:
+    'Cuenta bloqueada durante 15 minutos por intentos fallidos. Espera antes de volver a intentar.',
+  rateLimited:
+    'Demasiados intentos de acceso. Espera 15 minutos y vuelve a intentarlo.',
   token: 'Token de personal',
   enable: 'Activar',
   disable: 'Salir del modo personal',
@@ -226,6 +259,7 @@ export const ui = Object.freeze({
   role: 'Permisos solicitados',
   operator: 'Operador',
   supervisor: 'Supervisor',
+  admin: 'Administrador',
   roleHelp:
     'Seleccionar supervisor no concede permisos: requiere el token de supervisor.',
   publicMode: 'Vista pública de solo lectura',
@@ -262,8 +296,7 @@ export const ui = Object.freeze({
   showMap: 'Ver mapa',
   showList: 'Ver lista',
   thumbnail: 'Miniatura del reporte',
-  defaultWindow: 'Por defecto: últimos 30 días.',
-  activeFilters: (count) => `Filtros activos: ${count}`,
+  defaultWindow: 'Por defecto: últimos 90 días.',
   removeFilter: (label) => `Quitar filtro: ${label}`,
   previous: 'Anterior',
   next: 'Siguiente',
@@ -293,7 +326,7 @@ export const ui = Object.freeze({
   conflict:
     'El reporte cambió o la transición no está permitida. Recarga el reporte y revisa el estado actual.',
   unauthorized:
-    'Token no válido o permisos insuficientes. Revisa el modo personal.',
+    'La sesión caducó o las credenciales no son válidas. Inicia sesión de nuevo.',
   unavailable:
     'El modo personal no está disponible en el servidor. Contacta con la administración.',
   timeline: 'Historial de estados',
@@ -302,7 +335,12 @@ export const ui = Object.freeze({
   verified: 'Verificado',
   changed: 'Estado actualizado',
   coordinates: 'Coordenadas',
-  actors: { system: 'Sistema', operator: 'Operador', supervisor: 'Supervisor' },
+  actors: {
+    system: 'Sistema',
+    operator: 'Operador',
+    supervisor: 'Supervisor',
+    admin: 'Administrador',
+  },
   zoomPhoto: 'Ampliar foto',
   closePhoto: 'Cerrar foto ampliada',
   nearby: 'Posibles duplicados cercanos',
@@ -316,7 +354,7 @@ export const ui = Object.freeze({
   rejected: 'Rechazadas por verificador',
   age: (hours) => `${Math.floor(hours)} h desde la verificación`,
   queueError: 'No se pudo cargar la bandeja.',
-  staffNeeded: 'Activa el modo personal para gestionar la bandeja.',
+  staffNeeded: 'Inicia sesión en Modo personal para gestionar la bandeja.',
   override: 'Anular rechazo',
   refresh: 'Recargar reporte',
 });
@@ -326,7 +364,9 @@ export function staffError(error) {
   return (
     {
       401: ui.unauthorized,
-      403: ui.unauthorized,
+      403: ui.forbidden,
+      423: ui.locked,
+      429: ui.rateLimited,
       409: ui.conflict,
       503: ui.unavailable,
     }[error.status] ??

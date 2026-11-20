@@ -1,0 +1,74 @@
+name: Mobile debug builds
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: API URL reachable from the test phone (HTTP allowed for debug)
+        type: string
+        default: http://10.0.2.2:8000/api
+      public_portal_url:
+        description: Portal URL reachable from the test phone
+        type: string
+        default: http://localhost:5173
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-debug-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      # Same official release-tag installation and version as ci.yml / .mise.toml.
+      - name: Install Flutter 3.47.9
+        working-directory: ${{ github.workspace }}
+        run: |
+          git clone --depth 1 --branch 3.47.9 https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      # Android SDK and Java are supplied by the hosted runner image.
+      - run: flutter pub get
+      - name: Build debug APK
+        env:
+          API_BASE_URL: ${{ inputs.api_base_url || 'http://10.0.2.2:8000/api' }}
+          PUBLIC_PORTAL_URL: ${{ inputs.public_portal_url || 'http://localhost:5173' }}
+        run: flutter build apk --debug --dart-define="API_BASE_URL=$API_BASE_URL" --dart-define="PUBLIC_PORTAL_URL=$PUBLIC_PORTAL_URL"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: aldia-android-debug-${{ github.run_number }}
+          path: app/build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 14
+          if-no-files-found: error
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install Flutter 3.47.9
+        working-directory: ${{ github.workspace }}
+        run: |
+          git clone --depth 1 --branch 3.47.9 https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      - name: Install Linux build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev libstdc++-14-dev
+      - run: flutter pub get
+      - run: flutter build linux --debug

@@ -167,7 +167,7 @@ def test_hand_computed_dashboard_and_local_day_boundaries(
     assert data["resueltos"] == 3  # includes pre-period creation resolved in period
     assert data["cerrados_sin_solucion"] == 3
     assert (
-        data["tasa_resolucion"] == 40
+        data["tasa_resolucion"] == 0.4
     )  # 2 / (7 - 1 duplicate - 1 outside jurisdiction)
     assert data["tasa_resolucion_n"] == 5
     assert data["resolucion_horas"] == {"median": 10, "p90": 242, "mean": 104, "n": 3}
@@ -260,9 +260,9 @@ def test_default_window_and_stable_sorting(client: TestClient) -> None:
     now = datetime.now(UTC)
     old = add_report(
         client,
-        created=now - timedelta(days=31),
+        created=now - timedelta(days=100),
         state="nuevo",
-        verified=now - timedelta(days=31),
+        verified=now - timedelta(days=100),
     )
     first = add_report(
         client, created=now - timedelta(days=2), state="nuevo", verified=now

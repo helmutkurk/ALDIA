@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import os
 import random
+import secrets
 import sys
 from collections import Counter
 from dataclasses import dataclass
@@ -27,6 +28,7 @@ from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 from uuid import UUID, uuid5
+from zoneinfo import ZoneInfo
 
 # Allow `python scripts/seed_demo.py` from backend/api (and from /service in the image).
 for _candidate in (Path(__file__).resolve().parent.parent, Path.cwd()):
@@ -41,25 +43,20 @@ from sqlalchemy.orm import Session  # noqa: E402
 from app.categories import CATEGORIES  # noqa: E402
 from app.config import Settings  # noqa: E402
 from app.db import Database  # noqa: E402
-from app.models import IdempotencyRecord, Report, ReportEvent  # noqa: E402
+from app.models import AuthEvent, IdempotencyRecord, Report, ReportEvent, StaffUser  # noqa: E402
+from app.security import hash_password  # noqa: E402
 from app.services.storage import PhotoStorage  # noqa: E402
 from app.state_machine import STATE_GROUPS, resolution_for  # noqa: E402
 
 PREFIX = "[demo]"
 NAMESPACE = UUID("6f1d3c2e-5a4b-4c7d-9e8f-0a1b2c3d4e5f")
-PRODUCTION_FLAGS = ("ALDIA_ENV", "APP_ENV", "ENVIRONMENT")
+PRODUCTION_FLAGS = ("ALDIA_ENV", "APP_ENV", "ENVIRONMENT", "ENV")
 PRODUCTION_VALUES = {"production", "prod"}
 
-# (lat, lon) anchors around Guatemala City; reports are jittered by roughly 100-400 m.
-ZONES = {
-    "Zona 1": (14.6407, -90.5133),
-    "Zona 4": (14.6230, -90.5160),
-    "Zona 7": (14.6280, -90.5500),
-    "Zona 10": (14.5995, -90.5131),
-    "Zona 11": (14.6020, -90.5500),
-    "Zona 12": (14.5800, -90.5300),
-    "Zona 18": (14.6700, -90.4950),
-}
+# Synthetic case locations around a compact Zona 4 neighborhood. These points
+# are illustrative anchors, never addresses or observations about actual premises.
+ZONES = {"Barrio de demostración, Zona 4": (14.6230, -90.5160)}
+BEFORE_AFTER = {24, 25, 26}
 
 NOTES = {
     "accessibility": [
@@ -68,9 +65,9 @@ NOTES = {
         "Rampa rota, una silla de ruedas no puede subir.",
     ],
     "sidewalk": [
-        "Acera levantada por raices, riesgo de caida.",
+        "Acera levantada por raíces, riesgo de caída.",
         "Losetas sueltas en la acera principal.",
-        "Acera hundida con escalon de 15 cm.",
+        "Acera hundida con escalón de 15 cm.",
     ],
     "pothole": [
         "Bache profundo en el carril derecho.",
@@ -79,7 +76,7 @@ NOTES = {
     ],
     "graffiti": [
         "Grafiti sobre el muro de la escuela.",
-        "Pintura en la senal de transito.",
+        "Pintura en la señal de tránsito.",
         "Grafiti en la pared de una parada.",
     ],
     "open_drain": [
@@ -89,17 +86,17 @@ NOTES = {
     ],
     "street_light": [
         "Luminaria apagada desde hace una semana.",
-        "Poste con la lampara colgando.",
+        "Poste con la lámpara colgando.",
         "Tramo de tres luminarias sin luz.",
     ],
 }
 PUBLIC_NOTES = {
     "en_revision": "Recibimos su reporte y lo estamos revisando.",
-    "programado": "Cuadrilla programada para esta semana.",
-    "en_proceso": "La cuadrilla ya esta trabajando en el lugar.",
-    "resuelto": "Reparacion terminada, gracias por avisar.",
+    "programado": "Cuadrilla programada para el jueves.",
+    "en_proceso": "La cuadrilla ya está trabajando en el lugar.",
+    "resuelto": "Reparación terminada, gracias por avisar.",
     "no_procede": "No pudimos confirmar el problema en el lugar.",
-    "fuera_de_competencia": "Corresponde a otra institucion; se traslado el aviso.",
+    "fuera_de_competencia": "Corresponde a otra institución; se trasladó el aviso.",
 }
 COLORS = {
     "accessibility": (52, 120, 190),
@@ -111,7 +108,18 @@ COLORS = {
 }
 LABELS = dict(CATEGORIES)
 
-# State -> how many reports to create (44 in total, all 11 states).
+# Explicit repair-hour samples for each category; all are synthetic.
+EXTRA_REPAIRS = {
+    "accessibility": (24, 240, 600),
+    "sidewalk": (12, 168, 480),
+    "pothole": (6, 48, 288),
+    "graffiti": (48, 192, 576),
+    "open_drain": (2, 18, 96),
+    "street_light": (4, 36, 216),
+}
+EXTRA_RESOLVED = sum(len(hours) for hours in EXTRA_REPAIRS.values())
+
+# State -> how many reports to create (62 in total, all 11 states).
 PLAN: dict[str, int] = {
     "pendiente_verificacion": 2,
     "rechazado_verificador": 3,
@@ -119,7 +127,7 @@ PLAN: dict[str, int] = {
     "en_revision": 5,
     "programado": 3,
     "en_proceso": 4,
-    "resuelto": 8,
+    "resuelto": 8 + EXTRA_RESOLVED,
     "no_procede": 2,
     "fuera_de_competencia": 2,
     "duplicado": 3,
@@ -136,7 +144,7 @@ PATHS: dict[str, list[str]] = {
     "fuera_de_competencia": ["en_revision", "fuera_de_competencia"],
     "duplicado": ["en_revision", "duplicado"],
 }
-ASSIGNEES = ["Cuadrilla Norte", "Cuadrilla Centro", "Cuadrilla Sur", "Obras Zona 10"]
+ASSIGNEES = ["Cuadrilla de movilidad Zona 4", "Cuadrilla de servicios Zona 4"]
 
 
 @dataclass
@@ -151,6 +159,7 @@ class Spec:
     seed: int
     master: int | None = None  # index of the report this one duplicates
     rejection: str | None = None  # "freshness" | "image" | "duplicate"
+    repair_hours: float | None = None
 
 
 class ProductionRefused(RuntimeError):
@@ -179,8 +188,8 @@ def build_specs(now: datetime) -> list[Spec]:
     def jitter(zone: str) -> tuple[float, float]:
         lat, lon = ZONES[zone]
         return (
-            round(lat + rng.uniform(-0.004, 0.004), 6),
-            round(lon + rng.uniform(-0.004, 0.004), 6),
+            round(lat + rng.uniform(-0.002, 0.002), 6),
+            round(lon + rng.uniform(-0.002, 0.002), 6),
         )
 
     def add(state: str, **extra: object) -> Spec:
@@ -205,6 +214,8 @@ def build_specs(now: datetime) -> list[Spec]:
     for state, count in PLAN.items():
         if state in {"duplicado", "rechazado_verificador"}:
             continue
+        if state == "resuelto":
+            count -= EXTRA_RESOLVED  # preserve the original 44 report ids/states
         for _ in range(count):
             add(state)
     # Staff-marked duplicates share category, place and photo with an open master.
@@ -228,17 +239,27 @@ def build_specs(now: datetime) -> list[Spec]:
             spec.lat = round(master.lat + 0.0001, 6)
             spec.lon = round(master.lon - 0.0001, 6)
             spec.seed = master.seed
-    # Spread creation times over 60 days: the age needed for the later states is
-    # kept, so every report has room for its events before "now".
+    # Append rather than insert: an existing demo gains new rows on its next seed.
+    for category, hours in EXTRA_REPAIRS.items():
+        for repair_hours in hours:
+            spec = add("resuelto", repair_hours=repair_hours)
+            spec.category = category
+    # A reproducible 60-day story: the initial backlog is followed by eight
+    # weekly repairs, then a concentrated neighborhood inspection 29 days ago.
+    # Keep the category-duration samples inside the default 30-day dashboard.
+    unresolved = [s for s in specs if s.state != "resuelto"]
+    for position, spec in enumerate(unresolved):
+        spec.created_at = now - timedelta(
+            days=60 - 55 * position / (len(unresolved) - 1)
+        )
+    originals = [s for s in specs if s.state == "resuelto" and s.repair_hours is None]
+    for position, spec in enumerate(originals):
+        spec.created_at = now - timedelta(days=59.8)
+        # Finished at ages 53, 46, ..., 4 days; exact duration drives events.
+        spec.repair_hours = (59.8 - (53 - 7 * position)) * 24
     for spec in specs:
-        needed_days = len(PATHS.get(spec.state, [])) * 2 + 1
-        if spec.state in {"pendiente_verificacion", "nuevo"}:
-            days = rng.uniform(0.02, 40)
-        elif spec.state == "rechazado_verificador":
-            days = rng.uniform(1, 30)
-        else:
-            days = rng.uniform(needed_days, 60)
-        spec.created_at = now - timedelta(days=days)
+        if spec.state == "resuelto" and spec not in originals:
+            spec.created_at = now - timedelta(days=29)
     # Duplicates and the automatic duplicate rejection come after their master:
     # masters are at least two days old, duplicates are created 6 hours later.
     by_index = {s.index: s for s in specs}
@@ -258,6 +279,8 @@ def build_specs(now: datetime) -> list[Spec]:
 
 def make_photo(spec: Spec) -> bytes:
     """800x600 synthetic JPEG: coloured shapes plus a label; no real scenes."""
+    if spec.index in BEFORE_AFTER:
+        return make_before_after(spec)
     rng = random.Random(spec.seed)
     base = COLORS[spec.category]
     image = Image.new("RGB", (800, 600), tuple(min(255, c + 60) for c in base))
@@ -294,9 +317,79 @@ def make_photo(spec: Spec) -> bytes:
         fill=(220, 220, 220),
         font=font,
     )
+    if spec.rejection == "image":
+        image = image.resize((400, 300), Image.Resampling.LANCZOS)
     out = BytesIO()
     image.save(out, format="JPEG", quality=88)
     return out.getvalue()
+
+
+def make_before_after(spec: Spec) -> bytes:
+    """Two distinct synthetic scenes in the existing single-photo contract."""
+    image = Image.new("RGB", (800, 600), "white")
+    draw = ImageDraw.Draw(image)
+    font = ImageFont.load_default(size=28)
+    small = ImageFont.load_default(size=19)
+    for x, repaired in ((0, False), (400, True)):
+        draw.rectangle((x, 60, x + 398, 550), fill=(180, 188, 190))
+        draw.rectangle((x, 330, x + 398, 550), fill=(76, 82, 85))
+        draw.rectangle((x, 285, x + 398, 328), fill=(217, 210, 193))
+        for offset in (20, 140, 260):
+            draw.rectangle((x + offset, 455, x + offset + 75, 465), fill="white")
+        if spec.category == "pothole":
+            if repaired:
+                draw.rectangle((x + 90, 370, x + 300, 430), fill=(62, 66, 69))
+                draw.text((x + 90, 490), "Bache reparado", font=small, fill="white")
+            else:
+                draw.ellipse((x + 90, 355, x + 300, 440), fill=(35, 28, 23))
+                draw.ellipse((x + 130, 380, x + 260, 425), fill=(92, 117, 122))
+        elif spec.category == "sidewalk":
+            for y in (150, 215, 280):
+                draw.line((x + 25, y, x + 375, y), fill=(115, 120, 122), width=4)
+            if repaired:
+                draw.rectangle((x + 110, 170, x + 290, 260), fill=(196, 200, 200))
+                draw.text((x + 80, 490), "Acera nivelada", font=small, fill="white")
+            else:
+                draw.line(
+                    [(x + 110, 170), (x + 200, 220), (x + 140, 270)],
+                    fill=(60, 55, 52),
+                    width=14,
+                )
+                draw.polygon(
+                    [(x + 210, 185), (x + 300, 165), (x + 315, 230), (x + 220, 250)],
+                    fill=(136, 126, 114),
+                )
+        else:
+            if repaired:
+                draw.polygon(
+                    [(x + 120, 240), (x + 280, 240), (x + 310, 370), (x + 90, 370)],
+                    fill=(225, 214, 180),
+                )
+                for y in range(280, 360, 15):
+                    draw.line((x + 125, y, x + 275, y), fill=(155, 145, 115), width=3)
+                draw.text((x + 70, 490), "Rampa accesible", font=small, fill="white")
+            else:
+                draw.rectangle((x + 85, 285, x + 315, 340), fill=(123, 114, 102))
+                draw.text((x + 65, 490), "Bordillo sin rampa", font=small, fill="white")
+        draw.rectangle((x, 60, x + 398, 110), fill=(25, 27, 30))
+        draw.text(
+            (x + 20, 70), "DESPUES" if repaired else "ANTES", font=font, fill="white"
+        )
+    draw.text(
+        (16, 14),
+        f"[demo] Caso #{spec.index} · {LABELS[spec.category]}",
+        font=font,
+        fill=(25, 27, 30),
+    )
+    draw.text(
+        (16, 564),
+        "Imagenes sinteticas · Zona 4 · No es evidencia de obras reales",
+        font=small,
+        fill=(25, 27, 30),
+    )
+    output = BytesIO()
+    image.save(output, format="JPEG", quality=90)
+    return output.getvalue()
 
 
 def dhash(data: bytes) -> str:
@@ -320,27 +413,40 @@ def verification_for(spec: Spec) -> dict[str, object]:
         check(
             "image",
             rejection != "image",
-            "400x300 jpeg" if rejection == "image" else "800x600 jpeg",
+            "[demo] Foto de baja resolución; vuelve a tomarla."
+            if rejection == "image"
+            else "[demo] Imagen legible de 800 × 600.",
         ),
-        check("place", True, "inside GT"),
+        check("place", True, "[demo] Ubicación dentro de Guatemala."),
         check(
             "freshness",
             rejection != "freshness",
-            "age 1800 s" if rejection == "freshness" else "age 8 s",
+            "[demo] Foto tomada hace 30 minutos; se requiere una captura reciente."
+            if rejection == "freshness"
+            else "[demo] Captura reciente al enviar el reporte.",
         ),
-        check("category", True, "stub: not classified"),
+        check(
+            "category", True, "[demo] No clasificado: decisión ilustrativa, sin modelo."
+        ),
         check(
             "duplicate",
             rejection != "duplicate",
-            "duplicate nearby" if rejection == "duplicate" else "no nearby duplicate",
+            "[demo] Ya existe una foto similar de esta categoría a menos de 50 m."
+            if rejection == "duplicate"
+            else "[demo] Sin coincidencias cercanas en este caso.",
         ),
     ]
     return {"passed": rejection is None, "mode": "stub", "checks": checks}
 
 
 def note_for(spec: Spec) -> str:
-    texts = NOTES[spec.category]
-    return f"{PREFIX} {texts[spec.index % len(texts)]} ({spec.zone})"
+    featured = {
+        24: "Cruce A: bordillo sin rampa; se construyó un acceso peatonal.",
+        25: "Pasaje B: acera rota; se sustituyeron y nivelaron las losetas.",
+        26: "Calle C: bache con agua; se reparó la superficie del carril.",
+    }
+    text = featured.get(spec.index, NOTES[spec.category][spec.index % 3])
+    return f"{PREFIX} {text} ({spec.zone})"
 
 
 def build_rows(
@@ -398,14 +504,20 @@ def build_rows(
     span = max((now - last_at).total_seconds() - 3600, 3600)
     step = span / (len(path) + 2)
     assignee = rng.choice(ASSIGNEES) if path else None
-    for target in path:
-        at = last_at + timedelta(seconds=step * (0.6 + 0.4 * rng.random()))
+    for position, target in enumerate(path, start=1):
+        at = (
+            answered + timedelta(hours=spec.repair_hours * position / len(path))
+            if spec.repair_hours is not None and answered is not None
+            else last_at + timedelta(seconds=step * (0.6 + 0.4 * rng.random()))
+        )
         public = PUBLIC_NOTES.get(target)
         internal = None
         if target == "duplicado":
             public = "Ya existe un reporte igual; se unifica el seguimiento."
         if target in {"programado", "en_proceso"} and rng.random() < 0.5:
-            internal = "Material en bodega, asignar camion."
+            internal = "[demo] Material en bodega, asignar camión."
+        if public:
+            public = f"{PREFIX} {public}"
         events.append(
             ReportEvent(
                 report_id=rid,
@@ -498,6 +610,10 @@ def seed(
                 storage.save(rid, make_photo(spec))
             continue
         report, events, photo = build_rows(spec, by_index, now)
+        for event in events:
+            event.actor = {"operator": "operador", "supervisor": "supervisor"}.get(
+                event.actor_role, "system"
+            )
         session.add(report)
         session.flush()
         session.add_all(events)
@@ -505,6 +621,31 @@ def seed(
         created += 1
     session.commit()
     return {"created": created, "skipped": skipped}
+
+
+def seed_users(session: Session, settings: Settings) -> None:
+    """Print a random initial password once, only on explicit local development."""
+    if settings.env != "dev":
+        return
+    for username, role in (("operador", "operator"), ("supervisor", "supervisor")):
+        if session.scalar(select(StaffUser.id).where(StaffUser.username == username)):
+            continue
+        password = secrets.token_urlsafe(24)
+        session.add(
+            StaffUser(
+                username=username, role=role, password_hash=hash_password(password)
+            )
+        )
+        session.add(
+            AuthEvent(
+                actor="system",
+                actor_role="system",
+                action="demo_user_created",
+                target=username,
+            )
+        )
+        session.commit()
+        print(f"Development account {username}; initial password: {password}")
 
 
 def summarize(session: Session) -> str:
@@ -519,6 +660,29 @@ def summarize(session: Session) -> str:
         oldest = min(r.created_at for r in rows)
         newest = max(r.created_at for r in rows)
         lines.append(f"Created between {oldest:%Y-%m-%d} and {newest:%Y-%m-%d}")
+        weekly: dict[str, list[int]] = {}
+        for report in rows:
+            if report.state == "oculto":
+                continue
+            for at, column in ((report.created_at, 0), (report.resolved_at, 1)):
+                if at is not None and (column == 1 or report.verified_at is not None):
+                    aware = at.replace(tzinfo=UTC) if at.tzinfo is None else at
+                    week = aware.astimezone(ZoneInfo("America/Guatemala")).strftime(
+                        "%G-W%V"
+                    )
+                    weekly.setdefault(week, [0, 0])[column] += 1
+        lines.append(
+            "Weekly cumulative answered public reports / resolved / resolved share:"
+        )
+        received = resolved = 0
+        for week, counts in sorted(weekly.items()):
+            received += counts[0]
+            resolved += counts[1]
+            lines.append(
+                f"  {week}: {received} / {resolved} / {resolved / received:.1%}"
+            )
+        lines.append("Before/after synthetic comparison cases:")
+        lines += [f"  /#/reports/{report_id(index)}" for index in sorted(BEFORE_AFTER)]
     lines.append(
         "Note: the portal list defaults to the last 30 days; "
         "set include_old=true or a wider date range to see all of them."
@@ -548,6 +712,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"Removed {purge(session, storage)} demo reports.")
             if not args.purge:
                 counters = seed(session, storage)
+                seed_users(session, settings)
                 print(
                     f"Created {counters['created']}, "
                     f"already present {counters['skipped']}."

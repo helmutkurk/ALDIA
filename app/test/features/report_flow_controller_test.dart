@@ -54,8 +54,6 @@ ReportFlowController build({
 );
 
 Future<void> toCategory(ReportFlowController c) async {
-  await c.takePhoto();
-  await c.next();
   await c.useMyLocation();
   await c.next();
   c.setCategory('pothole');
@@ -63,13 +61,13 @@ Future<void> toCategory(ReportFlowController c) async {
 
 void main() {
   test(
-    'the wizard order is photo, place, category, duplicates, details, review',
+    'the wizard order is place, category, duplicates, photo, details, review',
     () {
       expect(FlowStep.values, [
-        FlowStep.photo,
         FlowStep.location,
         FlowStep.category,
         FlowStep.duplicates,
+        FlowStep.photo,
         FlowStep.note,
         FlowStep.review,
       ]);
@@ -78,19 +76,21 @@ void main() {
 
   test('cannot advance until each step is complete', () async {
     final c = build();
-    expect(c.step, FlowStep.photo);
-    expect(c.canAdvance, isFalse);
-    await c.takePhoto();
-    expect(c.canAdvance, isTrue);
-    await c.next();
     expect(c.step, FlowStep.location);
-    // Arriving at the place step starts locating on its own.
+    expect(c.canAdvance, isFalse);
     await c.useMyLocation();
     expect(c.canAdvance, isTrue);
     await c.next();
     expect(c.step, FlowStep.category);
     expect(c.canAdvance, isFalse);
     c.setCategory('pothole');
+    await c.next();
+    expect(c.step, FlowStep.duplicates);
+    expect(c.photo, isNull);
+    await c.next();
+    expect(c.step, FlowStep.photo);
+    expect(c.canAdvance, isFalse);
+    await c.takePhoto();
     await c.next();
     expect(c.step, FlowStep.note);
     await c.next();
@@ -101,8 +101,6 @@ void main() {
     'denied location keeps the step blocked and a manual pin unblocks it',
     () async {
       final c = build(gps: null);
-      await c.takePhoto();
-      await c.next();
       await c.useMyLocation();
       expect(c.locationDenied, isTrue);
       expect(c.canAdvance, isFalse);
@@ -144,12 +142,12 @@ void main() {
   });
 
   group('duplicates step', () {
-    test('is skipped silently when nothing is nearby', () async {
+    test('remains visible when nothing is nearby', () async {
       final requests = <http.BaseRequest>[];
       final c = build(requests: requests);
       await toCategory(c);
       await c.next();
-      expect(c.step, FlowStep.note);
+      expect(c.step, FlowStep.duplicates);
       final nearby = requests.singleWhere(
         (r) => r.url.path.endsWith('/nearby'),
       );
@@ -161,25 +159,25 @@ void main() {
       });
     });
 
-    test('is skipped silently when the lookup fails', () async {
+    test('remains visible when the lookup fails', () async {
       final c = build(failNearby: true);
       await toCategory(c);
       await c.next();
-      expect(c.step, FlowStep.note);
+      expect(c.step, FlowStep.duplicates);
       expect(c.duplicates, isEmpty);
     });
 
-    test('is skipped without a request when offline', () async {
+    test('remains visible without a request when offline', () async {
       final requests = <http.BaseRequest>[];
       final c = build(requests: requests, connectivity: _Connectivity(false));
       await toCategory(c);
       await c.next();
-      expect(c.step, FlowStep.note);
+      expect(c.step, FlowStep.duplicates);
       expect(requests.where((r) => r.url.path.endsWith('/nearby')), isEmpty);
     });
 
     test(
-      'lists nearby reports; "different problem" continues to details',
+      'lists nearby reports; "different problem" continues to the live photo',
       () async {
         final c = build(
           nearby: [reportJson(id: 'aaaa1111-1111-4111-8111-111111111111')],
@@ -189,7 +187,7 @@ void main() {
         expect(c.step, FlowStep.duplicates);
         expect(c.duplicates, hasLength(1));
         await c.next();
-        expect(c.step, FlowStep.note);
+        expect(c.step, FlowStep.photo);
         c.back();
         expect(c.step, FlowStep.duplicates);
       },
@@ -207,23 +205,30 @@ void main() {
       await c.next();
       await c.follow(c.duplicates.single);
       expect(c.submitState, SubmitState.followed);
-      expect(store.saved, ['aaaa1111-1111-4111-8111-111111111111']);
+      // A follow remains separate from the ids of authored reports.
+      expect(store.saved, isEmpty);
       expect(requests.where((r) => r.method == 'POST'), isEmpty);
     });
 
-    test('back from details skips the empty duplicates step', () async {
-      final c = build();
-      await toCategory(c);
-      await c.next();
-      c.back();
-      expect(c.step, FlowStep.category);
-    });
+    test(
+      'back from the photo returns to empty duplicate suggestions',
+      () async {
+        final c = build();
+        await toCategory(c);
+        await c.next();
+        await c.next();
+        expect(c.step, FlowStep.photo);
+        c.back();
+        expect(c.step, FlowStep.duplicates);
+      },
+    );
   });
 
   test('submit stores the id on the device and exposes the result', () async {
     final store = MemoryStore();
     final c = build(store: store);
     await toCategory(c);
+    await c.takePhoto();
     await c.submit();
     expect(c.submitState, SubmitState.done);
     expect(c.result!.status, 'verified');
@@ -235,6 +240,7 @@ void main() {
     () async {
       final c = build(createdStatus: 'rejected');
       await toCategory(c);
+      await c.takePhoto();
       c.setNote('Hueco grande');
       await c.submit();
       expect(c.result!.status, 'rejected');
@@ -252,6 +258,7 @@ void main() {
   test('manual review is offered only after three failed attempts', () async {
     final c = build(createdStatus: 'rejected', drafts: MemoryDraftStore());
     await toCategory(c);
+    await c.takePhoto();
     for (var i = 0; i < 3; i++) {
       expect(c.canManualReview, isFalse);
       await c.submit();
@@ -264,6 +271,7 @@ void main() {
   test('server error leaves the flow editable with a failed state', () async {
     final c = build(failCreate: true);
     await toCategory(c);
+    await c.takePhoto();
     await c.submit();
     expect(c.submitState, SubmitState.failed);
     expect(c.result, isNull);
@@ -274,6 +282,7 @@ void main() {
     var fail = true;
     final c = build(requests: requests, failCreateWhen: () => fail);
     await toCategory(c);
+    await c.takePhoto();
     await c.submit();
     expect(c.submitState, SubmitState.failed);
     fail = false;
@@ -293,10 +302,15 @@ void main() {
     test('every step change and edit autosaves the draft', () async {
       final drafts = MemoryDraftStore();
       final c = build(drafts: drafts);
-      await c.takePhoto();
+      await c.useMyLocation();
       await c.next();
       await c.saveDraft();
-      expect(drafts.records.values.single.step, 'location');
+      expect(drafts.records.values.single.step, 'category');
+      final restored = build(drafts: drafts);
+      await restored.restore(drafts.records.values.single);
+      expect(restored.step, FlowStep.category);
+      expect(restored.photo, isNull);
+      expect(restored.missingPhoto, isFalse);
       c.setNote('hola');
       await c.saveDraft();
       expect(drafts.records.values.single.note, 'hola');
@@ -306,6 +320,9 @@ void main() {
       final drafts = MemoryDraftStore();
       final first = build(drafts: drafts);
       await toCategory(first);
+      await first.next();
+      await first.next();
+      await first.takePhoto();
       await first.next();
       first.setNote('Hueco');
       await first.saveDraft();
@@ -327,6 +344,7 @@ void main() {
         final drafts = MemoryDraftStore();
         final first = build(drafts: drafts);
         await toCategory(first);
+        await first.takePhoto();
         first.setNote('Hueco');
         await first.saveDraft();
         final record = drafts.records.values.single;
@@ -352,6 +370,7 @@ void main() {
         final drafts = MemoryDraftStore();
         final c = build(drafts: drafts);
         await toCategory(c);
+        await c.takePhoto();
         await c.saveDraft();
         drafts.photos.clear();
         await c.checkPhotoIntegrity();
@@ -364,6 +383,7 @@ void main() {
       final drafts = MemoryDraftStore();
       final c = build(drafts: drafts);
       await toCategory(c);
+      await c.takePhoto();
       await c.submit();
       expect(drafts.records, isEmpty);
     });

@@ -1,0 +1,124 @@
+/* Staff guidance is a compact, keyboard reachable disclosure; no personal data is stored. */
+.staff-guide {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 1rem;
+  width: min(26rem, calc(100vw - 2rem));
+  padding: 1.25rem;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-raised);
+}
+.staff-guide :focus-visible {
+  outline-color: var(--focus);
+}
+.staff-guide ol {
+  margin: 0.75rem 0 1rem;
+  padding-left: 1.25rem;
+}
+.staff-guide li + li {
+  margin-top: 0.5rem;
+}
+.site-nav .help-button {
+  justify-content: center;
+  min-width: 44px;
+  font-weight: 700;
+}
+.staff-root .staff-panel > summary {
+  display: none;
+}
+.queue-evidence {
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+.queue-summary {
+  min-width: 0;
+  display: grid;
+  gap: 0.3rem;
+  align-content: start;
+}
+.queue-title {
+  font-weight: 650;
+  font-size: 1.125rem;
+}
+.queue-photo {
+  width: 8rem;
+  height: 7rem;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+}
+.queue-note {
+  color: var(--text-muted);
+}
+.queue-empty {
+  margin-top: 1rem;
+  padding: 1.5rem;
+  background: var(--surface);
+  border-left: 4px solid var(--primary);
+}
+.queue-list .staff-actions {
+  margin-top: 1rem;
+}
+.timeline ol {
+  padding-left: 1.5rem;
+  border-left: 2px solid var(--border);
+  list-style: none;
+}
+.timeline li {
+  position: relative;
+  padding: 0 0 1.25rem 0.5rem;
+}
+.timeline li::before {
+  content: '';
+  position: absolute;
+  left: -1.9rem;
+  top: 0.4rem;
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  background: var(--primary);
+}
+.timeline li p + p {
+  margin-top: 0.4rem;
+}
+.report-metadata {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) minmax(0, 2fr);
+  gap: 0.5rem 1rem;
+  padding: 1rem;
+  background: var(--surface);
+}
+.report-metadata dd {
+  margin: 0;
+}
+.staff-actions:not(:empty) {
+  padding: 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+@media (min-width: 701px) and (max-width: 1000px) {
+  .chart-layout {
+    grid-template-columns: minmax(0, 1fr) 10rem;
+    gap: 1rem;
+  }
+}
+@media (max-width: 700px) {
+  .queue-photo {
+    width: 6rem;
+    height: 6rem;
+  }
+  .report-metadata {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.2rem;
+  }
+  .report-metadata dd {
+    margin-bottom: 0.75rem;
+  }
+  .staff-actions:not(:empty) {
+    padding: 1rem;
+  }
+}

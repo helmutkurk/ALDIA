@@ -13,13 +13,15 @@ def enable_staff(client: TestClient) -> None:
     settings = client.app.state.services.settings
     settings.staff_token = "o" * 32
     settings.supervisor_token = "s" * 32
+    settings.env = "dev"
+    settings.auth_dev_tokens = True
 
 
 def test_staff_flow_and_hidden_visibility(client: TestClient) -> None:
     report = submit(client).json()
     path = f"/api/reports/{report['id']}"
     assert (
-        client.post(path + "/assign", json={"assignee": "Cuadrilla"}).status_code == 503
+        client.post(path + "/assign", json={"assignee": "Cuadrilla"}).status_code == 401
     )
     enable_staff(client)
     for headers in [{}, {"X-Staff-Token": "incorrect"}]:
@@ -126,12 +128,15 @@ def test_nearby_clusters_queue(client: TestClient) -> None:
         second["id"],
         third["id"],
     ]
-    assert result.json()["items"][0]["thumbnail_url"] == first["photo_url"]
+    assert (
+        result.json()["items"][0]["thumbnail_url"]
+        == f"/api/reports/{first['id']}/thumbnail"
+    )
     nearby = client.get(f"/api/reports/{first['id']}/nearby").json()
     assert [r["id"] for r in nearby["items"]] == [second["id"]]
     bbox = "-91,14,-90,15"
     low = client.get(f"/api/reports/clusters?bbox={bbox}&zoom=1").json()
-    high = client.get(f"/api/reports/clusters?bbox={bbox}&zoom=17").json()
+    high = client.get(f"/api/reports/clusters?bbox={bbox}&zoom=15").json()
     assert low["total"] == high["total"] == 3
     assert len(low["clusters"]) == 1
     assert low["clusters"][0]["count"] == 3

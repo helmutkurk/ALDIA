@@ -214,7 +214,10 @@ def test_nearby_window_verified_open_and_nearest_ten(client: TestClient) -> None
     assert [item["distance_m"] for item in items] == sorted(
         item["distance_m"] for item in items
     )
-    assert all(item["thumbnail_url"] == item["photo_url"] for item in items)
+    assert all(
+        item["thumbnail_url"] == item["photo_url"].replace("/photo", "/thumbnail")
+        for item in items
+    )
 
 
 @pytest.mark.parametrize(
@@ -286,7 +289,7 @@ def test_queue_rejected_assignment_and_filtering(client: TestClient) -> None:
 
 def test_window_and_state_filters_match_stats_export(client: TestClient) -> None:
     recent = seed(client, age_days=2, assignee="Cuadrilla", state="programado")
-    seed(client, age_days=31, assignee="Cuadrilla", state="programado")
+    seed(client, age_days=100, assignee="Cuadrilla", state="programado")
     seed(client, age_days=2)
     filters = "state_group=in_work&assignee=Cuadrilla"
     result = client.get(f"/api/reports?{filters}").json()

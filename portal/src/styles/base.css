@@ -1,0 +1,283 @@
+/* ---------- base ---------- */
+:root {
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  color: var(--text);
+  background: var(--background);
+  font-synthesis: none;
+  line-height: 1.5;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+button,
+select {
+  font: inherit;
+}
+button,
+a,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+button,
+select {
+  min-height: 44px;
+}
+button {
+  cursor: pointer;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--text-muted);
+  border-radius: var(--radius-sm);
+  transition:
+    background-color 120ms ease-out,
+    border-color 120ms ease-out;
+}
+button:where(:hover:not(:disabled)) {
+  background: var(--background);
+  border-color: var(--text);
+}
+button:where(:active:not(:disabled)) {
+  background: var(--border);
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+a {
+  color: var(--primary-dark);
+  text-underline-offset: 0.2em;
+}
+::selection {
+  color: var(--on-primary);
+  background: var(--primary);
+}
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+:focus:not(:focus-visible) {
+  outline: none;
+}
+/* Route headings remain focusable for announcements, including after a keyboard route change. */
+h1[tabindex='-1']:focus {
+  outline: none;
+}
+[hidden] {
+  display: none !important;
+}
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+h1 {
+  font-size: 1.5rem;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+h2 {
+  font-size: 1.0625rem;
+  line-height: 1.35;
+  font-weight: 600;
+}
+h3 {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+.muted,
+.report-date {
+  color: var(--text-muted);
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+.skip-link {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 2000;
+  transform: translateY(-200%);
+  padding: 0.75rem 1rem;
+  background: var(--surface);
+  border: 2px solid var(--primary);
+  border-radius: var(--radius-sm);
+  color: var(--primary-dark);
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline-offset: 0;
+  border-color: var(--focus);
+}
+input,
+textarea {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--text-muted);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem;
+  max-width: 100%;
+  min-width: 0;
+}
+input:not([type='checkbox']),
+textarea {
+  min-height: 44px;
+  width: 100%;
+}
+input[type='checkbox'] {
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: var(--primary);
+}
+textarea {
+  min-height: 6rem;
+  resize: vertical;
+}
+select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--text-muted);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.6rem;
+  background: var(--surface);
+  color: var(--text);
+}
+button:disabled {
+  cursor: default;
+  color: var(--text-muted);
+  background: var(--background);
+  border-color: var(--border);
+}
+.retry-button,
+.search-button {
+  padding: 0.5rem 1rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--on-primary);
+  background: var(--primary);
+  font-weight: 600;
+}
+.retry-button {
+  margin-top: var(--space-4);
+}
+.retry-button:hover:not(:disabled),
+.retry-button:active:not(:disabled),
+.search-button:hover:not(:disabled),
+.search-button:active:not(:disabled) {
+  color: var(--on-primary);
+  background: var(--primary-dark);
+}
+.error-message {
+  color: var(--text);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--danger);
+  border-radius: var(--radius-sm);
+  overflow-wrap: anywhere;
+}
+.error-message strong {
+  color: var(--danger);
+}
+.error-message p {
+  margin-top: 0.5rem;
+}
+
+/* ---------- site header ---------- */
+.site-header {
+  position: relative;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1.5rem;
+  min-height: var(--header-height);
+  padding: 0 1.25rem;
+  color: var(--on-bar);
+  background: var(--bar);
+}
+.site-header :focus-visible {
+  outline-color: var(--on-bar);
+}
+.site-header .brand {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--on-bar);
+  font-weight: 800;
+  font-size: 1.5rem;
+  letter-spacing: -0.04em;
+  text-decoration: none;
+}
+.menu-toggle {
+  display: none;
+  min-width: 44px;
+  padding: 0 0.75rem;
+  color: var(--on-bar);
+  background: transparent;
+  border-color: var(--on-bar);
+}
+.menu-toggle:where(:hover, :active) {
+  color: var(--on-bar);
+  background: rgb(255 255 255 / 16%);
+  border-color: var(--on-bar);
+}
+.site-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+}
+.site-nav a,
+.site-nav button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 0.85rem;
+  border: 1px solid transparent;
+  border-bottom: 3px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--on-bar);
+  background: transparent;
+  font-size: 0.95rem;
+  text-decoration: none;
+  transition: background-color 120ms ease-out;
+}
+.site-nav a:hover,
+.site-nav button:hover {
+  background: rgb(255 255 255 / 16%);
+}
+/* The current page: orange underline plus bold weight, not colour alone. */
+.site-nav a[aria-current='page'] {
+  border-bottom-color: var(--accent);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  font-weight: 700;
+}
+.site-nav .staff-link {
+  margin-left: 0.5rem;
+  border-color: rgb(255 255 255 / 70%);
+  border-bottom-width: 1px;
+}

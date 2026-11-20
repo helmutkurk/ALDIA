@@ -1,73 +1,119 @@
-# Portal UI notes (restyle of the map page and dashboard)
+# Portal UI notes
 
-Scope: `portal/` only. Brand tokens are unchanged (`portal/src/styles/tokens.css`, `documentation/design-tokens.md`).
-The restyle is an extension of an established identity (teal, system font, flat surfaces), so no new visual world
-was invented.
+Scope: `portal/` and this note. The binding palette is `documentation/design-tokens.md`.
+The two supplied screenshots were inspected for structure only: slim navigation, map/list workspace,
+compact filters, evidence beside each report, and a dashboard led by a cumulative chart with large totals.
+No reference colours, branding, typography, assets or copy were reused. (Codex, 2026-11-20)
 
-## What was taken from the two reference screenshots (principles, not appearance)
+## Map workspace
 
-Map page ("around"):
-- One slim bar on top carries the name and the few places a user can go; everything else gets the screen.
-- Left column for reading, right area for the map, both always visible on a desktop. The list is the main content, the
-  map is the spatial index of the same data.
-- Filters come first and are few: status, category, sort and one checkbox for old items. Rare filters are one step away.
-- A single count line ("1 a 25 de 86 reportes") tells where the reader is in the list before the rows start.
-- A row is title, date, a short state, and a photo when there is one. The photo is evidence, so it sits beside the text.
-- Pins are large and uniform, coloured by group, so state is readable from a distance; zoom controls are big and in
-  one corner.
+- Desktop uses a 28 rem reading panel beside the map; tablets from 701–1000 px use a 44% panel beside the map.
+  At 700 px and below the list comes first and a sticky **Ver mapa / Ver lista** button switches views.
+  The header starts with only the brand and **Menú** button; it exposes the same navigation and supports Escape.
+  **Filtrar reportes** opens a native modal bottom sheet with the existing controls, Escape dismissal and focus
+  restoration. Values survive closing; crossing to tablet restores the controls to the panel. (Codex, 2026-11-20)
+- The header's **Modo personal** button is the only staff disclosure trigger. The access form is hidden until
+  opened; the duplicate summary inside the panel is suppressed. The header announces the expanded state.
+  Authentication changes clear private details/photos and expose the current account/login controls.
+- Place search is one row: labelled input and search icon button. A small `?` disclosure contains the explanation
+  and OpenStreetMap attribution. Explicit submit, throttling, cancellation and keyboard results are retained.
+- Estado / Categoría occupy the first filter row; Ordenar / Incluir reportes antiguos occupy the second.
+  **Más filtros** starts closed and contains the detailed state, verifier, date and assignee filters, plus the
+  30-day-window explanation. Active chips disappear when there are none; they retain removal controls otherwise.
+- The count remains **1 a 25 de N reportes**. Rows have a neutral inline SVG category icon and title, relative
+  `<time>` (for example **hace 3 días**) with its exact Guatemala-local date in `title`, state dot and word,
+  and notes clamped to two lines. The right-hand thumbnail is 72×72, rounded, lazy-loaded and cover-cropped.
+  HTML dimensions and a placeholder background reserve its space; missing, unsafe or failed photos show an icon
+  and **sin foto** in the same slot. The old quiet fallback used `display: none`, hiding failed thumbnails.
+  **Ver reporte completo** remains a separate 44 px keyboard/touch target below the selection button.
+  Selection retains the accent left bar, hover background and focused DOM button. Buttons have a 96 px minimum
+  height; full row height grows with content and the separate link. Four-row visibility needs browser measurement.
+- Thumbnails use the lightweight `/thumbnail` endpoint even when the list omits `thumbnail_url`.
+  Authenticated photo object URLs are revoked when the owning list/page is replaced or destroyed.
+- List activation selects the report, flies to its location even when its marker has not been hydrated, and opens
+  evidence/details. Focused list buttons survive selection updates. Detail errors offer retry and close; closing
+  restores the originating control's focus.
+- At display zoom >=15 the portal requests the API's singleton mode (`zoom=17`). Lower zooms use primary-coloured
+  cluster counts. Singleton pins use state colours, a white outline and a letter; selection enlarges and raises
+  the pin. The state selector specificity now prevents the base grey background overriding coloured pins.
+  Verifier-rejected pins use the error colour. Pending pins retain the dashed outline.
+- Compact legend, textual state names, keyboard zoom, popup Escape/focus return and reduced-motion flights remain.
+  Popup/side details include the photo, heuristic/stub/model explanation, checks and a link to the report/history.
+  Heuristics are explicitly described as technical checks, without claiming authenticity or category recognition.
 
-Dashboard:
-- A title band separates "where am I" from the numbers.
-- The long-term trend gets the most space: two lines (received, resolved) with the two end values written next to them.
-- A short recent-activity block uses very small trend lines, each with one large number and a plain label.
-- A box to choose the area and a ranked list of the most used categories finish the page.
+## Dashboard
 
-## What was deliberately not taken
-Colours, logo, fonts, icons, copy, CSS, and the cookie/advert chrome. Our palette, wording and structure are our own.
-The reference's "pick your council" box has no data source here (the API has no zone breakdown), so it became a
-"Zona consultada" box that states the current scope and links back to the map to change it.
+- Title band → cumulative received/resolved chart and large totals → headline counters → recent activity and
+  scope/export box → top-five categories and open-case ages → repair/frequency charts → SLA, overdue and other
+  indicators. Detailed category/group distribution is loaded only when its disclosure opens.
+- The body uses a 12-column grid, capped at 1100 px, with aligned half-width section pairs and shared card
+  backgrounds, borders, padding and headings. Phone sections stack; grid children can shrink without widening
+  the page. Repair and frequency charts retain **Ver tabla**, sample/null semantics and plain-Spanish municipal
+  captions beneath the data. Repair captions explicitly use **hours**, matching the API and chart values.
+  Top-five/state charts also explain their purpose. CSV is styled as a 44 px action. (Codex, 2026-11-20)
+- Without explicit dates, the dashboard requests `include_old=true` so the main chart covers the full history.
+  Explicit creation dates remain binding. CSV and chart-to-list links retain the dashboard's actual filter scope.
+- Cumulative lines sum the API's weekly received/resolved buckets. Solid/circle and dashed/square encodings,
+  direct labels and an equivalent weekly table make the series readable without relying on colour.
+- **Últimos 7 días** uses a second request with an inclusive six-days-ago/today date range in America/Guatemala,
+  retaining area, category and other non-date filters. Its displayed numbers come from that response, independently
+  of the main date window. Sparklines use weekly buckets clipped by that request; the note explicitly says so.
+  The contract has no daily series or update counter, so neither is fabricated. Recent-load failures have a local
+  retry and do not replace the main dashboard.
+- `tasa_resolucion` and `sla_cumplido` are validated as nullable 0–1 ratios, then multiplied by 100 for display.
+  Zero stays zero, null stays **Sin datos**. Repair statistics retain their sample counts and null durations.
+- Historical capture from the earlier running demo (not a measurement of the current 62-report demo):
+  70 total, 66 received, 26 resolved, 12 overdue; resolution is
+  26/61 = 42.6%, SLA 76.9%. The 2026-11-14–20 request returned 22 received and 19 resolved.
+- Aggregate-only snapshots are in `portal/tests/fixtures/stats-*-snapshot.json`. The running process still served
+  resolution percentages (42.62295… and 47.61905…), contrary to the updated contract. Regression tests preserve
+  those snapshots, convert only that fixture field to the documented ratio, exercise the full API validator and
+  rendering, and separately assert rejection of the stale percentage. There is no production compatibility coercion.
 
-## Decisions in the portal
-Map page:
-- `src/header.js`: shared slim header (Aldia, Mapa, Triaje, Panel, Modo personal). Links keep the filter scope; the
-  current page is a filled pill (not colour alone); Modo personal opens and focuses the staff disclosure.
-- Panel top is a short title band; visible filters are Estado (state group), Categoría, Ordenar, Incluir reportes
-  antiguos; the other filters sit in "Más filtros" (`details`). All filter ids, names and URL behaviour are unchanged.
-- Count line `1 a 25 de 86 reportes` (uses offset and shown rows).
-- Rows: title (category label), date, state chip (text plus a dot), verifier badge, lazy decorative thumbnail
-  (`alt=""`, hidden silently if it fails). No `innerHTML`; thumbnails reuse `createPhoto`, which validates the URL.
-- Pins 36 px with white inner ring, dark outer outline and the state letter; clusters 48 px, dark teal with a white ring.
-  Zoom control 48 px, bottom right.
-- Phones: list first; fixed pill button "Ver mapa" / "Ver lista" swaps list and map.
+## Report, triage and accessibility
 
-Dashboard:
-- Title band, then the all-time chart. The "all time" series is the cumulative sum of `weekly` of the current scope
-  (default scope can be a 30-day window), so it is labelled "Acumulado en el periodo consultado". The end numbers are
-  `recibidos` and `resueltos` from the same response. Lines differ by dash and end marker, not colour alone; a weekly
-  table sits in a disclosure as the text alternative.
-- "Última semana": the contract has no daily series, so there is no honest "last 7 days". The block shows the latest
-  ISO week and sparklines over the last 8 weeks for Recibidos and Resueltos only. "Actualizaciones" (updates) has no
-  source and is omitted. Suggested contract addition: a `daily` array and an `updates` count in `/api/stats`.
-- Top 5 categorías from `by_category`; ages of open reports; v0.2 indicators in the same card style; state-group bars;
-  category x group table; CSV export moved into an "Exportar datos" box.
+- The report page pairs evidence/metadata with history/staff controls on desktop and stacks them below 900 px.
+  Evidence stays contained, with the existing enlarge-photo dialog, Escape/close and focus restoration.
+  History has a continuous visual rail, readable event spacing and public/staff notes under each event.
+- Triage adds an evidence thumbnail, category, local date, state and age before its existing assignment/transition
+  forms. Review/rejected tabs retain arrow/Home/End keyboard behaviour. Empty queues explain that there is no work
+  waiting; errors keep retry. Staff permissions and transition validation stay on the existing API/action path.
+- Header `?` opens a short guide, also introduced on first opening staff access without stealing login focus.
+  **Entendido** or Escape dismisses it; dismissal lives only in memory. No personal data or browser storage is used.
+- The skip link focuses the current page or report list without changing the hash route. Focus rings remain 2 px
+  with 2 px offset, white on the dark bar. The guide resets its surface focus colour correctly.
+- Route `<h1 tabindex="-1">` elements keep programmatic focus for announcements without an outline. Other
+  elements use `:focus-visible`; interactive keyboard focus keeps its ring. Search help, filter chips, report
+  links and chart targets now reserve at least 44 px. Pagination wraps in the narrower tablet panel.
+- Text uses existing contrast-tested tokens, with additional tests for focus on both surfaces and text on the pending
+  pin centre. State dots/pins stay non-text encodings paired with words. Reduced-motion CSS and Leaflet flights remain.
 
-## Derived tokens added (portal only)
-`--header-height`, `--radius`, `--radius-sm`, `--shadow-raised`, `--series-received` (= primary), `--series-resolved`
-(= state resolved green), `--on-primary`, `--accent-text`. Not shared with the app.
+## Module boundaries
 
-## Skill sources used
-- `impeccable/reference/new-work.md`: decided this is an extension of an established surface (inherit, no new identity).
-- `impeccable/reference/craft-floor.md`: contrast, spacing, type, states, browser surfaces (focus, selection), plus the
-  "refuse" list. The brief explicitly asked for big numbers and sparklines, so those two items were kept, minimal and
-  with text equivalents; no eyebrows, gradients, nested cards or coloured side borders.
-- `impeccable/reference/polish.md`: system consistency, loading/empty/error states, touch targets, responsive pass.
-- `impeccable/reference/audit.md`: checklist for accessibility, responsive, theming and implementation integrity.
-- `anthropics-skills/hks-frontend-design/SKILL.md`: restrained typography (one system family, clear scale, no all-caps
-  labels), structure that carries information, and no template chrome.
-Detector scripts and `impeccable install` were not run (no network use).
+`main.js` composes pages; `mount.js`, `selected-report.js` and `adjacent-report.js` own their separate lifecycles.
+`panel.js` owns filtering/list state; `dom.js` and `report-details.js` contain shared DOM/detail rendering.
+`report-row.js` owns relative dates and list content; `mobile-filters.js` owns the sheet and control relocation.
+`dashboard.js` composes requests/sections; trends, recent activity, metrics and the distribution table are separate modules.
+`api.js` owns transport; `api-validation.js` and `api-urls.js` own contract checks and URL policy.
+Component CSS is split under `src/styles/`, loaded through `app.css` in the original cascade order.
+Source modules remain below approximately 400 lines. No dependencies were added.
 
-## Not verified
-No browser QA was possible. Unchecked: real rendering of the header on 390 px width (two rows assumed, map height uses
-`100dvh - 6rem`), pin outline against OSM tiles, Leaflet zoom control overrides, chart tick sizes on phones, `:has()`
-behaviour in older browsers (the phone map/list swap depends on it), and contrast measured by tool. Use
-`portal/tests/browser-review.sh` steps at 1280x800 and 390x844.
+## Verification and remaining limits (2026-11-20)
+
+- `cd portal && mise exec -- npm run check`: lint, Prettier, 166 tests across 20 Vitest files and production build pass.
+  Regression coverage includes compact filters/notes, pin selection/distant flights, zoom-15 singleton requests,
+  ratio boundaries, real-shaped aggregate rendering, recent date boundaries/local retry, help dismissal and focus.
+  New coverage checks thumbnail HTML dimensions/`loading="lazy"`, safe URLs and visible fallback markup, relative
+  date/title/icon markup, route heading focus, CSS focus/size/grid/breakpoint rules, menu dismissal, modal filter
+  value/focus restoration, category captions/table toggles, and CSV presence. Existing token contrast tests pass
+  at 4.5:1 or higher for text. Source modules remain below 400 lines. No dependencies were added.
+- This follow-up was verified by reading source and running tests, as requested. The orchestrator previously
+  inspected Chrome; no browser was launched and no new screenshots were produced in this pass. Actual image
+  delivery from the current 62-report demo, four-row visibility, map tiles/pins, browser-native modal focus/Escape,
+  chart sizing and horizontal overflow at 1440×900, 768×1024 and 390×844 remain unverified here. CSS/tests verify
+  the intended layout rules, not browser geometry. Dark mode remains unimplemented.
+- The earlier snapshot's API process served percentage-shaped resolution data; the current process was not
+  queried in this pass. The portal still requires the contract's 0–1 ratios. Backend processes/files remain owned
+  by their assigned job; invalid statistics are not silently reinterpreted.
+- `portal/tests/browser-review.sh` contains the manual review and screenshot checklist for the already-running stack.
+  Save screenshots in the repository's git-ignored `.local/shots/` directory.

@@ -1,7 +1,10 @@
 import 'package:aldia_app/core/strings.dart';
+import 'package:aldia_app/core/theme.dart';
 import 'package:aldia_app/data/report.dart';
 import 'package:aldia_app/features/drafts/draft_record.dart';
 import 'package:aldia_app/features/home/home_screen.dart';
+import 'package:aldia_app/features/home/report_map_view.dart';
+import 'package:aldia_app/widgets/neutral_map_pin.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
@@ -12,6 +15,28 @@ import '../widgets/harness.dart';
 const _cluster = ReportCluster(position: LatLng(14.63, -90.5), count: 7);
 
 void main() {
+  testWidgets('extracted map keeps its state across shell destinations', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      harness(
+        home: const HomeScreen(),
+        repository: repositoryWith(),
+        clusters: FakeClusters([_cluster]),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Explorar mi ciudad'));
+    await tester.pumpAndSettle();
+    final map = tester.state(find.byType(MapView));
+    await tester.tap(find.text('Perfil'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Inicio'));
+    await tester.pumpAndSettle();
+    expect(tester.state(find.byType(MapView)), same(map));
+    expect(find.text('MAPA'), findsOneWidget);
+  });
+
   testWidgets('map shows clusters from the clusters endpoint', (tester) async {
     final clusters = FakeClusters([_cluster]);
     await tester.pumpWidget(
@@ -23,6 +48,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await tester.tap(find.text('Explorar mi ciudad'));
+    await tester.pumpAndSettle();
     expect(clusters.calls, greaterThan(0));
     expect(find.text('7'), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('7 reportes')), findsOneWidget);
@@ -34,15 +61,40 @@ void main() {
       await tester.pumpWidget(
         harness(
           home: const HomeScreen(),
-          repository: repositoryWith(list: [stateJson('en_revision')]),
+          repository: repositoryWith(
+            list: [
+              stateJson('en_revision'),
+              stateJson('resuelto', id: mainId, extra: {'longitude': -90.45}),
+            ],
+          ),
           clusters: FakeClusters(const [], fail: true),
         ),
       );
       await tester.pumpAndSettle();
 
+      await tester.tap(find.text('Explorar mi ciudad'));
+      await tester.pumpAndSettle();
       expect(find.text(S.mapFallback), findsOneWidget);
       expect(find.text('En revisión'), findsOneWidget);
-      expect(find.byIcon(Icons.manage_search), findsOneWidget);
+      expect(find.byType(StatusMapPin), findsNWidgets(2));
+      // Pin fill follows the state (orange open, blue resolved), white outline.
+      final fills = <Color?>[];
+      for (final pin in tester.widgetList<StatusMapPin>(
+        find.byType(StatusMapPin),
+      )) {
+        final outer = tester.widget<Container>(
+          find
+              .descendant(
+                of: find.byWidget(pin),
+                matching: find.byType(Container),
+              )
+              .first,
+        );
+        final decoration = outer.decoration! as BoxDecoration;
+        fills.add(decoration.color);
+        expect(decoration.border, Border.all(color: Colors.white, width: 3));
+      }
+      expect(fills, [AldiaColors.open, AldiaColors.resolved]);
 
       await tester.tap(find.text('En revisión'));
       await tester.pumpAndSettle();
@@ -66,6 +118,8 @@ void main() {
         clusters: clusters,
       ),
     );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Explorar mi ciudad'));
     await tester.pumpAndSettle();
     final before = clusters.calls;
 
@@ -96,7 +150,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text(S.navList));
+    await tester.tap(find.text('Explorar mi ciudad'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('LISTA'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Programado'), findsOneWidget);
   });

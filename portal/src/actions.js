@@ -1,4 +1,4 @@
-import { element } from './panel.js';
+import { element } from './dom.js';
 import {
   legalNextStates,
   noteRequirement,
@@ -15,7 +15,7 @@ export function createStaffActions(
   root,
   { report, api, staff, onSaved = () => {}, duplicateOf = '' },
 ) {
-  if (!staff?.getToken()) return { destroy() {} };
+  if (!(staff?.getRole?.() || staff?.getToken())) return { destroy() {} };
   const controller = new AbortController();
   let alive = true;
   const form = element('form', 'transition-form');

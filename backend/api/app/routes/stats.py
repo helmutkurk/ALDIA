@@ -13,6 +13,7 @@ from app.dependencies import SessionDep
 from app.models import Report, ReportEvent
 from app.report_queries import MUNICIPAL_TZ, period_bounds, report_query
 from app.schemas import (
+    CategoryStats,
     DurationStats,
     ReadFilters,
     Resolution,
@@ -141,6 +142,33 @@ def get_stats(
     for r in resolved:
         if r.resolved_at is not None:
             weekly[week(r.resolved_at)][1] += 1
+    # v0.3 uses the creation cohort throughout, unlike v0.2 resolution-period KPIs.
+    per_category = []
+    for category in sorted(CATEGORY_IDS):
+        own = [r for r in cohort if r.category == category]
+        repairs = durations(
+            [
+                (utc(r.resolved_at) - utc(r.verified_at)).total_seconds() / 3600
+                for r in own
+                if r.state == "resuelto"
+                and r.resolved_at is not None
+                and r.verified_at is not None
+            ]
+        )
+        per_category.append(
+            CategoryStats(
+                category=category,
+                total=len(own),
+                resueltos=sum(r.state == "resuelto" for r in own),
+                abiertos=sum(
+                    STATE_GROUPS[r.state] in {"pending", "open", "in_work"} for r in own
+                ),
+                cerrados=sum(STATE_GROUPS[r.state] == "closed" for r in own),
+                mediana_reparacion_horas=repairs.median,
+                p90_reparacion_horas=repairs.p90,
+                n_resueltos=repairs.n,
+            )
+        )
     return StatsOut(
         total=len(cohort),
         by_category=by_category,
@@ -155,8 +183,9 @@ def get_stats(
             and in_period(r.closed_at)
             for r in reports
         ),
-        tasa_resolucion=100
-        * sum(r.state == "resuelto" and r.resolved_at is not None for r in cohort)
+        tasa_resolucion=sum(
+            r.state == "resuelto" and r.resolved_at is not None for r in cohort
+        )
         / denominator
         if denominator
         else None,
@@ -175,4 +204,9 @@ def get_stats(
             WeeklyStats(week=w, recibidos=v[0], resueltos=v[1])
             for w, v in sorted(weekly.items())
         ],
+        por_categoria=per_category,
+        top_categorias=sorted(
+            (row for row in per_category if row.total > 0),
+            key=lambda row: (-row.total, row.category),
+        )[:5],
     )

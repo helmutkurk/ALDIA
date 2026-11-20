@@ -1,5 +1,6 @@
 import { createLocationMap } from './map.js';
-import { createReportDetails, element } from './panel.js';
+import { createReportDetails } from './report-details.js';
+import { element } from './dom.js';
 import { createStaffActions } from './actions.js';
 import { filtersHash } from './filters.js';
 import { reportState, stateLabel } from './states.js';
@@ -23,6 +24,7 @@ export function createReportPage(
     onChanged = () => {},
   },
 ) {
+  root.classList.add('page--report');
   let controller;
   let map;
   let generation = 0;
@@ -114,6 +116,7 @@ export function createReportPage(
       ])
         metadata.append(element('dt', '', label), element('dd', '', value));
       const timeline = element('section', 'timeline');
+      timeline.id = 'report-timeline';
       timeline.append(element('h2', '', ui.timeline));
       const events = element('ol');
       for (const event of report.events ?? []) {
@@ -122,11 +125,11 @@ export function createReportPage(
           element(
             'p',
             '',
-            `${formatDate(event.at)} · ${ui.actors[event.actor_role] ?? event.actor_role} · ${event.from_state ? stateLabel(event.from_state) + ' → ' : ''}${stateLabel(event.to_state)}`,
+            `${formatDate(event.at)} · ${event.actor ?? ui.actors[event.actor_role] ?? event.actor_role} · ${event.from_state ? stateLabel(event.from_state) + ' → ' : ''}${stateLabel(event.to_state)}`,
           ),
         );
         if (event.public_note) item.append(element('p', '', event.public_note));
-        if (staff?.getToken() && event.internal_note)
+        if ((staff?.getRole?.() || staff?.getToken()) && event.internal_note)
           item.append(
             element('p', '', `${ui.internalNote}: ${event.internal_note}`),
           );
@@ -145,15 +148,13 @@ export function createReportPage(
           load();
         },
       });
-      root.replaceChildren(
-        back,
-        navigation,
-        details,
-        metadata,
-        timeline,
-        controls,
-        location,
-      );
+      const evidence = element('div', 'report-evidence');
+      evidence.append(details, metadata);
+      const handling = element('div', 'report-handling');
+      handling.append(timeline, controls);
+      const layout = element('div', 'report-layout');
+      layout.append(evidence, handling);
+      root.replaceChildren(back, navigation, layout, location);
       const photo = details.querySelector('img');
       if (photo) {
         const zoom = element('button', 'zoom-photo', ui.zoomPhoto);
@@ -208,7 +209,7 @@ export function createReportPage(
                   thumbnail: true,
                 }),
               );
-              if (staff?.getToken()) {
+              if (staff?.getRole?.() || staff?.getToken()) {
                 const mark = element('button', '', ui.markDuplicate);
                 mark.type = 'button';
                 mark.disabled = reportState(report) !== 'en_revision';
@@ -274,6 +275,7 @@ export function createReportPage(
       map = null;
       root.replaceChildren();
       root.removeAttribute('aria-busy');
+      root.classList.remove('page--report');
     },
   };
 }

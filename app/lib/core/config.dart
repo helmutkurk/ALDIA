@@ -10,6 +10,12 @@ class AppConfig {
     defaultValue: 'http://10.0.2.2:8000/api',
   );
 
+  /// Match the API deployment's REQUIRE_CITIZEN_LOGIN setting.
+  static const bool requireCitizenLogin = bool.fromEnvironment(
+    'REQUIRE_CITIZEN_LOGIN',
+    defaultValue: false,
+  );
+
   /// Default map view: Guatemala City.
   static const LatLng defaultCenter = LatLng(14.6349, -90.5069);
   static const double defaultZoom = 13;

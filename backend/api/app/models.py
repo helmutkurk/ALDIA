@@ -3,11 +3,13 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     CheckConstraint,
     DateTime,
     Float,
     ForeignKey,
     Index,
+    Integer,
     String,
     Uuid,
 )
@@ -71,6 +73,10 @@ class Report(Base):
     duplicate_of: Mapped[UUID | None] = mapped_column(Uuid, ForeignKey("reports.id"))
     public_note: Mapped[str | None] = mapped_column(String(280))
     previous_state: Mapped[str | None] = mapped_column(String(32))
+    citizen_id: Mapped[str | None] = mapped_column(
+        String(64), ForeignKey("citizens.id"), index=True
+    )
+    citizen_alias: Mapped[str | None] = mapped_column(String(60))
 
 
 class ReportEvent(Base):
@@ -80,6 +86,9 @@ class ReportEvent(Base):
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     report_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("reports.id"))
     actor_role: Mapped[str] = mapped_column(String(16))
+    actor: Mapped[str] = mapped_column(
+        String(80), default="system", server_default="system"
+    )
     from_state: Mapped[str | None] = mapped_column(String(32))
     to_state: Mapped[str] = mapped_column(String(32))
     public_note: Mapped[str | None] = mapped_column(String(280))
@@ -94,3 +103,86 @@ class IdempotencyRecord(Base):
     key: Mapped[UUID] = mapped_column(Uuid, primary_key=True)
     report_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("reports.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class StaffUser(Base):
+    __tablename__ = "staff_users"
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('operator', 'supervisor', 'admin')", name="ck_staff_users_role"
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    username: Mapped[str] = mapped_column(String(64), unique=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    role: Mapped[str] = mapped_column(String(16))
+    disabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    failed_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class StaffSession(Base):
+    __tablename__ = "staff_sessions"
+    __table_args__ = (
+        Index("ix_staff_sessions_user_id", "user_id"),
+        Index("ix_staff_sessions_expires_at", "expires_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey("staff_users.id"))
+    signing_key: Mapped[str] = mapped_column(String(64))
+    csrf_hash: Mapped[str] = mapped_column(String(64))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class AuthEvent(Base):
+    __tablename__ = "auth_events"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    actor: Mapped[str] = mapped_column(String(80))
+    actor_role: Mapped[str] = mapped_column(String(16))
+    action: Mapped[str] = mapped_column(String(32))
+    target: Mapped[str | None] = mapped_column(String(64))
+    at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+
+
+class Citizen(Base):
+    __tablename__ = "citizens"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    phone_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    phone_last2: Mapped[str] = mapped_column(String(2))
+    alias: Mapped[str | None] = mapped_column(String(60))
+    alias_public: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="0"
+    )
+
+
+class CitizenChallenge(Base):
+    __tablename__ = "citizen_challenges"
+
+    phone_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    phone_last2: Mapped[str] = mapped_column(String(2))
+    device_hash: Mapped[str] = mapped_column(String(64))
+    nonce: Mapped[str] = mapped_column(String(32))
+    code_hash: Mapped[str] = mapped_column(String(64))
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class CitizenSession(Base):
+    __tablename__ = "citizen_sessions"
+    __table_args__ = (
+        Index(
+            "ix_citizen_sessions_owner_device", "citizen_id", "device_hash", unique=True
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    citizen_id: Mapped[str] = mapped_column(String(64), ForeignKey("citizens.id"))
+    device_hash: Mapped[str] = mapped_column(String(64))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)

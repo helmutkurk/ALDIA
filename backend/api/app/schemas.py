@@ -29,12 +29,57 @@ def validate_category(value: str) -> str:
     return value
 
 
+class ErrorDetail(StrictModel):
+    code: str = Field(
+        description="Código estable del error.", examples=["validation_error"]
+    )
+    message: str = Field(
+        description="Explicación del error.", examples=["Solicitud inválida."]
+    )
+
+
+class ErrorResponse(StrictModel):
+    error: ErrorDetail
+
+
 class ReportCreate(StrictModel):
-    category: str
-    latitude: Annotated[float, Field(ge=-90, le=90)]
-    longitude: Annotated[float, Field(ge=-180, le=180)]
-    captured_at: AwareDatetime
-    note: Annotated[str | None, Field(max_length=280)] = None
+    category: str = Field(
+        description="Código de la categoría de /api/categories.", examples=["pothole"]
+    )
+    latitude: Annotated[
+        float,
+        Field(
+            ge=-90,
+            le=90,
+            description="Latitud del problema en grados decimales.",
+            examples=[14.6349],
+        ),
+    ]
+    longitude: Annotated[
+        float,
+        Field(
+            ge=-180,
+            le=180,
+            description="Longitud del problema en grados decimales.",
+            examples=[-90.5069],
+        ),
+    ]
+    captured_at: AwareDatetime = Field(
+        description=(
+            "Fecha y hora de la captura con zona horaria; usa una foto reciente."
+        ),
+        examples=["2026-11-20T12:00:00Z"],
+    )
+    note: Annotated[
+        str | None,
+        Field(
+            max_length=280,
+            description=(
+                "Describe el problema sin nombres, teléfonos ni otros datos personales."
+            ),
+            examples=["Bache junto al cruce peatonal."],
+        ),
+    ] = None
 
     _category = field_validator("category")(validate_category)
 
@@ -50,11 +95,12 @@ class Check(StrictModel):
     name: str
     passed: bool
     detail: str
+    code: str | None = None
 
 
 class Verification(StrictModel):
     passed: bool
-    mode: Literal["stub", "model"]
+    mode: Literal["stub", "heuristic", "model"]
     checks: list[Check]
 
 
@@ -64,7 +110,8 @@ class VerifierResult(Verification):
     @model_validator(mode="after")
     def consistent_checks(self) -> Self:
         names = [check.name for check in self.checks]
-        if set(names) != {"image", "place", "freshness", "category"} or len(names) != 4:
+        required = {"image", "place", "freshness", "category"}
+        if not required <= set(names) or len(names) != len(set(names)):
             raise ValueError("Verifier returned incomplete checks")
         if self.passed != all(check.passed for check in self.checks):
             raise ValueError("Verifier returned inconsistent checks")
@@ -73,7 +120,8 @@ class VerifierResult(Verification):
 
 class EventOut(StrictModel):
     at: AwareDatetime
-    actor_role: Literal["system", "operator", "supervisor"]
+    actor: str
+    actor_role: Literal["system", "operator", "supervisor", "admin"]
     from_state: State | None
     to_state: State
     public_note: str | None
@@ -102,6 +150,7 @@ class ReportOut(StrictModel):
     assigned_at: AwareDatetime | None
     duplicate_of: UUID | None
     public_note: str | None
+    citizen_alias: str | None = None
     events: list[EventOut] = Field(default_factory=list)
 
 
@@ -190,6 +239,17 @@ class WeeklyStats(StrictModel):
     resueltos: int
 
 
+class CategoryStats(StrictModel):
+    category: str
+    total: int
+    resueltos: int
+    abiertos: int
+    cerrados: int
+    mediana_reparacion_horas: float | None
+    p90_reparacion_horas: float | None
+    n_resueltos: int
+
+
 class StatsOut(StrictModel):
     total: int
     by_category: dict[str, int]
@@ -210,6 +270,8 @@ class StatsOut(StrictModel):
     by_state: dict[str, int]
     by_state_group: dict[str, int]
     weekly: list[WeeklyStats]
+    por_categoria: list[CategoryStats]
+    top_categorias: list[CategoryStats]
 
 
 class TransitionIn(StrictModel):
@@ -317,6 +379,16 @@ class Open311Filters(StrictModel):
         ):
             raise ValueError("Invalid date range")
         return self
+
+
+class Open311Service(StrictModel):
+    service_code: str
+    service_name: str
+    description: str
+    metadata: Literal[False] = False
+    type: Literal["realtime"] = "realtime"
+    keywords: str
+    group: str
 
 
 class Open311Request(StrictModel):

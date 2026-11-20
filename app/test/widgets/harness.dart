@@ -9,6 +9,7 @@ import 'package:aldia_app/features/drafts/draft_store.dart';
 import 'package:aldia_app/features/outbox/outbox_service.dart';
 import 'package:aldia_app/services/connectivity_service.dart';
 import 'package:aldia_app/services/location_service.dart';
+import 'package:aldia_app/services/geocoder_service.dart';
 import 'package:aldia_app/services/photo_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -18,6 +19,9 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
 import '../support/fakes.dart';
+
+import 'package:aldia_app/services/identity_services.dart';
+
 import '../support/offline_tiles.dart';
 
 const detailId = '22222222-2222-4222-8222-222222222222';
@@ -37,12 +41,33 @@ ReportRepository repositoryWith({
   List<Map<String, dynamic>> nearby = const [],
   List<Uri>? requests,
   List<http.Request>? posts,
+  AuthService auth = const NoopAuthService(),
+  bool requireCitizenLogin = false,
+  VoidCallback? onPost,
 }) {
   final client = MockClient((request) async {
     requests?.add(request.url);
     final path = request.url.path;
+    if (path.endsWith('/categories')) {
+      return http.Response(jsonEncode(categoryJson()), 200);
+    }
+    if (path.endsWith('/stats')) {
+      final fixed = list
+          .where((report) => report['state'] == 'resuelto')
+          .length;
+      return http.Response(
+        jsonEncode({
+          'total': list.length,
+          'by_category': {},
+          'by_status': {},
+          'by_resolution': {'fixed': fixed},
+        }),
+        200,
+      );
+    }
     if (request.method == 'POST') {
       posts?.add(request);
+      onPost?.call();
       return http.Response(jsonEncode(stateJson('nuevo')), 201);
     }
     if (path.endsWith('/reports/nearby')) {
@@ -65,7 +90,8 @@ ReportRepository repositoryWith({
         : http.Response(jsonEncode(json), 200);
   });
   return ReportRepository(
-    api: ApiClient(client: client, baseUrl: 'http://api.test/api'),
+    api: ApiClient(client: client, baseUrl: 'http://api.test/api', auth: auth),
+    requireCitizenLogin: requireCitizenLogin,
     store: MemoryStore()..saved.addAll(byId.keys),
   );
 }
@@ -124,6 +150,7 @@ Widget harness({
     Provider<ReportRepository>.value(value: repository),
     Provider<LocationService>.value(value: FakeLocation(null)),
     Provider<PhotoService>.value(value: FakePhotos()),
+    Provider<GeocoderService?>.value(value: FakeGeocoder()),
     Provider<DraftStore?>.value(value: drafts),
     InheritedProvider<OutboxService?>.value(value: outbox),
     Provider<ConnectivityService?>.value(value: null),

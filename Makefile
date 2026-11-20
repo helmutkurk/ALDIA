@@ -46,6 +46,17 @@ app-run: ## Run the app on the connected device or emulator
 
 .PHONY: seed seed-reset
 
+.PHONY: dev-all dev-stop dev-status
+
+dev-all: ## Start the seeded local stack without Docker (foreground; Ctrl-C to stop)
+	@bash scripts/dev-local.sh $(if $(filter 1,$(SMOKE)),--smoke,start)
+
+dev-stop: ## Stop the stack owned by scripts/dev-local.sh
+	@bash scripts/dev-local.sh stop
+
+dev-status: ## Check the local supervisor and all three services
+	@bash scripts/dev-local.sh status
+
 # Demo data: synthetic reports around Guatemala City (note prefix "[demo]"). Uses DATABASE_URL and PHOTO_DIR
 # from the environment; defaults to the local SQLite database of backend/api/README.md. Never run in production.
 SEED_ENV = DATABASE_URL=$${DATABASE_URL:-sqlite:///./aldia.db} PHOTO_DIR=$${PHOTO_DIR:-/tmp/aldia-api-photos}

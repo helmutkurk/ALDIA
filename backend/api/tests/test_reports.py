@@ -39,6 +39,8 @@ def fields(**overrides: str) -> dict[str, str]:
 
 
 def fake_verifier(request: httpx.Request) -> httpx.Response:
+    if request.url.path == "/health":
+        return httpx.Response(200, json={"status": "ok", "mode": "stub"})
     assert request.url.path == "/verify"
     assert b'name="photo"' in request.content
     return httpx.Response(
@@ -81,7 +83,7 @@ def submit(client: TestClient, **overrides: str) -> httpx.Response:
 
 
 def test_health_categories_and_cors(client: TestClient) -> None:
-    assert client.get("/api/health").json() == {"status": "ok"}
+    assert client.get("/api/health").json()["status"] == "ok"
     categories = client.get("/api/categories").json()
     assert len(categories) == 6
     assert {c["id"] for c in categories} == {

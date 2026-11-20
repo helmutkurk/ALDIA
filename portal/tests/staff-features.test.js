@@ -165,26 +165,32 @@ describe('memory-only staff mode', () => {
     expect(persist).not.toHaveBeenCalled();
     expect(window.location.hash).toBe(originalHash);
   });
-  it('uses a password panel, rejects short tokens and removes the input value after activation', () => {
+  it('uses an explicitly enabled development panel, rejects short tokens and removes the input value after activation', async () => {
     const staff = createStaffSession();
     cleanups.push(() => staff.destroy());
     const root = mount();
-    const panel = createStaffPanel(root, staff);
+    const panel = createStaffPanel(root, staff, {
+      getAuthConfig: async () => ({ enabled: true, dev_tokens: true }),
+      getMe: async () => {
+        throw { status: 401 };
+      },
+    });
     cleanups.push(() => panel.destroy());
-    const input = root.querySelector('input');
+    await panel.ready;
+    const input = root.querySelector('#staff-token');
     expect(input.type).toBe('password');
     expect(input.autocomplete).toBe('off');
     input.value = 'too-short';
-    submit(root.querySelector('form'));
+    submit(root.querySelector('.dev-token-form'));
     expect(staff.getToken()).toBe('');
     expect(root.textContent).toContain(ui.tokenLength);
     input.value = token;
-    submit(root.querySelector('form'));
+    submit(root.querySelector('.dev-token-form'));
     expect(staff.getToken()).toBe(token);
     expect(input.value).toBe('');
     expect(root.querySelector('form').hidden).toBe(true);
     expect(root.textContent).not.toContain(token);
-    root.querySelector('button[type="button"]').click();
+    root.querySelector('.logout-button').click();
     expect(staff.getToken()).toBe('');
   });
   it('sends staff credentials only as a header and removes it from subsequent public fetches', async () => {
@@ -394,9 +400,13 @@ describe('queue tabs and pagination', () => {
       new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }),
     );
     await flush();
-    expect(new URL(fetchImpl.mock.calls[1][0]).searchParams.get('tab')).toBe(
-      'rejected',
-    );
+    expect(
+      new URL(
+        fetchImpl.mock.calls.filter(([url]) =>
+          new URL(url).pathname.endsWith('/queue'),
+        )[1][0],
+      ).searchParams.get('tab'),
+    ).toBe('rejected');
     expect(tabs[1].getAttribute('aria-selected')).toBe('true');
     expect(document.activeElement).toBe(tabs[1]);
     expect(
@@ -406,7 +416,11 @@ describe('queue tabs and pagination', () => {
     ).toEqual(['nuevo', 'oculto']);
     expect(root.querySelector('[name="internal_note"]').required).toBe(true);
     submit(root.querySelector('.transition-form'));
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(
+      fetchImpl.mock.calls.filter(([url]) =>
+        new URL(url).pathname.endsWith('/queue'),
+      ),
+    ).toHaveLength(2);
     expect(root.textContent).toContain(ui.internalRequired);
   });
   it('paginates in batches of 25 and ignores a late response from the previous tab', async () => {

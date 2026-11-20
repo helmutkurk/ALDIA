@@ -15,6 +15,7 @@ import 'features/onboarding/onboarding_screen.dart';
 import 'features/outbox/outbox_service.dart';
 import 'services/connectivity_service.dart';
 import 'services/location_service.dart';
+import 'services/geocoder_service.dart';
 import 'services/photo_service.dart';
 
 /// Root widget. Dependencies are injected so tests can replace them.
@@ -25,6 +26,7 @@ class AldiaApp extends StatefulWidget {
     required this.repository,
     required this.location,
     required this.photos,
+    this.geocoder,
     this.drafts,
     this.outbox,
     this.connectivity,
@@ -37,6 +39,7 @@ class AldiaApp extends StatefulWidget {
   final ReportRepository repository;
   final LocationService location;
   final PhotoService photos;
+  final GeocoderService? geocoder;
   final DraftStore? drafts;
   final OutboxService? outbox;
   final ConnectivityService? connectivity;
@@ -98,6 +101,7 @@ class _AldiaAppState extends State<AldiaApp> with WidgetsBindingObserver {
       providers: [
         Provider<ReportRepository>.value(value: repository),
         Provider<LocationService>.value(value: location),
+        Provider<GeocoderService?>.value(value: widget.geocoder),
         Provider<PhotoService>.value(value: photos),
         Provider<DraftStore?>.value(value: drafts),
         // InheritedProvider: Provider.value rejects Listenable values.

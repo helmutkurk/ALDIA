@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/config.dart';
+import '../../core/categories.dart';
 import '../../data/report.dart';
 import '../../data/report_repository.dart';
 import '../../services/connectivity_service.dart';
@@ -14,7 +15,7 @@ import '../drafts/draft_record.dart';
 import '../drafts/draft_store.dart';
 import '../outbox/outbox_service.dart';
 
-enum FlowStep { photo, location, category, duplicates, note, review }
+enum FlowStep { location, category, duplicates, photo, note, review }
 
 enum SubmitState {
   editing,
@@ -55,7 +56,7 @@ class ReportFlowController extends ChangeNotifier {
   int _manualPicks = 0;
   int _lookup = 0;
 
-  FlowStep step = FlowStep.photo;
+  FlowStep step = FlowStep.location;
   LatLng position = AppConfig.defaultCenter;
   bool locationConfirmed = false;
   bool locationDenied = false;
@@ -65,6 +66,18 @@ class ReportFlowController extends ChangeNotifier {
   bool locating = false;
   bool lookingForDuplicates = false;
   String? categoryId;
+  String? placeLabel;
+  List<ReportCategory> categories = reportCategories;
+
+  Future<void> loadCategories() async {
+    try {
+      categories = await _repository.categories();
+      _changed(save: false);
+    } catch (_) {
+      // The contract defaults keep an offline draft editable.
+    }
+  }
+
   CapturedPhoto? photo;
   String note = '';
   bool missingPhoto = false;
@@ -102,6 +115,7 @@ class ReportFlowController extends ChangeNotifier {
     position = draft.position;
     locationConfirmed = draft.locationConfirmed;
     categoryId = draft.categoryId;
+    placeLabel = draft.placeLabel;
     note = draft.note;
     failedAttempts = draft.failedAttempts;
     _photoPath = draft.photoPath;
@@ -109,11 +123,20 @@ class ReportFlowController extends ChangeNotifier {
     _storedPhoto = photo;
     step =
         FlowStep.values.where((s) => s.name == draft.step).firstOrNull ??
-        FlowStep.photo;
+        FlowStep.location;
     missingPhoto = photo == null && draft.photoPath != null;
-    if (photo == null) step = FlowStep.photo;
+    if (photo == null &&
+        (draft.photoPath != null || step.index > FlowStep.photo.index)) {
+      step = FlowStep.photo;
+    }
     if (step == FlowStep.duplicates) {
       // Suggestions are transient; refresh after a restart.
+      step = FlowStep.category;
+    }
+    // Also supports drafts created with the previous photo-first wizard.
+    if (!locationConfirmed) {
+      step = FlowStep.location;
+    } else if (categoryId == null && step.index > FlowStep.category.index) {
       step = FlowStep.category;
     }
     _changed();
@@ -137,6 +160,7 @@ class ReportFlowController extends ChangeNotifier {
     id: _id,
     step: step.name,
     position: position,
+    placeLabel: placeLabel,
     createdAt: _createdAt,
     locationConfirmed: locationConfirmed,
     categoryId: categoryId,
@@ -211,6 +235,7 @@ class ReportFlowController extends ChangeNotifier {
     gpsPosition = fix.position;
     if (fix.position != null) {
       position = fix.position!;
+      placeLabel = null;
       locationConfirmed = true;
     }
     _changed();
@@ -222,10 +247,11 @@ class ReportFlowController extends ChangeNotifier {
     }
   }
 
-  void setPosition(LatLng value) {
+  void setPosition(LatLng value, {String? label}) {
     _manualPicks++;
     _lookup++;
     position = value;
+    placeLabel = label;
     locationConfirmed = true;
     locationDenied = false;
     // Keep poor GPS accuracy visible; the pin itself is always manually adjustable.
@@ -280,7 +306,7 @@ class ReportFlowController extends ChangeNotifier {
         return;
       }
       duplicates = List.unmodifiable(nearby);
-      step = nearby.isEmpty ? FlowStep.note : FlowStep.duplicates;
+      step = FlowStep.duplicates;
     } else {
       step = FlowStep.values[step.index + 1];
     }
@@ -293,9 +319,7 @@ class ReportFlowController extends ChangeNotifier {
   void back() {
     if (step.index == 0) return;
     _lookup++;
-    step = step == FlowStep.note && duplicates.isEmpty
-        ? FlowStep.category
-        : FlowStep.values[step.index - 1];
+    step = FlowStep.values[step.index - 1];
     _changed();
   }
 
@@ -350,7 +374,8 @@ class ReportFlowController extends ChangeNotifier {
     if (captured == null ||
         category == null ||
         !locationConfirmed ||
-        submitState == SubmitState.sending) {
+        submitState == SubmitState.sending ||
+        (_repository.requireCitizenLogin && !_repository.auth.isSignedIn)) {
       return;
     }
     submitState = SubmitState.sending;

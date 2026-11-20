@@ -28,6 +28,23 @@ make up                          # db + verifier + api + portal in Docker
 make check                       # lint and tests for all four areas
 ```
 
+### Without Docker
+
+With the pinned toolchains installed (`mise install`), plus Bash, curl and the Linux utilities `setsid`, `flock`
+and `timeout`:
+
+```bash
+make dev-all                     # verifier :8001 + migrated SQLite API :8000 + seeded portal :5173
+make dev-status                  # from another terminal; nonzero if stopped or unhealthy
+make dev-stop                    # or Ctrl-C in the startup terminal
+make dev-all SMOKE=1              # start and run the real curl smoke test, then stay running
+```
+
+Open http://localhost:5173. Dependencies are prepared automatically; data, photos and logs stay in git-ignored
+`.local/`. No environment file is loaded. Random staff/supervisor tokens exist only in memory and child environments;
+the smoke test inherits them without printing or saving them. Repeated starts reuse the running stack; restarts keep
+the SQLite data and seed without duplicates. See [local setup](documentation/dev-setup.md#without-docker) for details.
+
 Testing guide (automated checks, manual QA, demo checklist): [documentation/testing.md](documentation/testing.md).
 Android Studio, Xcode and running the app: [documentation/dev-setup.md](documentation/dev-setup.md).
 API contract (the single source of truth for all three codebases): [documentation/api-contract.md](documentation/api-contract.md).

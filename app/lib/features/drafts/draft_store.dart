@@ -53,7 +53,7 @@ class JsonDraftStore implements DraftStore {
       try {
         records.add(
           DraftRecord.fromJson(
-            jsonDecode(await entity.readAsString()) as Map<String, dynamic>,
+            jsonDecode(await entity.readAsString()) as Map<String, Object?>,
           ),
         );
       } on FormatException {

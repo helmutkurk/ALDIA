@@ -1,6 +1,6 @@
 import { uuidPattern } from './api.js';
 
-/** @typedef {{name: 'map'|'dashboard'|'not-found'}|{name: 'report', id: string}} Route */
+/** @typedef {{name: 'map'|'dashboard'|'triage'|'not-found'}|{name: 'report', id: string}} Route */
 /** @param {string} hash @returns {Route} */
 export function parseRoute(hash) {
   hash = hash.split('?')[0];

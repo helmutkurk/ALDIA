@@ -102,7 +102,7 @@ def validate_transition(
         rule = Rule(_SUPERVISOR)
     if rule is None:
         raise InvalidTransition("Illegal case transition")
-    if role not in rule.roles:
+    if ("supervisor" if role == "admin" else role) not in rule.roles:
         raise RoleForbidden("Insufficient role for case transition")
     has_public = bool(public_note and public_note.strip())
     has_internal = bool(internal_note and internal_note.strip())

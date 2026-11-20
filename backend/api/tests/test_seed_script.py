@@ -11,8 +11,10 @@ from fastapi.testclient import TestClient
 from PIL import Image
 from sqlalchemy import func, select
 
+from app.config import Settings
 from app.db import Base, Database
-from app.models import Report, ReportEvent
+from app.models import Report, ReportEvent, StaffUser
+from app.security import PASSWORD_HASHER
 from app.services.storage import PhotoStorage
 
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "seed_demo.py"
@@ -59,6 +61,14 @@ def test_seed_covers_states_categories_and_is_idempotent(
             "street_light",
         }
         assert all(r.note and r.note.startswith("[demo]") for r in reports)
+        # New deterministic samples have exact repair hours in every category.
+        for category, hours in seed_module.EXTRA_REPAIRS.items():
+            actual = {
+                (r.resolved_at - r.verified_at).total_seconds() / 3600
+                for r in reports
+                if r.category == category and r.state == "resuelto"
+            }
+            assert set(hours) <= actual
         assert all(storage.path(r.id).exists() for r in reports)
         # Spread over roughly 60 days, nothing in the future, GT bounding area.
         ages = [(now - r.created_at.replace(tzinfo=UTC)).days for r in reports]
@@ -105,7 +115,10 @@ def test_seeded_reports_are_served_by_the_api(
     assert listing.status_code == 200
     assert listing.json()["total"] >= 40  # hidden reports are excluded
     states = client.get("/api/stats", params={"include_old": "true"}).json()["by_state"]
-    assert states["resuelto"] == 8
+    assert states["resuelto"] == 26
+    # Each category has three new samples even in the default 30-day window.
+    categories = client.get("/api/stats").json()["por_categoria"]
+    assert all(row["n_resueltos"] >= 3 for row in categories)
     first = listing.json()["items"][0]
     assert client.get(first["photo_url"]).status_code == 200
 
@@ -146,3 +159,33 @@ def test_refuses_production(
     with pytest.raises(seed_module.ProductionRefused):
         seed_module.refuse_production({"APP_ENV": "prod"})
     seed_module.refuse_production({"APP_ENV": "development"})
+
+
+def test_demo_users_are_dev_only_random_and_idempotent(
+    seed_module: ModuleType,
+    env: tuple[Database, PhotoStorage],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    database, _ = env
+    with database.sessions() as session:
+        for environment in ("production", "development", "test"):
+            seed_module.seed_users(session, Settings(env=environment))
+        assert list(session.scalars(select(StaffUser))) == []
+        assert capsys.readouterr().out == ""
+        seed_module.seed_users(session, Settings(env="dev"))
+        lines = capsys.readouterr().out.splitlines()
+        users = list(session.scalars(select(StaffUser).order_by(StaffUser.username)))
+        assert [user.username for user in users] == ["operador", "supervisor"]
+        assert [user.role for user in users] == ["operator", "supervisor"]
+        passwords = [line.split("initial password: ")[1] for line in lines]
+        assert passwords[0] != passwords[1]
+        assert all(len(password) >= 12 for password in passwords)
+        assert all(
+            PASSWORD_HASHER.verify(user.password_hash, password)
+            for user, password in zip(users, passwords, strict=True)
+        )
+        seed_module.seed_users(session, Settings(env="dev"))
+        assert capsys.readouterr().out == ""
+        assert len(list(session.scalars(select(StaffUser)))) == 2
+    with pytest.raises(seed_module.ProductionRefused):
+        seed_module.refuse_production({"ENV": "production"})

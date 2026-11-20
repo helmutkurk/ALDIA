@@ -1,4 +1,4 @@
-import { element } from './panel.js';
+import { element } from './dom.js';
 import { t } from './i18n.js';
 
 const GEOCODER_URL =
@@ -27,7 +27,7 @@ export function createPlaceSearch(
     );
   const form = element('form', 'place-search');
   form.setAttribute('role', 'search');
-  const label = element('label', '', t.placeSearch);
+  const label = element('label', 'sr-only', t.placeSearch);
   label.htmlFor = 'place-query';
   const input = document.createElement('input');
   input.id = 'place-query';
@@ -37,10 +37,16 @@ export function createPlaceSearch(
   input.maxLength = 200;
   input.placeholder = t.placePlaceholder;
   input.setAttribute('aria-describedby', 'place-help place-status');
-  const button = element('button', 'search-button', t.search);
+  const button = element('button', 'search-button', '⌕');
+  button.setAttribute('aria-label', t.search);
+  button.title = t.search;
   button.type = 'submit';
   const controls = element('div', 'search-controls');
   controls.append(input, button);
+  const hint = element('details', 'search-hint');
+  const hintToggle = element('summary', '', '?');
+  hintToggle.setAttribute('aria-label', 'Ayuda de búsqueda');
+  hintToggle.title = t.searchHelp;
   const help = element('p', 'muted', t.searchHelp);
   help.id = 'place-help';
   const status = element('p', 'search-status');
@@ -50,7 +56,11 @@ export function createPlaceSearch(
   results.setAttribute('aria-label', t.placeResults);
   const attribution = element('a', 'search-attribution', t.searchAttribution);
   attribution.href = 'https://www.openstreetmap.org/copyright';
-  form.append(label, controls, help, status, results, attribution);
+  const hintBody = element('div', 'search-hint-body');
+  hintBody.append(help, attribution);
+  hint.append(hintToggle, hintBody);
+  controls.append(hint);
+  form.append(label, controls, status, results);
   root.replaceChildren(form);
   let timer;
   let deadline;

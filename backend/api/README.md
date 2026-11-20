@@ -15,8 +15,11 @@ uv sync --frozen
 export DATABASE_URL=sqlite:///./aldia.db
 export PHOTO_DIR=/tmp/aldia-api-photos
 export VERIFIER_URL=http://127.0.0.1:8001
+export ENV=dev       # local HTTP cookies only; production requires HTTPS
+export CITIZEN_SMS_PROVIDER=console  # synthetic citizen login, prints DEV code locally
 uv run alembic upgrade head
-uv run uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000 --no-access-log
+uv run python -m app.cli create-admin --username admin  # hidden password prompt, min 12 characters
+uv run uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000 --no-access-log --no-server-header --no-proxy-headers
 ```
 
 Start the verifier separately (see its README). `make install`, `make migrate`
@@ -31,12 +34,28 @@ Do not edit the lockfile manually. No environment file is loaded automatically.
 | `PHOTO_DIR` | `/data/photos` | Private directory writable by the service user; never mount it as a static web directory. |
 | `VERIFIER_URL` | `http://verifier:8001` | Internal verifier base URL. |
 | `MAX_UPLOAD_BYTES` | `8388608` | Maximum original photo bytes (8 MiB). |
-| `CORS_ORIGINS` | `http://localhost:5173` | Comma-separated allowed origins. An empty value permits none. |
-| `STAFF_TOKEN` | unset | Shared operator credential, at least 32 characters; inject from the secret manager. Unset disables staff endpoints with HTTP 503. |
-| `SUPERVISOR_TOKEN` | unset | Optional separate supervisor credential, at least 32 characters, for overrides, closed-case reopening and moderation. |
+| `MAX_REQUEST_BYTES` | `65536` | Maximum other POST/PUT/PATCH body bytes, including JSON staff writes. |
+| `PUBLIC_POST_RATE_LIMIT` | `60` | Combined public report/login POST budget per direct peer IP per process. |
+| `PUBLIC_POST_WINDOW_SECONDS` | `60` | Sliding-window duration; 429 returns `Retry-After`. |
+| `VERIFIER_TIMEOUT_SECONDS` | `10` | Per-network-operation verification timeout; connect at most 3 seconds. |
+| `CORS_ORIGINS` | `http://localhost:5173` | Comma-separated exact HTTP(S) origins, no wildcard/path/trailing slash. Empty permits none. |
+| `ENV` | `production` | Only exact `dev` disables Secure cookies and permits demo accounts. |
+| `PHONE_HASH_KEY` | unset | External HMAC secret, at least 32 characters; insecure fallback only with exact `ENV=dev`. |
+| `CITIZEN_SMS_PROVIDER` | `null` | Refuses delivery; `console` only with `ENV=dev`, logs a DEV code without the phone, sends nothing. |
+| `REQUIRE_CITIZEN_LOGIN` | `false` | Require citizen bearer + installation id for report creation; production requires a configured HMAC secret. |
+| `AUTH_DEV_TOKENS` | `false` | Legacy header fallback requires both this flag and `ENV=dev`; every attempt logs a credential-free warning. |
+| `STAFF_TOKEN` | unset | Legacy dev-only operator credential, at least 32 characters. Never needed for account login. |
+| `SUPERVISOR_TOKEN` | unset | Legacy dev-only supervisor credential, at least 32 characters. |
 
 Override the contract's demonstration database credentials for deployment using
 an external secret manager. Keep the verifier and database on a private network.
+If uv's default cache is read-only, set `UV_CACHE_DIR=/tmp/aldia-uv-cache`.
+
+See [operations and data handling](../../documentation/operations.md) for deployment,
+rate-limit/proxy boundaries, consistent backup and isolated restore drills, and
+proposed retention. The [integration call sheet](../../documentation/integration.md)
+covers Open311, CSV, session-authenticated REST and polling. `/docs` and
+`/openapi.json` include Spanish descriptions, examples and uniform error schemas.
 
 ## Behavior and storage
 
@@ -55,8 +74,10 @@ endpoint. If the database commit fails, the new photo is removed. File storage
 and SQL are separate resources: a process crash between writing the photo and
 committing can leave an orphan file; operators should reconcile UUID files
 against reports during maintenance. Back up the database and photo volume together.
+The service enforces photo-directory mode `0700` on write/health checks, with
+new JPEGs mode `0600`; provision an owned directory for the service account.
 
-The verifier client has a 3-second connect timeout and a 10-second network
+The verifier client defaults to a 3-second connect timeout and a 10-second network
 operation timeout, no redirects, and no retries. Unreachable, timed-out, non-2xx,
 or malformed verifier responses leave the report `pending` with
 `verification: null`. This starter has no background retry worker.
@@ -79,6 +100,14 @@ and generic Spanish messages; raw exceptions and submitted values are not sent
 to clients. Application logs contain no coordinates or request payloads. Supplied
 server commands disable access logs because query strings can include a bbox;
 configure reverse proxies to avoid logging coordinates as well.
+Application records are JSON lines; request records include only method, route
+template, status and elapsed milliseconds, without IP, raw URL, body or identity.
+All responses carry `nosniff`, `no-referrer` and restrictive API Permissions-Policy
+headers; supplied server commands disable the Uvicorn server banner.
+Public report/login POSTs share the configurable in-memory per-IP budget above;
+invalid submissions count too. It resets on restart and is not shared across
+workers. Forwarded headers are disabled by supplied launch commands; configure a
+trusted ingress and shared edge limiter before scaling (see the runbook).
 
 ## v0.2 workflow and reads
 
@@ -90,13 +119,32 @@ answer even for rejections. A verifier outage leaves one event and no answer dat
 `acknowledged`, `fixed`, or the new `closed`). The pure policy table in
 `app/state_machine.py` governs every transition, including reason requirements.
 
-Send `X-Staff-Token` on staff requests. Comparisons use `hmac.compare_digest`;
-credentials are excluded from settings representations and validation messages.
-Missing/wrong credentials return 401 when staff access is configured. Operators
-can transition and assign; supervisors can also override verifier rejections,
-reopen resolved/closed cases and hide/restore cases. Hiding preserves the previous
-state and its resolution/closure clock for restoration. Both credentials are
-allowed by CORS and must be supplied by the integrator; compose is unchanged.
+Staff accounts replace the v0.2 shared token; see the [v0.4 decision](../../documentation/decisions/staff-auth.md).
+Log in through the portal's **Modo personal** with username/password. The API returns
+the real username and role, sets an HttpOnly session cookie and a readable CSRF cookie,
+and stores a revocable 12-hour session in SQL. Staff writes send `X-CSRF-Token` matching
+the cookie and session. No credentials go in browser storage. Missing/expired sessions
+return 401, insufficient role or CSRF 403, and locked accounts 423.
+Operators transition and assign; supervisors also override, reopen and moderate;
+admin inherits those rights and alone manages `/api/admin/users` (GET/POST/PATCH).
+User changes revoke all target sessions; password resets also clear lockout.
+Report events retain `actor_role` and add `actor`; auth/user changes have a separate audit table.
+Hiding preserves the previous state and resolution/closure clock for restoration.
+
+Passwords use pinned argon2-cffi with explicit Argon2id v19 parameters (64 MiB, 3 passes,
+4 lanes, 16-byte salt, 32-byte hash). Five failures lock the SQL account for 15 minutes;
+unknown/disabled users receive generic errors and still perform password verification.
+An in-memory limiter allows 10 login requests per normalized username + direct peer IP
+per 15 minutes, retaining at most 10,000 keys. Limits reset on restart, are not shared
+across workers, and old keys may be evicted under churn. Use a shared edge limiter before
+multi-worker deployment; forwarded IP headers are not trusted by application code.
+SQLite login serialization is per process; production PostgreSQL uses row locks.
+
+Serve the portal and API under the same origin through `/api` so JavaScript can read
+the CSRF cookie; use HTTPS outside `ENV=dev`. CORS allows explicit origins, credentials,
+PATCH and `X-CSRF-Token`. Login validates supplied Origin. For a non-interactive admin
+bootstrap, pipe the password from a secret manager to `uv run python -m app.cli create-admin`.
+Never pass it in argv. The CLI rejects duplicates and passwords shorter than 12 characters.
 
 - `POST /api/reports/{id}/transition`: `to`, optional `public_note` (280),
   `internal_note` (500), and `duplicate_of` for duplicates. Creates an immutable
@@ -135,7 +183,7 @@ Categories also expose their SLA hours and municipal group.
 Statistics retain all v0.1 counts with zero keys and add the binding dashboard
 formulas. `recibidos` requires an answer date. Resolved and staff-closed totals
 use their event dates in the selected period, including cases created earlier;
-other metrics use the creation cohort. `tasa_resolucion` is a percentage of
+other metrics use the creation cohort. `tasa_resolucion` is a ratio from 0 to 1 of
 currently resolved cases created in the cohort divided by received cases minus
 duplicates and out-of-jurisdiction cases; `tasa_resolucion_n` is that denominator.
 Resolution durations and SLA use cases resolved in the period. SLA is a fraction
@@ -155,6 +203,8 @@ Open311 remains read-only, verified-only and capped at 1000, with its original
 service/date/status filters and no implicit 30-day window. Groups `resolved` and
 `closed` map to `closed`, others to `open`; `updated_datetime` uses the state
 change date. Photo URLs and requested timestamps retain their v0.1 meaning.
+`GET /api/open311/v2/services.json` lists all six stable category service codes,
+Spanish names/descriptions, `metadata: false`, `type: realtime` and group labels.
 
 ## App retries
 
@@ -169,13 +219,24 @@ If moderation has hidden it, replay returns 404 and still creates nothing.
 
 ## Demo data
 
-`scripts/seed_demo.py` creates 44 synthetic reports around Guatemala City (all categories and all 11 states, events
-spread over 60 days, a few duplicates, generated 800x600 JPEGs). It writes through the SQLAlchemy models and
+`scripts/seed_demo.py` creates 62 synthetic reports (60 public) in a compact Zona 4
+neighborhood in Guatemala City: all categories and 11 states over 60 days, a growing
+weekly cumulative resolved share, duplicate links and explained verifier rejections.
+Three stable fixed cases show paired synthetic ANTES/DESPUES scenes in the existing
+800x600 JPEG photo; a separate completion-photo upload is not implemented.
+It writes through the SQLAlchemy models and
 `PhotoStorage`, marks every row with a note starting `[demo]`, and uses deterministic ids, so repeated runs create
-nothing new. It refuses to run when `ALDIA_ENV`, `APP_ENV` or `ENVIRONMENT` is `production`.
+nothing new. It refuses production flags including `ENV=production`.
+Use `--reset` to replace an older seed: idempotence preserves existing row content.
+See the [five-minute demo script](../../documentation/demo-script.md) for exact
+UI actions, stable report links, weekly figures and limits of the synthetic evidence.
+Only `ENV=dev` creates `operador`/`supervisor` accounts with random initial passwords
+printed once when each account is created. No fixed credentials exist. Reruns preserve
+passwords; `--reset`/`--purge` affect reports only. Capture initial output privately and
+avoid seed log capture in shared environments. See [demo credentials](../../documentation/demo-credentials.md).
 
 ```sh
-export DATABASE_URL=sqlite:///./aldia.db PHOTO_DIR=/tmp/aldia-api-photos   # same values as the running API
+export ENV=dev DATABASE_URL=sqlite:///./aldia.db PHOTO_DIR=/tmp/aldia-api-photos
 uv run alembic upgrade head
 uv run python scripts/seed_demo.py            # create what is missing
 uv run python scripts/seed_demo.py --reset    # delete "[demo]" rows, then create again
@@ -209,6 +270,9 @@ uses `created_at` as an approximation and records this in a system event's
 internal note. Downgrade removes v0.2 history and maps `closed` resolution to
 `open` to restore the v0.1 constraint. Migration round trips and schema drift are
 tested on SQLite; live Postgres migration execution is a deployment check.
+Migration `0004` adds staff users/sessions/auth audit and report event actors. Existing
+non-system events become `legacy:<role>`; no historical identity is invented. Downgrade
+removes accounts, sessions, auth audit and actor attribution; back up before using it.
 
 ## Verify
 
@@ -243,6 +307,36 @@ docker run --rm --network aldia -p 8000:8000 --env DATABASE_URL --env VERIFIER_U
 ```
 
 The multi-stage image uses a frozen production-only uv environment, runs as
-UID/GID 10001, and checks `/api/health`. Health is a liveness check, not a promise
-of database or verifier availability. The shared staff-token scheme is a v0.2 stopgap; use only synthetic or
-explicitly consented photos for this PoC.
+UID/GID 10001, and checks `/api/health`. Health now checks SQL connectivity, verifier `/health` and writable
+photo storage. HTTP 200 returns `{"status":"ok","dependencies":{"database":"ok","verifier":"ok","photos":"ok"}}`;
+any failed dependency returns 503 with `status: degraded` and that dependency
+`unavailable`. Use it for readiness/alerting, keeping process liveness separate.
+Use HTTPS and real staff accounts for deployments; keep the legacy fallback
+disabled. The verifier is heuristic with category classification still a stub;
+demo photos and recorded demo verdicts are synthetic.
+
+
+## Citizen login quick start (v0.5, no real delivery)
+
+Apply `uv run alembic upgrade head` before restarting the API (migration `0005`).
+Start with `ENV=dev CITIZEN_SMS_PROVIDER=console` as above. In the app submit step
+choose to verify a synthetic Guatemala number, then read the six-digit code privately
+from the API log's **DEV ONLY — NO SMS SENT** banner. It is valid ten minutes,
+with five failed attempts and a 60-second resend cooldown. Never paste the code,
+number or token into an issue, shared log or screenshot. No SMS is sent.
+
+The app defaults to optional login and **Continuar sin avisos**. For mandatory login,
+set API `REQUIRE_CITIZEN_LOGIN=true` and run the app with the matching
+`--dart-define=REQUIRE_CITIZEN_LOGIN=true`. Profile displays a masked verified number
+and logout. Authenticated report creation uses `Authorization: Bearer …` and
+`X-Device-ID`; **Mis reportes** combines local and server-owned reports. Real-time
+push remains unimplemented. Anonymous local reports are never automatically claimed.
+
+Production defaults to the null provider. Without a configured key, valid requests
+still return 202 and verification returns 503. With a key but no delivery provider,
+requests return 202 and no usable challenge is created. No production phone login
+is available until the team selects and implements a real provider.
+See [contract v0.5](../../documentation/api-contract.md#v05-additions-citizen-phone-verification-no-delivery-service)
+and [privacy/operations decision](../../documentation/decisions/citizen-login.md).
+Migration downgrade to `0004` preserves report content but removes citizen identities,
+challenges, sessions, ownership and aliases. Back up before downgrading.
