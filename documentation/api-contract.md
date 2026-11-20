@@ -222,7 +222,7 @@ second token `SUPERVISOR_TOKEN` (optional) gives role `supervisor` for overrides
 
 - `GET /api/reports` new filters: `state`, `state_group`, `assignee`, `created_from`, `created_to` (ISO dates),
   `sort` (`newest` default, `oldest`, `updated`, `age_in_state`), `limit` (max 100 when paginating), `offset`. Response adds
-  `"limit"` and `"offset"` echo fields. Default window without `created_from`: last 30 days unless `include_old=true`.
+  `"limit"` and `"offset"` echo fields. Default window without `created_from`: last 90 days unless `include_old=true`.
 - `GET /api/stats` adds (same filters, municipality day boundaries `America/Guatemala`):
   `recibidos`, `rechazados_verificador`, `abiertos`, `resueltos`, `cerrados_sin_solucion`, `tasa_resolucion` (a ratio from 0 to 1, not a percentage: resueltos created in
   the period / (recibidos - duplicados - fuera_de_competencia), null if the denominator is 0), `resolucion_horas`
@@ -259,7 +259,7 @@ Calculations live on the API, never on a paginated portal list.
 
 The new fields use the same public visibility and filters as `GET /api/reports`: `bbox`, `category`, `status`,
 `resolution`, `state`, `state_group`, `assignee`, `created_from`, `created_to`, `include_old`. The creation-date
-window uses `America/Guatemala` day boundaries and defaults to the last 30 days. Pagination and `sort` do not
+window uses `America/Guatemala` day boundaries and defaults to the last 90 days. Pagination and `sort` do not
 affect statistics. Hidden reports are always excluded.
 
 Unlike the existing v0.2 aggregate resolution metrics (which select resolutions in the period), every new

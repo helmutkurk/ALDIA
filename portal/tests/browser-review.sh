@@ -21,7 +21,7 @@ Checklist:
 - Each row: visible 72x72 lazy thumbnail or icon + sin foto, two-line note and neutral category SVG.
 - Relative dates have exact Guatemala dates on hover; selected rows retain the accent left bar.
 - All filters, active chips and count; URL hash reflects edits and browser history.
-- Default 30 days, include-old toggle, server pagination and sort ordering.
+- Default 90 days, include-old toggle, server pagination and sort ordering.
 - Move the map after changing pages: the list returns to page one.
 - Cluster count click zooms; maximum zoom shows identified members/limitation.
 - Pin/list selection opens a side panel without navigation; state labels/letters.

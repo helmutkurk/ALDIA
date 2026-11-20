@@ -296,7 +296,7 @@ export const ui = Object.freeze({
   showMap: 'Ver mapa',
   showList: 'Ver lista',
   thumbnail: 'Miniatura del reporte',
-  defaultWindow: 'Por defecto: últimos 30 días.',
+  defaultWindow: 'Por defecto: últimos 90 días.',
   removeFilter: (label) => `Quitar filtro: ${label}`,
   previous: 'Anterior',
   next: 'Siguiente',

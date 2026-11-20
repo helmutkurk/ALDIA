@@ -23,7 +23,7 @@ def period_bounds(
         if filters.created_from
         else None
         if filters.include_old
-        else now - timedelta(days=30)
+        else now - timedelta(days=90)
     )
     end = (
         datetime.combine(

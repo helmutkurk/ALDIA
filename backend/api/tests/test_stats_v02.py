@@ -260,9 +260,9 @@ def test_default_window_and_stable_sorting(client: TestClient) -> None:
     now = datetime.now(UTC)
     old = add_report(
         client,
-        created=now - timedelta(days=31),
+        created=now - timedelta(days=100),
         state="nuevo",
-        verified=now - timedelta(days=31),
+        verified=now - timedelta(days=100),
     )
     first = add_report(
         client, created=now - timedelta(days=2), state="nuevo", verified=now

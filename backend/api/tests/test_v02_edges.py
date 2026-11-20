@@ -286,7 +286,7 @@ def test_queue_rejected_assignment_and_filtering(client: TestClient) -> None:
 
 def test_window_and_state_filters_match_stats_export(client: TestClient) -> None:
     recent = seed(client, age_days=2, assignee="Cuadrilla", state="programado")
-    seed(client, age_days=31, assignee="Cuadrilla", state="programado")
+    seed(client, age_days=100, assignee="Cuadrilla", state="programado")
     seed(client, age_days=2)
     filters = "state_group=in_work&assignee=Cuadrilla"
     result = client.get(f"/api/reports?{filters}").json()

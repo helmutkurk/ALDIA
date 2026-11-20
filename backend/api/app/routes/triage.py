@@ -1,7 +1,7 @@
 """Lightweight map and triage reads, declared before UUID routes."""
 
 import math
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from uuid import UUID
 
@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.dependencies import OptionalStaffDep, SessionDep, StaffDep
 from app.models import Report
-from app.report_queries import find_report, page, report_query
+from app.report_queries import MUNICIPAL_TZ, find_report, page, report_query
 from app.schemas import (
     Cluster,
     ClusterFilters,
@@ -41,7 +41,11 @@ def nearby_reports(
 ) -> NearbyOut:
     angular = radius / EARTH_RADIUS_METRES
     delta_lat = math.degrees(angular)
-    query = report_query(ReadFilters(category=category, status="verified")).where(
+    # Duplicate suggestions look back 30 days (contract), not the 90-day list default.
+    since = (datetime.now(UTC) - timedelta(days=30)).astimezone(MUNICIPAL_TZ).date()
+    query = report_query(
+        ReadFilters(category=category, status="verified", created_from=since)
+    ).where(
         Report.state.in_(OPEN_STATES),
         Report.latitude.between(
             max(-90, latitude - delta_lat), min(90, latitude + delta_lat)
