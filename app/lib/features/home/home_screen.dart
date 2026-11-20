@@ -38,6 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // Tabs are built on first visit and then kept (map camera, scroll position).
   final _visited = <HomeTab>{HomeTab.home};
   int _mineToken = 0;
+  int _draftLoadToken = 0;
   String? _state;
   String? _category;
   DraftRecord? _draft;
@@ -82,16 +83,44 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadDraft() async {
-    final drafts = await context.read<DraftStore?>()?.loadAll();
-    if (mounted) setState(() => _draft = drafts?.firstOrNull);
+    final token = ++_draftLoadToken;
+    try {
+      final drafts = await context.read<DraftStore?>()?.loadAll();
+      if (mounted && token == _draftLoadToken) {
+        setState(() => _draft = drafts?.firstOrNull);
+      }
+    } catch (_) {
+      if (mounted && token == _draftLoadToken) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text(S.storageError)));
+      }
+    }
   }
 
-  void _reload() {
+  Future<void> _reload() async {
+    late final Future<List<Report>> list;
+    try {
+      list = _loadList();
+    } catch (error, stackTrace) {
+      list = Future<List<Report>>.error(error, stackTrace)..ignore();
+    }
     setState(() {
-      _list = _loadList();
+      _list = list;
       _resolved = _loadResolved();
     });
     unawaited(_observeMine());
+    late final Future<void> mapRefresh;
+    try {
+      mapRefresh = _mapKey.currentState?.refresh() ?? Future<void>.value();
+    } catch (_) {
+      mapRefresh = Future<void>.value();
+    }
+    final listCompletion = list.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    final mapCompletion = mapRefresh.catchError((Object _) {});
+    await Future.wait<void>([listCompletion, mapCompletion]);
   }
 
   void _open(Report report) =>
@@ -114,15 +143,19 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _editFilters() async {
+    FocusManager.instance.primaryFocus?.unfocus();
     final result = await showModalBottomSheet<(String?, String?)>(
       context: context,
       isScrollControlled: true,
       sheetAnimationStyle: MediaQuery.disableAnimationsOf(context)
           ? AnimationStyle.noAnimation
-          : null,
+          : const AnimationStyle(
+              duration: Duration(milliseconds: 240),
+              reverseDuration: Duration(milliseconds: 180),
+            ),
       builder: (_) => FiltersSheet(state: _state, category: _category),
     );
-    if (result == null) return;
+    if (!mounted || result == null) return;
     setState(() {
       _state = result.$1;
       _category = result.$2;
@@ -143,8 +176,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 reports: _list,
                 filtered: _filtered,
                 query: _query,
+                isSearching: _searching,
                 onRetry: _reload,
                 onClear: _clearFilters,
+                onMapSelected: () {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  setState(() {
+                    _searching = false;
+                    _query = '';
+                  });
+                },
               )
             : Landing(
                 resolved: _resolved,
@@ -168,6 +209,16 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final filterCount = (_state != null ? 1 : 0) + (_category != null ? 1 : 0);
     final exploring = _tab == HomeTab.home && _exploring;
+    final barIconStyle =
+        IconButton.styleFrom(
+          minimumSize: const Size(AldiaSpace.target, AldiaSpace.target),
+        ).copyWith(
+          side: WidgetStateProperty.resolveWith((states) {
+            return states.contains(WidgetState.focused)
+                ? const BorderSide(color: AldiaColors.onBar, width: 2)
+                : BorderSide.none;
+          }),
+        );
     return Scaffold(
       appBar: AppBar(
         backgroundColor: AldiaColors.barOf(context),
@@ -177,29 +228,39 @@ class _HomeScreenState extends State<HomeScreen> {
         shape: null,
         leading: exploring
             ? IconButton(
+                style: barIconStyle,
                 tooltip: 'Volver a Inicio',
-                onPressed: () => setState(() {
-                  _exploring = false;
-                  _searching = false;
-                  _query = '';
-                }),
+                onPressed: () {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  setState(() {
+                    _exploring = false;
+                    _searching = false;
+                    _query = '';
+                  });
+                },
                 icon: const Icon(Icons.arrow_back),
               )
             : null,
         title: exploring && _searching
             ? TextField(
                 autofocus: true,
-                style: const TextStyle(color: AldiaColors.onBar),
+                style: Theme.of(context).textTheme.bodyLarge
+                    ?.copyWith(color: AldiaColors.onBar),
                 cursorColor: AldiaColors.onBar,
                 textInputAction: TextInputAction.search,
                 decoration: const InputDecoration(
-                  hintText: 'Buscar reportes',
+                  hintText: 'Buscar en la lista',
+                  labelText: 'Buscar en la lista',
                   hintStyle: TextStyle(color: Color(0xFFD9DEE3)),
+                  labelStyle: TextStyle(color: AldiaColors.onBar),
+                  floatingLabelStyle: TextStyle(color: AldiaColors.onBar),
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
                   focusedBorder: InputBorder.none,
                   filled: false,
                 ),
+                onTapOutside: (_) =>
+                    FocusManager.instance.primaryFocus?.unfocus(),
                 onChanged: (value) => setState(() => _query = value.trim()),
               )
             : Text(
@@ -211,24 +272,29 @@ class _HomeScreenState extends State<HomeScreen> {
                         HomeTab.profile => 'Perfil',
                         _ => S.appName,
                       },
-                style: const TextStyle(color: AldiaColors.onBar),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleLarge
+                    ?.copyWith(color: AldiaColors.onBar),
               ),
         actions: [
           if (exploring) ...[
             IconButton(
-              tooltip: _searching ? 'Cerrar búsqueda' : 'Buscar reportes',
-              onPressed: () => setState(() {
-                _searching = !_searching;
-                if (!_searching) _query = '';
-              }),
+              style: barIconStyle,
+              tooltip: _searching ? 'Cerrar búsqueda' : 'Buscar en la lista',
+              onPressed: () {
+                if (_searching) {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                }
+                setState(() {
+                  _searching = !_searching;
+                  if (!_searching) _query = '';
+                });
+              },
               icon: Icon(_searching ? Icons.close : Icons.search),
             ),
             IconButton(
-              tooltip: S.useMyLocation,
-              onPressed: () => _mapKey.currentState?.locate(),
-              icon: const Icon(Icons.my_location),
-            ),
-            IconButton(
+              style: barIconStyle,
               tooltip: S.filtersLabel,
               onPressed: _editFilters,
               icon: Badge(
@@ -238,6 +304,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             PopupMenuButton<String>(
+              style: barIconStyle,
               tooltip: 'Más opciones',
               iconColor: AldiaColors.onBar,
               onSelected: (value) =>

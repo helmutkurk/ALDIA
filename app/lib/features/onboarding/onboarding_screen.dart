@@ -3,7 +3,11 @@ import 'package:flutter/material.dart';
 import '../../core/strings.dart';
 import '../../core/theme.dart';
 
-const _icons = [Icons.location_city, Icons.photo_camera, Icons.lock_outline];
+const _icons = [
+  Icons.location_city_outlined,
+  Icons.camera_alt_outlined,
+  Icons.lock_outlined,
+];
 
 /// First-run introduction: what Aldia is, the live-photo rule, privacy.
 /// Three slides, always skippable, no form and no permission request.
@@ -41,8 +45,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     } else {
       _pages.animateToPage(
         target,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
+        duration: const Duration(milliseconds: 220),
+        curve: const Cubic(0.23, 1, 0.32, 1),
       );
     }
   }
@@ -75,18 +79,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Container(
-                            padding: const EdgeInsets.all(AldiaSpace.xl),
+                            width: 72,
+                            height: 72,
                             decoration: BoxDecoration(
-                              color: theme.colorScheme.surface,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: theme.colorScheme.outlineVariant,
-                              ),
+                              color: theme.colorScheme.primaryContainer,
+                              borderRadius: BorderRadius.circular(16),
                             ),
-                            child: Icon(
-                              _icons[i],
-                              size: 72,
-                              color: theme.colorScheme.primary,
+                            alignment: Alignment.center,
+                            child: ExcludeSemantics(
+                              child: Icon(
+                                _icons[i],
+                                size: 32,
+                                color: theme.colorScheme.onPrimaryContainer,
+                              ),
                             ),
                           ),
                           const SizedBox(height: AldiaSpace.xl),
@@ -125,7 +130,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           decoration: BoxDecoration(
                             color: i == _page
                                 ? theme.colorScheme.primary
-                                : theme.colorScheme.outlineVariant,
+                                : theme.colorScheme.outline,
                             borderRadius: BorderRadius.circular(4),
                           ),
                         ),
@@ -134,9 +139,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
                 Padding(
                   padding: const EdgeInsets.all(AldiaSpace.l),
-                  child: FilledButton(
-                    onPressed: _next,
-                    child: Text(_last ? S.onboardingStart : S.next),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: _next,
+                      child: Text(_last ? S.onboardingStart : S.next),
+                    ),
                   ),
                 ),
               ],

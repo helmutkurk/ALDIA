@@ -18,9 +18,9 @@ class HomeNavigationBar extends StatelessWidget {
     height: MediaQuery.textScalerOf(context).scale(14) > 20 ? 104 : 80,
     animationDuration: MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
-        : const Duration(milliseconds: 300),
+        : const Duration(milliseconds: 200),
     onDestinationSelected: (i) => onSelected(HomeTab.values[i]),
-    destinations: const [
+    destinations: [
       NavigationDestination(
         icon: Icon(Icons.home_outlined),
         selectedIcon: Icon(Icons.home),
@@ -32,7 +32,11 @@ class HomeNavigationBar extends StatelessWidget {
         label: 'Avisos',
       ),
       NavigationDestination(
-        icon: Icon(Icons.add_circle_outline, size: 36),
+        icon: Icon(
+          Icons.add_circle_outline,
+          size: 32,
+          color: Theme.of(context).colorScheme.primary,
+        ),
         label: S.newReport,
       ),
       NavigationDestination(

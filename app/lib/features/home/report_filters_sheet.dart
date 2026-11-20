@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/categories.dart';
 import '../../core/citizen_states.dart';
 import '../../core/strings.dart';
+import '../../core/theme.dart';
 
 /// States a citizen can filter by (`oculto` is never public).
 final List<String> _filterStates = [
@@ -28,10 +29,10 @@ class _FiltersSheetState extends State<FiltersSheet> {
     return SafeArea(
       child: SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(
-          16,
-          16,
-          16,
-          16 + MediaQuery.viewInsetsOf(context).bottom,
+          AldiaSpace.xl,
+          AldiaSpace.xl,
+          AldiaSpace.xl,
+          AldiaSpace.xl + MediaQuery.viewInsetsOf(context).bottom,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -44,7 +45,7 @@ class _FiltersSheetState extends State<FiltersSheet> {
                 style: Theme.of(context).textTheme.titleLarge,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AldiaSpace.xl),
             DropdownButtonFormField<String?>(
               initialValue: _state,
               isExpanded: true,
@@ -59,7 +60,7 @@ class _FiltersSheetState extends State<FiltersSheet> {
               ],
               onChanged: (value) => setState(() => _state = value),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AldiaSpace.l),
             DropdownButtonFormField<String?>(
               initialValue: _category,
               isExpanded: true,
@@ -74,11 +75,12 @@ class _FiltersSheetState extends State<FiltersSheet> {
               ],
               onChanged: (value) => setState(() => _category = value),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AldiaSpace.xl),
             FilledButton(
               onPressed: () => Navigator.of(context).pop((_state, _category)),
               child: const Text(S.apply),
             ),
+            const SizedBox(height: AldiaSpace.s),
             TextButton(
               onPressed: () => Navigator.of(context).pop((null, null)),
               child: const Text(S.clearFilters),

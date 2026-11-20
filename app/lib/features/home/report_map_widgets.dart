@@ -27,11 +27,20 @@ class ReportMapSummary extends StatelessWidget {
             ReportTile(report: report, onTap: onOpen),
             if (report.publicNote?.isNotEmpty == true)
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(report.publicNote!),
+                padding: const EdgeInsets.only(top: AldiaSpace.m),
+                child: Text(
+                  report.publicNote!,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
               ),
-            const SizedBox(height: 8),
-            FilledButton(onPressed: onOpen, child: const Text(S.viewDetail)),
+            const SizedBox(height: AldiaSpace.l),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: onOpen,
+                child: const Text(S.viewDetail),
+              ),
+            ),
           ],
         ),
       ),
@@ -54,37 +63,40 @@ class StatePin extends StatelessWidget {
       label: '$category. ${state.label}',
       excludeSemantics: true,
       onTap: onTap,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            StatusMapPin(
-              state: report.citizenState,
-              letter: state.label.characters.first.toUpperCase(),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(
-                  color: Theme.of(context).colorScheme.outline,
+      child: SizedBox.expand(
+        child: TextButton(
+          style: _markerButtonStyle(context),
+          onPressed: onTap,
+          child: ExcludeSemantics(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                StatusMapPin(
+                  state: report.citizenState,
+                  letter: state.label.characters.first.toUpperCase(),
                 ),
-              ),
-              child: Text(
-                state.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textScaler: TextScaler.noScaling,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Theme.of(context).colorScheme.onSurface,
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                  ),
+                  child: Text(
+                    state.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textScaler: TextScaler.noScaling,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -106,15 +118,45 @@ class ClusterPin extends StatelessWidget {
           : '${S.clusterCount(cluster.count)}. ${S.zoomToCluster}',
       excludeSemantics: true,
       onTap: onTap,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: NeutralMapPin(
-          child: single
-              ? const Icon(Icons.location_on)
-              : Text('${cluster.count}', textScaler: TextScaler.noScaling),
+      child: SizedBox.expand(
+        child: TextButton(
+          style: _markerButtonStyle(context),
+          onPressed: onTap,
+          child: ExcludeSemantics(
+            child: NeutralMapPin(
+              child: single
+                  ? const Icon(Icons.location_on)
+                  : Text(
+                      '${cluster.count}',
+                      textScaler: TextScaler.noScaling,
+                      style: const TextStyle(
+                        fontFeatures: [FontFeature.tabularFigures()],
+                      ),
+                    ),
+            ),
+          ),
         ),
       ),
     );
   }
+}
+
+ButtonStyle _markerButtonStyle(BuildContext context) {
+  final scheme = Theme.of(context).colorScheme;
+  return TextButton.styleFrom(
+    minimumSize: const Size(AldiaSpace.target, AldiaSpace.target),
+    padding: EdgeInsets.zero,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  ).copyWith(
+    backgroundColor: WidgetStateProperty.resolveWith(
+      (states) => states.contains(WidgetState.focused)
+          ? scheme.surface
+          : Colors.transparent,
+    ),
+    side: WidgetStateProperty.resolveWith(
+      (states) => states.contains(WidgetState.focused)
+          ? BorderSide(color: scheme.primary, width: 2)
+          : BorderSide.none,
+    ),
+  );
 }
