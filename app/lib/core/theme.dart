@@ -170,6 +170,13 @@ ThemeData _build(Brightness brightness) {
     ),
     splashFactory: InkRipple.splashFactory,
     focusColor: scheme.primary.withValues(alpha: 0.16),
+    // Selection sits behind text, so it gets opacity; cursor and handles are
+    // small and stay at full color.
+    textSelectionTheme: TextSelectionThemeData(
+      selectionColor: scheme.primary.withValues(alpha: 0.3),
+      selectionHandleColor: scheme.primary,
+      cursorColor: scheme.primary,
+    ),
     // Default app bar: sheet header (white). Explorar and the shell use the
     // dark `bar` through [AldiaColors.barOf].
     appBarTheme: AppBarTheme(
