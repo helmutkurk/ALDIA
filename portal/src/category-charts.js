@@ -2,7 +2,7 @@
 import { chartPatterns } from './chart-patterns.js';
 import { CATEGORIES } from './categories.js';
 import { t } from './i18n.js';
-import { element } from './panel.js';
+import { element } from './dom.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
 const number = new Intl.NumberFormat('es-GT', { maximumFractionDigits: 1 });

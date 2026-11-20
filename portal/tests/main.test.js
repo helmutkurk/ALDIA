@@ -112,7 +112,7 @@ describe('map and request coordination', () => {
     api.getReports.mockResolvedValue({ items: [report()], total: 1 });
     await vi.advanceTimersByTimeAsync(300);
     panelElement.querySelector('.report-button').click();
-    expect(map.focusReport).toHaveBeenCalledWith(report().id);
+    expect(map.focusReport).toHaveBeenCalledWith(report().id, report());
     const category = panelElement.querySelector('#category-filter');
     category.value = 'pothole';
     category.dispatchEvent(new window.Event('change'));
@@ -183,6 +183,7 @@ describe('page coordination', () => {
       category: 'pothole',
       status: 'verified',
       resolution: 'fixed',
+      include_old: true,
     };
     expect(api.getStats).toHaveBeenCalledWith(filters, {
       signal: expect.any(AbortSignal),
@@ -212,7 +213,7 @@ describe('site header', () => {
     const labels = [...headerElement.querySelectorAll('nav a, nav button')].map(
       (node) => node.textContent,
     );
-    expect(labels).toEqual(['Mapa', 'Triaje', 'Panel', 'Modo personal']);
+    expect(labels).toEqual(['Mapa', 'Triaje', 'Panel', 'Modo personal', '?']);
     expect(headerElement.querySelector('nav').getAttribute('aria-label')).toBe(
       'Principal',
     );
@@ -249,4 +250,14 @@ describe('site header', () => {
     expect(map.invalidateSize).toHaveBeenCalled();
     expect(panelElement).toBeTruthy();
   });
+});
+
+it('requests individual status pins at zoom 15 even though the API singleton threshold is 17', async () => {
+  const { api, map } = setup();
+  api.getClusters = vi.fn().mockResolvedValue({ clusters: [], total: 0 });
+  map.getZoom = vi.fn(() => 15);
+  map.renderClusters = vi.fn();
+  await vi.advanceTimersByTimeAsync(300);
+  expect(api.getClusters.mock.calls[0][0].zoom).toBe(17);
+  expect(map.renderClusters).toHaveBeenCalledWith([], []);
 });

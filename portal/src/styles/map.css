@@ -1,0 +1,342 @@
+/* ---------- map ---------- */
+.map-region {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  isolation: isolate;
+}
+#map {
+  height: 100%;
+  width: 100%;
+  background: var(--background);
+  font-family: inherit;
+}
+.map-title {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 500;
+  padding: 0.4rem 0.8rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-raised);
+  font-size: 0.875rem;
+  pointer-events: none;
+}
+.map-legend {
+  position: absolute;
+  bottom: 1.75rem;
+  left: 0.75rem;
+  z-index: 500;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.6rem;
+  max-width: calc(100% - 6rem);
+  padding: 0.4rem 0.6rem;
+  margin: 0;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-raised);
+  font-size: 0.75rem;
+  pointer-events: none;
+}
+.map-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.map-legend .legend-dot {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+.status-pin.state-pin--open,
+.legend-dot.state-pin--open {
+  background: var(--state-open);
+}
+.status-pin.state-pin--in_work,
+.legend-dot.state-pin--in_work {
+  background: var(--state-work);
+}
+.status-pin.state-pin--resolved,
+.legend-dot.state-pin--resolved {
+  background: var(--state-resolved);
+}
+.status-pin.state-pin--closed,
+.status-pin.state-pin--hidden,
+.legend-dot.state-pin--closed,
+.legend-dot.state-pin--hidden {
+  background: var(--state-closed);
+}
+.state-pin--pending,
+.legend-dot.state-pin--pending {
+  background: var(--state-pending);
+  border: 2px dashed var(--text-muted);
+}
+.tile-error {
+  position: absolute;
+  top: 4rem;
+  left: 0.75rem;
+  right: 0.75rem;
+  z-index: 500;
+  max-width: 32rem;
+  padding: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-sm);
+}
+
+/* Zoom controls: large, bottom right, outlined. */
+.leaflet-bar,
+.leaflet-touch .leaflet-bar {
+  border: 0;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-raised);
+  overflow: hidden;
+}
+.leaflet-bar a,
+.leaflet-touch .leaflet-bar a {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  min-height: 48px;
+  line-height: 46px;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.leaflet-bar a:focus-visible {
+  outline-offset: -3px;
+}
+.leaflet-bar a:last-child,
+.leaflet-touch .leaflet-bar a:last-child {
+  border-bottom: 0;
+}
+.leaflet-bar a:hover,
+.leaflet-touch .leaflet-bar a:hover {
+  background: var(--background);
+}
+.leaflet-bottom.leaflet-right .leaflet-control {
+  margin-right: 0.75rem;
+}
+.leaflet-container a {
+  color: var(--primary);
+}
+.leaflet-container .leaflet-popup-close-button {
+  width: 44px;
+  height: 44px;
+  line-height: 44px;
+  font-size: 24px;
+  color: var(--text-muted);
+}
+.leaflet-popup-content {
+  margin: 1rem;
+  max-height: min(26rem, 55dvh);
+  overflow: auto;
+  scrollbar-color: var(--text-muted) var(--background);
+}
+
+/* Pins: status color, white outline, status letter. The legend and every
+   accessible name carry the status word, so color is never the only cue. */
+.status-pin {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin: 4px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  border: 3px solid var(--surface);
+  box-shadow: 0 3px 8px rgb(31 41 51 / 40%);
+  background: var(--state-closed);
+  color: transparent;
+  font-size: 0;
+}
+.status-pin::after {
+  content: attr(data-letter);
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text);
+  transform: rotate(45deg);
+  font-size: 12px;
+  font-weight: 800;
+}
+.status-pin.state-pin--pending {
+  border-color: var(--text-muted);
+  border-style: dashed;
+  background: var(--surface);
+}
+.report-marker--selected .status-pin {
+  transform: rotate(-45deg) scale(1.25);
+  box-shadow:
+    0 0 0 2px var(--focus),
+    0 4px 12px rgb(31 41 51 / 35%);
+}
+.status-pin.status-pin--rejected {
+  background: var(--danger);
+}
+.report-marker:focus-visible .status-pin {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.cluster-count {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 3px solid var(--surface);
+  box-shadow: 0 3px 8px rgb(31 41 51 / 40%);
+  color: var(--on-primary);
+  background: var(--primary);
+  font-weight: 800;
+  font-size: 1rem;
+}
+
+/* ---------- popup and report details ---------- */
+.report-details {
+  color: var(--text);
+  font:
+    0.85rem/1.5 system-ui,
+    sans-serif;
+  overflow-wrap: anywhere;
+}
+.report-details h2 {
+  padding-right: 1.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 1.1rem;
+}
+.report-details h3 {
+  margin-top: 1rem;
+}
+.report-details p {
+  margin: 0.6rem 0;
+}
+.report-photo {
+  display: block;
+  width: 100%;
+  height: 9rem;
+  object-fit: cover;
+  margin-top: 0.75rem;
+  border-radius: var(--radius-sm);
+  background: var(--background);
+}
+.stub-warning {
+  padding: 0.6rem;
+  border: 1px solid var(--text-muted);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  font-weight: 650;
+}
+.verification-checks {
+  margin: 0.5rem 0 0;
+  padding-left: 1rem;
+}
+.verification-checks li + li {
+  margin-top: 0.5rem;
+}
+.check-detail {
+  display: block;
+  color: var(--text-muted);
+}
+.check-icon {
+  width: 1rem;
+  height: 1rem;
+  margin-right: 0.4rem;
+  vertical-align: middle;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 2;
+}
+.detail-link {
+  display: block;
+  padding: 0.5rem;
+  font-size: 0.85rem;
+}
+
+/* ---------- place search ---------- */
+.place-search {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.5rem 1.25rem 0;
+}
+.search-controls {
+  position: relative;
+  display: flex;
+  gap: 0.4rem;
+  padding-right: 1.25rem;
+}
+.search-controls input {
+  flex: 1;
+  min-width: 0;
+}
+.search-controls .search-button {
+  flex: 0 0 44px;
+  padding: 0;
+  font-size: 1.6rem;
+}
+.search-hint {
+  position: absolute;
+  right: -0.5rem;
+  top: 0;
+}
+.search-hint summary {
+  min-height: 44px;
+  width: 24px;
+  display: grid;
+  place-items: center;
+  color: var(--primary-dark);
+  cursor: pointer;
+  font-size: 0.8125rem;
+}
+.search-hint[open] {
+  z-index: 2;
+}
+.search-hint-body {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  width: min(20rem, 80vw);
+  padding: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-raised);
+  font-size: 0.8125rem;
+}
+.search-hint-body a {
+  display: block;
+  margin-top: 0.5rem;
+}
+.search-status:empty,
+.place-results:empty {
+  display: none;
+}
+.search-status {
+  font-size: 0.8125rem;
+}
+.place-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.place-results button {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  padding: 0.75rem;
+  overflow-wrap: anywhere;
+}
+.place-results button:hover {
+  background: var(--background);
+}

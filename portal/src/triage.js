@@ -1,9 +1,10 @@
-import { element } from './panel.js';
+import { element } from './dom.js';
 import { createStaffActions } from './actions.js';
 import { filtersHash } from './filters.js';
 import { categoryLabel } from './categories.js';
-import { reportState, stateLabel } from './states.js';
-import { ui, t, staffError } from './i18n.js';
+import { createPhoto } from './photo.js';
+import { reportState, stateLabel, STATE_GROUPS } from './states.js';
+import { ui, t, staffError, formatDate } from './i18n.js';
 
 /** Paginated server queue; each row reuses the exact detail action rules.
  * @param {HTMLElement} root @param {{api: object, staff: object, filters?: object}} options
@@ -87,11 +88,22 @@ export function createTriage(
       const list = element('ul', 'queue-list');
       for (const report of page.items) {
         const row = element('li');
-        const link = element('a', '', categoryLabel(report.category));
+        const evidence = element('div', 'queue-evidence');
+        const info = element('div', 'queue-summary');
+        const link = element(
+          'a',
+          'queue-title',
+          categoryLabel(report.category),
+        );
         link.href = filtersHash(`#/reports/${report.id}`, filters);
-        row.append(
+        info.append(
           link,
-          element('p', '', stateLabel(reportState(report))),
+          element(
+            'p',
+            `state-chip state-chip--${STATE_GROUPS[reportState(report)]}`,
+            stateLabel(reportState(report)),
+          ),
+          element('time', 'muted', formatDate(report.created_at)),
           element(
             'p',
             'age-badge',
@@ -100,6 +112,18 @@ export function createTriage(
               : t.unknownDate,
           ),
         );
+        if (report.note) info.append(element('p', 'queue-note', report.note));
+        evidence.append(
+          info,
+          createPhoto(report, {
+            api,
+            signal: controller.signal,
+            thumbnail: true,
+            quiet: true,
+            className: 'queue-photo',
+          }),
+        );
+        row.append(evidence);
         const controls = element('div');
         row.append(controls);
         actions.push(
@@ -136,7 +160,16 @@ export function createTriage(
         element('span', '', ui.page(offset / 25 + 1, page.total)),
         next,
       );
-      if (!page.items.length) content.append(element('p', '', t.empty));
+      if (!page.items.length)
+        content.append(
+          element(
+            'p',
+            'queue-empty',
+            tab === 'review'
+              ? 'Todo al día. No hay reportes pendientes de revisión.'
+              : 'No hay reportes rechazados para revisar.',
+          ),
+        );
     } catch (error) {
       if (current !== generation || error.name === 'AbortError') return;
       const alert = element('p', '', staffError(error));

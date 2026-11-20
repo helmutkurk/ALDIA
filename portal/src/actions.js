@@ -1,4 +1,4 @@
-import { element } from './panel.js';
+import { element } from './dom.js';
 import {
   legalNextStates,
   noteRequirement,

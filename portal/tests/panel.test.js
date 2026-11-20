@@ -162,3 +162,17 @@ describe('popup content', () => {
     ).toContain('Verificación pendiente');
   });
 });
+
+it('keeps compact filters closed, hides empty chips and includes a one-line note', () => {
+  const { root, store } = setup();
+  store.setReports({
+    items: [report({ note: 'Junto a la escuela' })],
+    total: 1,
+  });
+  expect(root.querySelector('.filters-more').open).toBe(false);
+  expect(root.querySelector('.filter-chips').hidden).toBe(true);
+  expect(root.querySelector('.report-snippet').textContent).toBe(
+    'Junto a la escuela',
+  );
+  expect(root.querySelector('.report-date').tagName).toBe('TIME');
+});

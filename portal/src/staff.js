@@ -1,4 +1,4 @@
-import { element } from './panel.js';
+import { element } from './dom.js';
 import { staffError, ui } from './i18n.js';
 
 /** Account identity is in memory; the browser owns the HttpOnly session cookie.

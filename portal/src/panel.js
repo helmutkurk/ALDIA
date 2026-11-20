@@ -7,113 +7,14 @@ import {
 } from './states.js';
 import { SORTS, filtersHash } from './filters.js';
 import { ui } from './i18n.js';
+import { element } from './dom.js';
+import { statusBadge } from './report-details.js';
+export { element } from './dom.js';
+export { createReportDetails } from './report-details.js';
 import { createPhoto } from './photo.js';
 import { CATEGORIES, categoryLabel } from './categories.js';
 import { filterReports } from './state.js';
 import { formatDate, RESOLUTIONS, STATUSES, statusLabel, t } from './i18n.js';
-
-/** DOM creation always assigns textContent; no HTML from the API is interpreted.
- * @param {string} tag @param {string} [className] @param {string} [text]
- * @returns {HTMLElement}
- */
-export function element(tag, className = '', text = '') {
-  const node = document.createElement(tag);
-  node.className = className;
-  node.textContent = text;
-  return node;
-}
-
-/** @param {import('./api.js').Report} report */
-function statusBadge(report) {
-  return element(
-    'span',
-    `status-badge status-badge--${report.status}`,
-    statusLabel(report),
-  );
-}
-
-/** Shared report details for Leaflet popups. All API fields remain text nodes.
- * @param {import('./api.js').Report} report
- */
-export function createReportDetails(report, photoOptions = {}) {
-  const details = element('article', 'report-details');
-  const heading = element('h2', '', categoryLabel(report.category));
-  heading.tabIndex = -1;
-  const resolution = element(
-    'span',
-    `resolution-chip resolution-chip--${report.resolution}`,
-    t.resolutions[report.resolution],
-  );
-  const link = element('a', 'detail-link', t.viewReport);
-  link.href = `#/reports/${report.id}`;
-  const state = reportState(report);
-  details.append(
-    heading,
-    statusBadge(report),
-    resolution,
-    element(
-      'span',
-      `state-chip state-chip--${STATE_GROUPS[state]}`,
-      stateLabel(state),
-    ),
-    link,
-  );
-  details.append(createPhoto(report, photoOptions));
-  const date = element('p', 'captured-date', `${t.capturedAt}: `);
-  const time = document.createElement('time');
-  time.dateTime = report.captured_at;
-  time.textContent = formatDate(report.captured_at);
-  date.append(time);
-  details.append(date);
-  if (report.public_note)
-    details.append(element('p', 'public-note', report.public_note));
-  if (report.note) details.append(element('p', 'report-note', report.note));
-  details.append(element('h3', '', t.verification));
-  if (!report.verification) {
-    details.append(element('p', '', t.verificationPending));
-    return details;
-  }
-  details.append(
-    element(
-      'p',
-      report.verification.mode === 'stub' ? 'stub-warning' : 'muted',
-      report.verification.mode === 'stub'
-        ? t.stubWarning
-        : report.verification.mode === 'heuristic'
-          ? t.heuristicVerification
-          : t.modelVerification,
-    ),
-  );
-  if (!report.verification.checks.length)
-    details.append(element('p', 'muted', t.noChecks));
-  const checks = element('ul', 'verification-checks');
-  for (const check of report.verification.checks) {
-    const item = element('li');
-    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    icon.setAttribute('viewBox', '0 0 24 24');
-    icon.setAttribute('class', 'check-icon');
-    icon.setAttribute('aria-hidden', 'true');
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute(
-      'd',
-      check.passed ? 'M4 12l5 5L20 6' : 'M6 6l12 12M18 6L6 18',
-    );
-    icon.append(path);
-    item.append(
-      icon,
-      element(
-        'strong',
-        '',
-        `${Object.hasOwn(t.checks, check.name) ? t.checks[check.name] : check.name}: ${check.passed ? t.passed : t.failed}`,
-      ),
-    );
-    if (check.detail)
-      item.append(element('span', 'check-detail', check.detail));
-    checks.append(item);
-  }
-  details.append(checks);
-  return details;
-}
 
 /**
  * @param {HTMLElement} root
@@ -121,15 +22,7 @@ export function createReportDetails(report, photoOptions = {}) {
  */
 export function createPanel(
   root,
-  {
-    onFiltersChange,
-    onSelect,
-    onRetry,
-    onPage = () => {},
-    getScope,
-    api,
-    signal,
-  },
+  { onFiltersChange, onSelect, onRetry, onPage = () => {}, getScope, api },
 ) {
   root.setAttribute('aria-labelledby', 'portal-title');
   const header = element('header', 'panel-header');
@@ -263,7 +156,7 @@ export function createPanel(
     onFiltersChange(next);
   };
   filters.addEventListener('change', onChange, true);
-  filters.append(element('p', 'muted filters-hint', ui.defaultWindow));
+  moreBody.append(element('p', 'muted filters-hint', ui.defaultWindow));
   const pagination = element('nav', 'pagination');
   pagination.setAttribute('aria-label', ui.page(1, 0));
   const previousPage = element('button', '', ui.previous);
@@ -291,15 +184,14 @@ export function createPanel(
   list.id = 'reports-list';
   list.tabIndex = -1;
   list.setAttribute('aria-labelledby', 'reports-title');
-  const limitHint = element('p', 'limit-hint');
-  limitHint.hidden = true;
   const retry = element('button', 'retry-button', t.retry);
   retry.type = 'button';
   retry.addEventListener('click', onRetry);
-  results.append(reportsTitle, announcement, message, list, limitHint);
+  results.append(reportsTitle, announcement, message, list);
   root.replaceChildren(header, filters, chips, results, pagination);
   /** @type {Readonly<import('./state.js').State>|undefined} */
   let previous;
+  let photos = new AbortController();
   /** @type {Map<string, HTMLButtonElement>} */
   const buttons = new Map();
   /** @param {Readonly<import('./state.js').State>} state */
@@ -316,7 +208,8 @@ export function createPanel(
     const active = Object.entries(state.filters).filter(
       ([key, value]) => value && key !== 'bbox',
     );
-    chips.replaceChildren(element('p', '', ui.activeFilters(active.length)));
+    chips.hidden = active.length === 0;
+    chips.replaceChildren();
     for (const [key, value] of active) {
       const label =
         key === 'state'
@@ -386,6 +279,8 @@ export function createPanel(
       )?.[0];
       const previousButtons = new Map(buttons);
       buttons.clear();
+      photos.abort();
+      photos = new AbortController();
       list.replaceChildren();
       for (const report of reports) {
         const item = element('li');
@@ -395,23 +290,33 @@ export function createPanel(
         button.className = 'report-button';
         button.setAttribute(
           'aria-label',
-          t.selectReport(categoryLabel(report.category), statusLabel(report)),
+          t.selectReport(
+            categoryLabel(report.category),
+            `${stateLabel(reportState(report))}. ${statusLabel(report)}`,
+          ),
         );
         const thumb = createPhoto(report, {
           api,
-          signal,
+          signal: photos.signal,
           thumbnail: true,
           quiet: true,
           className: 'row-thumbnail',
         });
-        thumb.classList.add('report-thumb');
         button.replaceChildren(
           element('strong', 'report-category', categoryLabel(report.category)),
-          element('span', 'report-date', formatDate(report.captured_at)),
+          Object.assign(
+            element('time', 'report-date', formatDate(report.captured_at)),
+            { dateTime: report.captured_at },
+          ),
           element(
             'span',
             `state-chip state-chip--${STATE_GROUPS[reportState(report)]}`,
             stateLabel(reportState(report)),
+          ),
+          element(
+            'span',
+            'report-snippet',
+            report.note ?? report.public_note ?? '',
           ),
           statusBadge(report),
           thumb,
@@ -432,13 +337,12 @@ export function createPanel(
     buttons.forEach((button, id) =>
       button.setAttribute('aria-pressed', String(id === state.selectedId)),
     );
-    limitHint.hidden =
-      state.phase !== 'success' || state.total <= reports.length;
     previous = state;
   }
   return {
     render,
     destroy() {
+      photos.abort();
       filters.removeEventListener('change', onChange, true);
       retry.removeEventListener('click', onRetry);
       root.replaceChildren();

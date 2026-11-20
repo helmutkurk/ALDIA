@@ -22,10 +22,11 @@ export function createPhoto(
     message.textContent = t.photoUnavailable;
     return message;
   };
-  const url = safePhotoUrl(
+  let url = safePhotoUrl(
     thumbnail ? (report.thumbnail_url ?? report.photo_url) : report.photo_url,
   );
   if (!url) return fallback();
+  if (thumbnail) url = url.replace(/\/photo$/, '/thumbnail');
   const image = document.createElement('img');
   image.className =
     className ?? (thumbnail ? 'nearby-thumbnail' : 'report-photo');

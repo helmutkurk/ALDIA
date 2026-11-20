@@ -400,9 +400,13 @@ describe('queue tabs and pagination', () => {
       new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }),
     );
     await flush();
-    expect(new URL(fetchImpl.mock.calls[1][0]).searchParams.get('tab')).toBe(
-      'rejected',
-    );
+    expect(
+      new URL(
+        fetchImpl.mock.calls.filter(([url]) =>
+          new URL(url).pathname.endsWith('/queue'),
+        )[1][0],
+      ).searchParams.get('tab'),
+    ).toBe('rejected');
     expect(tabs[1].getAttribute('aria-selected')).toBe('true');
     expect(document.activeElement).toBe(tabs[1]);
     expect(
@@ -412,7 +416,11 @@ describe('queue tabs and pagination', () => {
     ).toEqual(['nuevo', 'oculto']);
     expect(root.querySelector('[name="internal_note"]').required).toBe(true);
     submit(root.querySelector('.transition-form'));
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(
+      fetchImpl.mock.calls.filter(([url]) =>
+        new URL(url).pathname.endsWith('/queue'),
+      ),
+    ).toHaveLength(2);
     expect(root.textContent).toContain(ui.internalRequired);
   });
   it('paginates in batches of 25 and ignores a late response from the previous tab', async () => {

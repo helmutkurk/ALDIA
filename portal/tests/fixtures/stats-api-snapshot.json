@@ -1,0 +1,235 @@
+{
+  "total": 70,
+  "by_category": {
+    "street_light": 10,
+    "pothole": 20,
+    "graffiti": 10,
+    "sidewalk": 9,
+    "open_drain": 10,
+    "accessibility": 11
+  },
+  "by_status": {
+    "pending": 4,
+    "verified": 63,
+    "rejected": 3
+  },
+  "by_resolution": {
+    "open": 27,
+    "acknowledged": 7,
+    "fixed": 26,
+    "closed": 10
+  },
+  "recibidos": 66,
+  "rechazados_verificador": 3,
+  "abiertos": 30,
+  "resueltos": 26,
+  "cerrados_sin_solucion": 7,
+  "tasa_resolucion": 42.622950819672134,
+  "tasa_resolucion_n": 61,
+  "resolucion_horas": {
+    "median": 204.0,
+    "p90": 654.9003044759722,
+    "n": 26,
+    "mean": 276.8319506272222
+  },
+  "primera_respuesta_horas": {
+    "median": 93.9388943902778,
+    "p90": 217.99201212941668,
+    "n": 50
+  },
+  "antiguedad_abiertos": {
+    "0-2": 9,
+    "3-7": 1,
+    "8-30": 9,
+    ">30": 11
+  },
+  "sla_cumplido": 0.7692307692307693,
+  "vencidos": 12,
+  "by_state": {
+    "pendiente_verificacion": 4,
+    "rechazado_verificador": 3,
+    "nuevo": 13,
+    "en_revision": 10,
+    "programado": 3,
+    "en_proceso": 4,
+    "resuelto": 26,
+    "no_procede": 2,
+    "fuera_de_competencia": 2,
+    "duplicado": 3,
+    "oculto": 0
+  },
+  "by_state_group": {
+    "pending": 4,
+    "closed": 10,
+    "open": 23,
+    "in_work": 7,
+    "resolved": 26,
+    "hidden": 0
+  },
+  "weekly": [
+    {
+      "week": "2026-W38",
+      "recibidos": 1,
+      "resueltos": 0
+    },
+    {
+      "week": "2026-W39",
+      "recibidos": 2,
+      "resueltos": 0
+    },
+    {
+      "week": "2026-W40",
+      "recibidos": 6,
+      "resueltos": 0
+    },
+    {
+      "week": "2026-W41",
+      "recibidos": 4,
+      "resueltos": 0
+    },
+    {
+      "week": "2026-W42",
+      "recibidos": 6,
+      "resueltos": 1
+    },
+    {
+      "week": "2026-W43",
+      "recibidos": 10,
+      "resueltos": 1
+    },
+    {
+      "week": "2026-W44",
+      "recibidos": 5,
+      "resueltos": 3
+    },
+    {
+      "week": "2026-W45",
+      "recibidos": 5,
+      "resueltos": 2
+    },
+    {
+      "week": "2026-W46",
+      "recibidos": 11,
+      "resueltos": 1
+    },
+    {
+      "week": "2026-W47",
+      "recibidos": 16,
+      "resueltos": 18
+    }
+  ],
+  "por_categoria": [
+    {
+      "category": "accessibility",
+      "total": 11,
+      "resueltos": 5,
+      "abiertos": 4,
+      "cerrados": 2,
+      "mediana_reparacion_horas": 240.0,
+      "p90_reparacion_horas": 500.52458620644444,
+      "n_resueltos": 5
+    },
+    {
+      "category": "graffiti",
+      "total": 10,
+      "resueltos": 4,
+      "abiertos": 4,
+      "cerrados": 2,
+      "mediana_reparacion_horas": 384.0,
+      "p90_reparacion_horas": 662.4320561817223,
+      "n_resueltos": 4
+    },
+    {
+      "category": "open_drain",
+      "total": 10,
+      "resueltos": 4,
+      "abiertos": 4,
+      "cerrados": 2,
+      "mediana_reparacion_horas": 57.0,
+      "p90_reparacion_horas": 296.8714276883611,
+      "n_resueltos": 4
+    },
+    {
+      "category": "pothole",
+      "total": 20,
+      "resueltos": 4,
+      "abiertos": 14,
+      "cerrados": 2,
+      "mediana_reparacion_horas": 168.0,
+      "p90_reparacion_horas": 498.86290783911113,
+      "n_resueltos": 4
+    },
+    {
+      "category": "sidewalk",
+      "total": 9,
+      "resueltos": 5,
+      "abiertos": 4,
+      "cerrados": 0,
+      "mediana_reparacion_horas": 480.0,
+      "p90_reparacion_horas": 659.7855147446667,
+      "n_resueltos": 5
+    },
+    {
+      "category": "street_light",
+      "total": 10,
+      "resueltos": 4,
+      "abiertos": 4,
+      "cerrados": 2,
+      "mediana_reparacion_horas": 126.0,
+      "p90_reparacion_horas": 528.1989422126945,
+      "n_resueltos": 4
+    }
+  ],
+  "top_categorias": [
+    {
+      "category": "pothole",
+      "total": 20,
+      "resueltos": 4,
+      "abiertos": 14,
+      "cerrados": 2,
+      "mediana_reparacion_horas": 168.0,
+      "p90_reparacion_horas": 498.86290783911113,
+      "n_resueltos": 4
+    },
+    {
+      "category": "accessibility",
+      "total": 11,
+      "resueltos": 5,
+      "abiertos": 4,
+      "cerrados": 2,
+      "mediana_reparacion_horas": 240.0,
+      "p90_reparacion_horas": 500.52458620644444,
+      "n_resueltos": 5
+    },
+    {
+      "category": "graffiti",
+      "total": 10,
+      "resueltos": 4,
+      "abiertos": 4,
+      "cerrados": 2,
+      "mediana_reparacion_horas": 384.0,
+      "p90_reparacion_horas": 662.4320561817223,
+      "n_resueltos": 4
+    },
+    {
+      "category": "open_drain",
+      "total": 10,
+      "resueltos": 4,
+      "abiertos": 4,
+      "cerrados": 2,
+      "mediana_reparacion_horas": 57.0,
+      "p90_reparacion_horas": 296.8714276883611,
+      "n_resueltos": 4
+    },
+    {
+      "category": "street_light",
+      "total": 10,
+      "resueltos": 4,
+      "abiertos": 4,
+      "cerrados": 2,
+      "mediana_reparacion_horas": 126.0,
+      "p90_reparacion_horas": 528.1989422126945,
+      "n_resueltos": 4
+    }
+  ]
+}

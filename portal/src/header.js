@@ -1,4 +1,5 @@
 import { filtersHash } from './filters.js';
+import { createStaffHelp } from './help.js';
 import { ui, t } from './i18n.js';
 
 /** Slim site header shared by every route. Links keep the current map scope.
@@ -31,10 +32,21 @@ export function createSiteHeader(root, { onStaff }) {
   staff.type = 'button';
   staff.className = 'staff-link';
   staff.textContent = ui.navStaff;
-  staff.addEventListener('click', onStaff);
-  nav.append(staff);
-  root.replaceChildren(brand, nav);
+  staff.setAttribute('aria-expanded', 'false');
+  staff.setAttribute('aria-controls', 'staff-access');
+  const help = createStaffHelp();
+  const enterStaff = () => {
+    const open = onStaff();
+    staff.setAttribute('aria-expanded', String(open ?? true));
+    if (open !== false) help.introduce();
+  };
+  staff.addEventListener('click', enterStaff);
+  nav.append(staff, help.button);
+  root.replaceChildren(brand, nav, help.guide);
   return {
+    setStaffOpen(open) {
+      staff.setAttribute('aria-expanded', String(open));
+    },
     /** @param {object} scope current filters including bbox */
     update(scope) {
       links.map.href = filtersHash('#/', scope);
@@ -54,7 +66,7 @@ export function createSiteHeader(root, { onStaff }) {
       }
     },
     destroy() {
-      staff.removeEventListener('click', onStaff);
+      staff.removeEventListener('click', enterStaff);
       root.replaceChildren();
     },
   };

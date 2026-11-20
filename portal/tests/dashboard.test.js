@@ -35,9 +35,17 @@ describe('dashboard', () => {
     };
     page = createDashboard(root, { api, filters });
     await flush();
-    expect(api.getStats).toHaveBeenCalledWith(filters, {
-      signal: expect.any(AbortSignal),
-    });
+    expect(api.getStats).toHaveBeenCalledWith(
+      {
+        ...filters,
+        ...(!filters.created_from && !filters.created_to
+          ? { include_old: true }
+          : {}),
+      },
+      {
+        signal: expect.any(AbortSignal),
+      },
+    );
     expect(root.textContent).toContain('Total de reportes: 2');
     expect(root.textContent).toContain('Bache');
     expect(root.textContent).toContain('Verificado');
@@ -45,6 +53,7 @@ describe('dashboard', () => {
     expect(root.querySelectorAll('meter')).toHaveLength(13);
     expect(api.getCsvUrl).toHaveBeenCalledWith({
       ...filters,
+      include_old: true,
       delimiter: 'comma',
     });
     expect(root.querySelector('[download]').textContent).toBe('Descargar CSV');
@@ -310,7 +319,7 @@ describe('municipal dashboard', () => {
     expect(top).toHaveLength(5);
     expect(top[0]).toBe('Bache: 10');
     expect(top.join(' ')).not.toContain('Accesibilidad');
-    expect(root.querySelector('.zone-link').hash).toBe('#/');
+    expect(root.querySelector('.zone-link').hash).toBe('#/?include_old=true');
     expect(root.querySelector('.metric-cards')).not.toBeNull();
     page.destroy();
     expect(root.classList.contains('page--dashboard')).toBe(false);
@@ -440,10 +449,18 @@ describe('v0.3 category charts', () => {
     };
     page = createDashboard(root, { api, filters });
     await flushAll();
-    expect(api.getStats).toHaveBeenCalledTimes(1);
-    expect(api.getStats).toHaveBeenCalledWith(filters, {
-      signal: expect.any(AbortSignal),
-    });
+    expect(api.getStats).toHaveBeenCalledTimes(2);
+    expect(api.getStats).toHaveBeenCalledWith(
+      {
+        ...filters,
+        ...(!filters.created_from && !filters.created_to
+          ? { include_old: true }
+          : {}),
+      },
+      {
+        signal: expect.any(AbortSignal),
+      },
+    );
     expect(root.querySelectorAll('.kpi-strip .metric-card')).toHaveLength(5);
     expect(root.querySelectorAll('.top-categories li')).toHaveLength(1);
     const repair = root.querySelector('.category-repair');
@@ -511,7 +528,7 @@ describe('v0.3 category charts', () => {
     detailed.open = true;
     detailed.dispatchEvent(new window.Event('toggle'));
     await flushAll();
-    expect(api.getStats).toHaveBeenCalledTimes(7);
+    expect(api.getStats).toHaveBeenCalledTimes(8);
     expect(root.querySelectorAll('.category-groups tbody tr')).toHaveLength(6);
   });
   it('shows empty charts and never turns absent repair samples into zero', async () => {
@@ -534,6 +551,6 @@ describe('v0.3 category charts', () => {
       'No hay reportes por categoría',
     );
     expect(root.querySelectorAll('.category-charts svg')).toHaveLength(0);
-    expect(api.getStats).toHaveBeenCalledTimes(1);
+    expect(api.getStats).toHaveBeenCalledTimes(2);
   });
 });

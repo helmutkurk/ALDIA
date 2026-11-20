@@ -1,0 +1,195 @@
+{
+  "total": 25,
+  "by_category": {
+    "street_light": 3,
+    "pothole": 14,
+    "graffiti": 1,
+    "sidewalk": 1,
+    "open_drain": 4,
+    "accessibility": 2
+  },
+  "by_status": {
+    "pending": 3,
+    "verified": 21,
+    "rejected": 1
+  },
+  "by_resolution": {
+    "open": 13,
+    "acknowledged": 0,
+    "fixed": 10,
+    "closed": 2
+  },
+  "recibidos": 22,
+  "rechazados_verificador": 1,
+  "abiertos": 10,
+  "resueltos": 19,
+  "cerrados_sin_solucion": 2,
+  "tasa_resolucion": 47.61904761904762,
+  "tasa_resolucion_n": 21,
+  "resolucion_horas": {
+    "median": 96.0,
+    "p90": 499.19999999999993,
+    "n": 19,
+    "mean": 168.2672591287427
+  },
+  "primera_respuesta_horas": {
+    "median": 2.25,
+    "p90": 15.683319089583332,
+    "n": 16
+  },
+  "antiguedad_abiertos": {
+    "0-2": 9,
+    "3-7": 1,
+    "8-30": 0,
+    ">30": 0
+  },
+  "sla_cumplido": 0.8421052631578947,
+  "vencidos": 0,
+  "by_state": {
+    "pendiente_verificacion": 3,
+    "rechazado_verificador": 1,
+    "nuevo": 5,
+    "en_revision": 5,
+    "programado": 0,
+    "en_proceso": 0,
+    "resuelto": 10,
+    "no_procede": 0,
+    "fuera_de_competencia": 0,
+    "duplicado": 1,
+    "oculto": 0
+  },
+  "by_state_group": {
+    "pending": 3,
+    "closed": 2,
+    "open": 10,
+    "in_work": 0,
+    "resolved": 10,
+    "hidden": 0
+  },
+  "weekly": [
+    {
+      "week": "2026-W46",
+      "recibidos": 6,
+      "resueltos": 1
+    },
+    {
+      "week": "2026-W47",
+      "recibidos": 16,
+      "resueltos": 18
+    }
+  ],
+  "por_categoria": [
+    {
+      "category": "accessibility",
+      "total": 2,
+      "resueltos": 1,
+      "abiertos": 1,
+      "cerrados": 0,
+      "mediana_reparacion_horas": 24.0,
+      "p90_reparacion_horas": 24.0,
+      "n_resueltos": 1
+    },
+    {
+      "category": "graffiti",
+      "total": 1,
+      "resueltos": 1,
+      "abiertos": 0,
+      "cerrados": 0,
+      "mediana_reparacion_horas": 48.0,
+      "p90_reparacion_horas": 48.0,
+      "n_resueltos": 1
+    },
+    {
+      "category": "open_drain",
+      "total": 4,
+      "resueltos": 3,
+      "abiertos": 1,
+      "cerrados": 0,
+      "mediana_reparacion_horas": 18.0,
+      "p90_reparacion_horas": 80.4,
+      "n_resueltos": 3
+    },
+    {
+      "category": "pothole",
+      "total": 14,
+      "resueltos": 2,
+      "abiertos": 11,
+      "cerrados": 1,
+      "mediana_reparacion_horas": 27.0,
+      "p90_reparacion_horas": 43.800000000000004,
+      "n_resueltos": 2
+    },
+    {
+      "category": "sidewalk",
+      "total": 1,
+      "resueltos": 1,
+      "abiertos": 0,
+      "cerrados": 0,
+      "mediana_reparacion_horas": 12.0,
+      "p90_reparacion_horas": 12.0,
+      "n_resueltos": 1
+    },
+    {
+      "category": "street_light",
+      "total": 3,
+      "resueltos": 2,
+      "abiertos": 0,
+      "cerrados": 1,
+      "mediana_reparacion_horas": 20.0,
+      "p90_reparacion_horas": 32.8,
+      "n_resueltos": 2
+    }
+  ],
+  "top_categorias": [
+    {
+      "category": "pothole",
+      "total": 14,
+      "resueltos": 2,
+      "abiertos": 11,
+      "cerrados": 1,
+      "mediana_reparacion_horas": 27.0,
+      "p90_reparacion_horas": 43.800000000000004,
+      "n_resueltos": 2
+    },
+    {
+      "category": "open_drain",
+      "total": 4,
+      "resueltos": 3,
+      "abiertos": 1,
+      "cerrados": 0,
+      "mediana_reparacion_horas": 18.0,
+      "p90_reparacion_horas": 80.4,
+      "n_resueltos": 3
+    },
+    {
+      "category": "street_light",
+      "total": 3,
+      "resueltos": 2,
+      "abiertos": 0,
+      "cerrados": 1,
+      "mediana_reparacion_horas": 20.0,
+      "p90_reparacion_horas": 32.8,
+      "n_resueltos": 2
+    },
+    {
+      "category": "accessibility",
+      "total": 2,
+      "resueltos": 1,
+      "abiertos": 1,
+      "cerrados": 0,
+      "mediana_reparacion_horas": 24.0,
+      "p90_reparacion_horas": 24.0,
+      "n_resueltos": 1
+    },
+    {
+      "category": "graffiti",
+      "total": 1,
+      "resueltos": 1,
+      "abiertos": 0,
+      "cerrados": 0,
+      "mediana_reparacion_horas": 48.0,
+      "p90_reparacion_horas": 48.0,
+      "n_resueltos": 1
+    }
+  ]
+}

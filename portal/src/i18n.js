@@ -175,8 +175,6 @@ export const t = Object.freeze({
   httpError: (status) =>
     `El servidor devolvió un error (${status}). Inténtalo de nuevo.`,
   count: (shown, total) => `${shown} de ${total} reportes`,
-  limitHint:
-    'Se muestran hasta 500 reportes, del más reciente al más antiguo. Acerca el mapa o filtra para ver menos resultados.',
   selectReport: (category, status) => `Ver en el mapa: ${category}. ${status}.`,
 });
 
@@ -299,7 +297,6 @@ export const ui = Object.freeze({
   showList: 'Ver lista',
   thumbnail: 'Miniatura del reporte',
   defaultWindow: 'Por defecto: últimos 30 días.',
-  activeFilters: (count) => `Filtros activos: ${count}`,
   removeFilter: (label) => `Quitar filtro: ${label}`,
   previous: 'Anterior',
   next: 'Siguiente',

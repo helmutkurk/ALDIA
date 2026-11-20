@@ -143,3 +143,22 @@ it('renders cluster counts, zooms by click and opens members only at maximum zoo
     'T',
   );
 });
+
+it('enlarges the selected pin and flies to a row outside the hydrated markers', () => {
+  const { container } = setup();
+  view.renderReports([report()]);
+  view.focusReport(report().id);
+  expect(container.querySelector('.report-marker--selected')).not.toBeNull();
+  container.dispatchEvent(
+    new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+  );
+  expect(container.querySelector('.report-marker--selected')).toBeNull();
+  const other = report({
+    id: '12345678-1234-4234-8234-123456789abd',
+    latitude: 14.56,
+    longitude: -90.73,
+  });
+  view.focusReport(other.id, other);
+  const bounds = view.getBbox();
+  expect((bounds[0] + bounds[2]) / 2).toBeCloseTo(-90.73, 3);
+});

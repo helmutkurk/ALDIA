@@ -7,15 +7,18 @@ import { createDashboard } from './dashboard.js';
 import { createPlaceSearch } from './geocoder.js';
 import { createReportPage } from './report.js';
 import { createRouter, parseRoute } from './router.js';
-import { createPanel, createReportDetails, element } from './panel.js';
+import { createPanel } from './panel.js';
+import { createReportDetails } from './report-details.js';
+import { element } from './dom.js';
 import { createStore, filterReports } from './state.js';
-import { GROUPS } from './states.js';
 import { parseFilters, filtersHash } from './filters.js';
 import { createStaffSession, createStaffPanel } from './staff.js';
-import { createStaffActions } from './actions.js';
+import { getAdjacentReport } from './adjacent-report.js';
+import { createSelection } from './selected-report.js';
 import { createSiteHeader } from './header.js';
+import { mountPortal } from './mount.js';
 import { createTriage } from './triage.js';
-import { ui, staffError, t } from './i18n.js';
+import { ui, t } from './i18n.js';
 
 /** Compose the retained workspace and cancellable pages. Factories avoid tiles in tests.
  * @param {object} options
@@ -38,7 +41,7 @@ export function createPortal({
   );
   if (Object.keys(initial).length)
     store.setFilters({ category: '', status: '', resolution: '', ...initial });
-  let timer, controller, page, returnFocus, router, sideController, sideActions;
+  let timer, controller, page, returnFocus, router;
   let generation = 0,
     destroyed = false,
     active = true,
@@ -47,117 +50,22 @@ export function createPortal({
     currentRoute;
   const side = element('section', 'selected-report');
   const staffRoot = element('div', 'staff-root');
+  staffRoot.id = 'staff-access';
   const staffPanel = createStaffPanel(staffRoot, staff, api);
+  staffRoot.hidden = true;
   const query = () => ({ ...store.getState().filters, bbox: map.getBbox() });
+  const selection = createSelection(side, {
+    api,
+    staff,
+    getScope: query,
+    onSaved: scheduleLoad,
+  });
   const syncHash = () => {
     if (pageElement && active && currentRoute === 'map' && !applyingRoute)
       window.history.replaceState(null, '', filtersHash('#/', query()));
   };
-  async function showReport(id) {
-    sideController?.abort();
-    sideActions?.destroy();
-    sideController = new AbortController();
-    const own = sideController;
-    side.replaceChildren(element('p', '', t.reportLoading));
-    try {
-      const report = await api.getReport(id, { signal: own.signal });
-      if (own.signal.aborted) return;
-      const close = element('button', '', t.closePopup);
-      close.type = 'button';
-      close.addEventListener('click', () => {
-        own.abort();
-        sideActions?.destroy();
-        side.replaceChildren();
-      });
-      const details = createReportDetails(report, { api, signal: own.signal });
-      details.querySelector('a.detail-link').href = filtersHash(
-        `#/reports/${id}`,
-        query(),
-      );
-      const controls = element('div');
-      side.replaceChildren(close, details, controls);
-      sideActions = createStaffActions(controls, {
-        report,
-        api,
-        staff,
-        onSaved: () => {
-          showReport(id);
-          scheduleLoad();
-        },
-      });
-      details.querySelector('h2').focus();
-    } catch (error) {
-      if (!own.signal.aborted)
-        side.replaceChildren(element('p', '', staffError(error)));
-    }
-  }
-  async function showCluster(cluster) {
-    sideController?.abort();
-    sideActions?.destroy();
-    sideController = new AbortController();
-    const own = sideController;
-    const close = element('button', '', t.closePopup);
-    close.type = 'button';
-    close.addEventListener('click', () => {
-      own.abort();
-      side.replaceChildren();
-    });
-    side.replaceChildren(
-      close,
-      element('h2', '', ui.clusterReports(cluster.count)),
-    );
-    if (cluster.count > (cluster.ids?.length ?? 0))
-      side.append(element('p', '', ui.clusterLimited));
-    try {
-      for (const id of cluster.ids ?? []) {
-        const report = await api.getReport(id, { signal: own.signal });
-        if (own.signal.aborted) return;
-        const details = createReportDetails(report, {
-          api,
-          signal: own.signal,
-        });
-        details.querySelector('a.detail-link').href = filtersHash(
-          `#/reports/${id}`,
-          query(),
-        );
-        side.append(details);
-      }
-    } catch (error) {
-      if (!own.signal.aborted) side.append(element('p', '', staffError(error)));
-    }
-  }
-  /** Walk server pages in their stable API order, preserving the current filter. */
-  async function getAdjacent(id, direction, signal) {
-    let scanOffset = 0;
-    let current = await api.getReports(
-      { ...query(), offset: scanOffset },
-      { signal },
-    );
-    let index = current.items.findIndex(
-      (item) => item.id.toLowerCase() === id.toLowerCase(),
-    );
-    // A shared deep link may not belong to the first page. Search until found.
-    while (index < 0 && scanOffset + 25 < current.total) {
-      scanOffset += 25;
-      current = await api.getReports(
-        { ...query(), offset: scanOffset },
-        { signal },
-      );
-      index = current.items.findIndex(
-        (item) => item.id.toLowerCase() === id.toLowerCase(),
-      );
-    }
-    if (index < 0) return null;
-    if (current.items[index + direction])
-      return current.items[index + direction].id;
-    const nextOffset = scanOffset + direction * 25;
-    if (nextOffset < 0 || nextOffset >= current.total) return null;
-    const next = await api.getReports(
-      { ...query(), offset: nextOffset },
-      { signal },
-    );
-    return (direction > 0 ? next.items[0] : next.items.at(-1))?.id ?? null;
-  }
+  const getAdjacent = (id, direction, signal) =>
+    getAdjacentReport(api, query, id, direction, signal);
   function scheduleLoad() {
     if (destroyed) return;
     needsLoad = true;
@@ -173,7 +81,10 @@ export function createPortal({
       // Attach the error handler immediately so a failed cluster fetch cannot leak a rejection.
       const clusterResult = api
         .getClusters?.(
-          { ...filters, zoom: map.getZoom?.() ?? 13 },
+          {
+            ...filters,
+            zoom: (map.getZoom?.() ?? 13) >= 15 ? 17 : (map.getZoom?.() ?? 13),
+          },
           { signal: own.signal },
         )
         .then(
@@ -269,9 +180,9 @@ export function createPortal({
     },
     onSelect: (id) => {
       store.selectReport(id);
-      showReport(id);
+      selection.showReport(id);
     },
-    onCluster: showCluster,
+    onCluster: selection.showCluster,
     detailsFactory: (report) =>
       createReportDetails(report, { api, signal: controller?.signal }),
   });
@@ -284,8 +195,11 @@ export function createPortal({
     },
     onSelect(id) {
       store.selectReport(id);
-      map.focusReport(id);
-      showReport(id);
+      map.focusReport(
+        id,
+        store.getState().reports.find((report) => report.id === id),
+      );
+      selection.showReport(id);
     },
     getScope: query,
     onRetry: scheduleLoad,
@@ -312,18 +226,19 @@ export function createPortal({
   const header = headerElement
     ? createSiteHeader(headerElement, {
         onStaff() {
+          staffRoot.hidden = !staffRoot.hidden;
           const details = staffRoot.querySelector('details');
-          if (details) details.open = true;
+          if (details) details.open = !staffRoot.hidden;
           // On phones the list may hide the panel behind the map view.
           mapElement.parentElement.classList.remove('map-visible');
           toggle.setAttribute('aria-expanded', 'false');
           toggle.textContent = ui.showMap;
+          if (staffRoot.hidden) return false;
           staffRoot.scrollIntoView?.({ block: 'start' });
-          const input = staffRoot.querySelector('input');
-          (input && !input.closest('[hidden]')
-            ? input
-            : staffRoot.querySelector('summary')
-          )?.focus();
+          [...staffRoot.querySelectorAll('input, button')]
+            .find((control) => !control.closest('[hidden]'))
+            ?.focus();
+          return true;
         },
       })
     : null;
@@ -382,7 +297,7 @@ export function createPortal({
     } else {
       clearTimeout(timer);
       controller?.abort();
-      sideController?.abort();
+      selection.clear();
       generation++;
       search.cancel();
       if (route.name === 'report')
@@ -425,10 +340,16 @@ export function createPortal({
   }
   if (pageElement && workspaceElement) router = createRouter(renderRoute);
   else scheduleLoad();
+  let hadStaff = Boolean(staff.getRole?.() || staff.getToken?.());
   const unsubscribeStaff = staff.subscribe(() => {
-    sideController?.abort();
-    sideActions?.destroy();
-    side.replaceChildren();
+    const authenticated = Boolean(staff.getRole?.() || staff.getToken?.());
+    if (hadStaff && !authenticated) {
+      staffRoot.hidden = false;
+      staffRoot.querySelector('details').open = true;
+    }
+    hadStaff = authenticated;
+    header?.setStaffOpen(!staffRoot.hidden);
+    selection.clear();
     store.setReports({ items: [], total: 0 });
     map.renderClusters?.([]);
     needsLoad = true;
@@ -446,8 +367,7 @@ export function createPortal({
       generation++;
       clearTimeout(timer);
       controller?.abort();
-      sideController?.abort();
-      sideActions?.destroy();
+      selection.clear();
       unsubscribeStaff();
       unsubscribe();
       header?.destroy();
@@ -463,54 +383,4 @@ export function createPortal({
     },
   };
 }
-/** Static map chrome is translated here so UI copy stays in i18n.js. */
-function mount() {
-  const mapElement = document.querySelector('#map');
-  const panelElement = document.querySelector('#panel');
-  if (!mapElement || !panelElement) return;
-  const region = document.querySelector('#map-region');
-  region.setAttribute('aria-labelledby', 'map-title');
-  const skip = document.createElement('a');
-  skip.className = 'skip-link';
-  skip.href = '#reports-list';
-  skip.textContent = t.skipToReports;
-  document.body.prepend(skip);
-  const title = document.createElement('h2');
-  title.id = 'map-title';
-  title.className = 'map-title';
-  title.textContent = t.city;
-  const help = document.createElement('p');
-  help.id = 'map-help';
-  help.className = 'sr-only';
-  help.textContent = t.mapHelp;
-  const legend = document.createElement('ul');
-  legend.className = 'map-legend';
-  for (const status of GROUPS) {
-    const item = document.createElement('li');
-    const dot = document.createElement('span');
-    dot.className = `legend-dot state-pin--${status}`;
-    dot.setAttribute('aria-hidden', 'true');
-    item.append(dot, document.createTextNode(ui.groups[status]));
-    legend.append(item);
-  }
-  region.append(title, help, legend);
-  document.title = `${t.appName} · ${t.portalTitle}`;
-  const app = createPortal({
-    mapElement,
-    panelElement,
-    workspaceElement: document.querySelector('#around'),
-    pageElement: document.querySelector('#page'),
-    headerElement: document.querySelector('#site-header'),
-  });
-  // Vite HMR should not leave live listeners, timers or a second Leaflet map.
-  if (import.meta.hot)
-    import.meta.hot.dispose(() => {
-      app.destroy();
-      skip.remove();
-      title.remove();
-      help.remove();
-      legend.remove();
-    });
-}
-
-mount();
+mountPortal(createPortal);

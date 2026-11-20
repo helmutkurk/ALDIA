@@ -46,6 +46,9 @@ const pairs = [
   ['on-primary', 'primary-dark'],
   ['on-bar', 'bar'],
   ['text', 'border'],
+  ['focus', 'surface'],
+  ['focus', 'background'],
+  ['text', 'state-pending'],
 ];
 // Status colors are dot, pin and series fills (non-text): at least 3:1 on
 // white; the status word beside them always uses the normal text color.

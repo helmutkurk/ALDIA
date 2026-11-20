@@ -1,0 +1,191 @@
+/* ---------- staff mode ---------- */
+.staff-root,
+.selected-report {
+  padding: 1rem 1.25rem;
+}
+.staff-root {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.staff-panel summary {
+  cursor: pointer;
+  font-weight: 650;
+  padding-block: 0.5rem;
+}
+.staff-panel form,
+.transition-form,
+.assignment-form {
+  display: grid;
+  gap: 0.75rem;
+}
+.staff-panel p,
+.staff-panel button {
+  margin-top: 0.5rem;
+}
+.staff-panel label,
+.transition-form label,
+.assignment-form label {
+  display: grid;
+  gap: 0.35rem;
+}
+.staff-actions,
+.timeline,
+.nearby-reports,
+.report-metadata {
+  margin-top: 2rem;
+}
+.assignment-form {
+  margin-block: 1rem;
+}
+.selected-report:empty {
+  display: none;
+}
+.selected-report {
+  border-top: 1px solid var(--border);
+  order: 0;
+}
+.selected-report:not(:empty) {
+  background: var(--background);
+}
+
+/* ---------- pages: report, triage ---------- */
+.page {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: clamp(1rem, 4vw, 3rem);
+  overflow-wrap: anywhere;
+}
+.page h1 {
+  margin: 1.5rem 0 1rem;
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+}
+.page .report-details {
+  font: inherit;
+}
+.page .report-photo {
+  height: auto;
+  max-height: 65vh;
+  object-fit: contain;
+}
+.report-location {
+  margin-top: 2rem;
+  position: relative;
+}
+.location-map {
+  height: 18rem;
+  margin-top: 0.75rem;
+  background: var(--background);
+}
+.report-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.report-metadata dt {
+  font-weight: 650;
+}
+.report-metadata dd {
+  margin: 0.25rem 0 1rem;
+}
+.nearby-thumbnail {
+  width: 6rem;
+  height: 5rem;
+  object-fit: cover;
+}
+.nearby-reports article {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding-block: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.photo-dialog {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  max-width: 95vw;
+  max-height: 95dvh;
+}
+.photo-dialog::backdrop {
+  background: rgb(17 24 39 / 80%);
+}
+.photo-dialog img {
+  display: block;
+  max-width: 100%;
+  max-height: 80dvh;
+  object-fit: contain;
+}
+.queue-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+.queue-tabs [aria-selected='true'] {
+  border-color: var(--text-muted);
+  border-bottom: 3px solid var(--accent);
+  font-weight: 700;
+}
+.queue-list {
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 1rem;
+}
+.queue-list > li {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+  box-shadow: 0 1px 2px rgb(31 41 51 / 6%);
+}
+.age-badge {
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+.page section {
+  max-width: 100%;
+}
+.page table {
+  display: block;
+  overflow-x: auto;
+  width: 100%;
+  border-collapse: collapse;
+  margin-block: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+.page th,
+.page td {
+  padding: 0.6rem;
+  text-align: start;
+  border-bottom: 1px solid var(--border);
+}
+.page svg:not(.check-icon) {
+  max-width: 100%;
+  height: auto;
+}
+
+.page--report {
+  max-width: 80rem;
+}
+.report-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(17rem, 2fr);
+  gap: 2rem;
+}
+.report-evidence,
+.report-handling {
+  min-width: 0;
+}
+.report-handling .timeline {
+  margin-top: 1.5rem;
+}
+.report-evidence .report-photo {
+  max-height: 30rem;
+}
+@media (max-width: 900px) {
+  .report-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}

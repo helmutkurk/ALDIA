@@ -2,7 +2,7 @@ import L from 'leaflet';
 import { reportState, STATE_GROUPS, stateLabel } from './states.js';
 import { ui } from './i18n.js';
 import { categoryLabel } from './categories.js';
-import { createReportDetails } from './panel.js';
+import { createReportDetails } from './report-details.js';
 import { statusLabel, t } from './i18n.js';
 
 const CENTER = [14.6349, -90.5069];
@@ -85,6 +85,14 @@ export function createReportMap(
   let focusReturn = null;
   let refreshing = false;
   let pendingFocus = null;
+  const selectMarker = (id) => {
+    for (const [key, marker] of markers) {
+      marker
+        .getElement()
+        ?.classList.toggle('report-marker--selected', key === id);
+      marker.setZIndexOffset(key === id ? 1000 : 0);
+    }
+  };
   const onPopupOpen = ({ popup }) => {
     const close = popup
       .getElement()
@@ -95,6 +103,7 @@ export function createReportMap(
   const onPopupClose = () => {
     if (refreshing) return;
     openedId = null;
+    selectMarker(null);
     if (focusReturn?.isConnected) focusReturn.focus({ preventScroll: true });
     focusReturn = null;
   };
@@ -221,12 +230,14 @@ export function createReportMap(
         });
         marker.on('click', () => {
           openedId = report.id;
+          selectMarker(report.id);
           focusReturn = marker.getElement();
           onSelect(report.id);
         });
         markers.set(report.id, marker);
       }
       openedId = markers.has(restoreId) ? restoreId : null;
+      selectMarker(openedId);
       if (openedId) {
         const marker = markers.get(openedId);
         marker.openPopup();
@@ -260,10 +271,12 @@ export function createReportMap(
       map.invalidateSize({ pan: false });
     },
     /** @param {string} id */
-    focusReport(id) {
+    focusReport(id, report) {
       const marker = markers.get(id);
-      if (!marker) return;
+      if (!marker && !report) return;
       const returnTarget = document.activeElement;
+      openedId = id;
+      selectMarker(id);
       if (pendingFocus) map.off('moveend', pendingFocus);
       // Open after the flight so Leaflet can keep the whole popup in view.
       pendingFocus = () => {
@@ -283,10 +296,14 @@ export function createReportMap(
       const reducedMotion =
         window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ??
         false;
-      map.flyTo(marker.getLatLng(), Math.max(map.getZoom(), 16), {
-        animate: !reducedMotion,
-        duration: 0.6,
-      });
+      map.flyTo(
+        marker?.getLatLng() ?? [report.latitude, report.longitude],
+        Math.max(map.getZoom(), 16),
+        {
+          animate: !reducedMotion,
+          duration: 0.6,
+        },
+      );
     },
     destroy() {
       observer?.disconnect();
