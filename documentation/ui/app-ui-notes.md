@@ -1,44 +1,41 @@
 # Citizen app UI notes
 
-Scope: `app/`, Spanish (Guatemala). Updated 2026-11-19 for the seven binding tasks in `app-reference-seeclickfix.md`
-and the neutral palette in `../design-tokens.md`.
+Scope: `app/`, Spanish (Guatemala). Updated 2026-11-20: seven tasks of `app-reference-seeclickfix.md` plus the calm palette of `../design-tokens.md`.
 Only reference principles are used; no SeeClickFix/FixMyStreet assets, text, colors or source code were copied.
 Colors and spacing/target tokens live in `lib/core/theme.dart`.
 
-## Neutral palette
+## Calm SeeClickFix-style palette (2026-11-20)
 
-Helmut's decision: simple graphite, white and warm gray, with no distinctive brand color. Explicit light/dark
-`ColorScheme` roles replace the old teal/amber seed, including secondary/tertiary roles, containers and outlines.
-Navigation, buttons, cards, Explore tabs, the landing and onboarding use those neutral roles. Light mode uses
-`#1F2937` primary, `#FFFFFF` surfaces, `#F5F5F4` page background, `#111827` text and `#4B5563` secondary text.
-Dark mode inverts surface/text (`#111827` / white), uses a warm charcoal page (`#1C1C1B`) and light neutral actions
-(`#E5E7EB` with graphite text). The shell header remains graphite with white text in both themes.
+Binding tokens: `../design-tokens.md`, implemented in `lib/core/theme.dart` (`AldiaColors`, light and dark `ColorScheme`).
+This replaces the neutral graphite palette of 2026-11-19.
 
-- Status words and icons retain the existing eleven-state citizen wording. Open/review uses `#B45309`, scheduled/in-work
-  uses `#4B5563`, resolved uses `#15803D`, closed uses `#6B7280`, and rejection/error uses `#B91C1C`.
-  Status chips use an opaque surface with colored text/icon/outline; cards show the word and state icon on their surface.
-  Dark-mode status variants are muted, lighter brown/gray/green/red, rather than reusing unreadable light-mode colors.
-- Closed-status gray passes on white (4.83:1) but fails on the warm-gray page background. Status text therefore stays
-  on an opaque card/chip surface. No status is communicated by color alone, including verifier verdicts.
-- `NeutralMapPin` gives report, cluster and location-selection markers the same graphite fill and a 2 dp white outline.
-  A state icon, location icon or cluster count supplies meaning; report pins also show the state word, with explicit
-  theme-aware label text/background and the complete state in semantics. No colored status fills or amber selection pin.
-- The synthetic demo photo's label, windows and formerly yellow details use neutral colors. No hardcoded teal/amber
-  UI hex values or accent token remain in `app/lib`.
-- `test/core/theme_test.dart` implements the WCAG sRGB linearization/relative-luminance formula. It checks light/dark
-  action/container/error/inverse pairs, body/secondary/action text over page and surface variants, every citizen/verifier
-  status on its actual opaque surface, and pin/header text. Reference black/white is 21:1; every tested text pair passes
-  4.5:1. Light status ratios: open/resolved 5.02, work 7.56, closed 4.83, rejected 6.47; white on graphite is 14.68.
+- `bar` `#3A3F44` (dark `#23292E`): top bar of the shell and Explorar, the MAPA/LISTA tab strip and the Inicio landing
+  background; white text (10.6:1). Other sheets (wizard) use the white `surface` header with title, help and close icons.
+- `primary` `#0F7A99`: full-width buttons (CONFIRMAR UBICACION, SIGUIENTE, ENVIAR), pressed `#0B6079`. Dark mode uses
+  `#4FB8D6` with dark text. Text buttons and links use `#0B6079` (the base teal is 4.48:1 on the page gray, so it is not
+  used for text).
+- `accent` `#E8731A`: only the tab underline (never text). Page `#F3F4F6`, cards `#FFFFFF`, border `#D9DEE3`,
+  text `#1F2933`, muted `#52606D`.
+- Status colors paint the dot or pin only: open orange, in work/scheduled green, resolved blue, closed gray, rejected red,
+  pending verification a hollow dot. The word always sits beside the dot in the normal text color (`StatusDot`,
+  `StatusLabel`; chips keep icon + word). The eleven-state citizen wording is unchanged.
+- `StatusMapPin`: status-colored disc, white 3 dp outline, white center with the state letter in text color (14:1).
+  `NeutralMapPin` (primary fill) remains for clusters and the location-selection pin.
+- Spacing scale `AldiaSpace` (4/8/12/16/24/32, 48 dp targets). Pressed and ripple states come from the theme (ink ripple,
+  darker pressed buttons); empty and error states use `EmptyState`.
+- `test/core/theme_test.dart` checks every text/background pair at 4.5:1 in light and dark (buttons, containers, snackbar,
+  top bar and tab label on `bar`, pin letter, text buttons and body/secondary text on every surface) and every status
+  dot at 3:1 against the surface (non-text).
 
 ## Screen map
 
 ```
 First run: skippable onboarding (3 slides)
 Shell: Inicio | Avisos | (+) Reportar | Mis reportes | Perfil
- Inicio: neutral landing, resolved count, Explorar mi ciudad, Reportar un problema
- Explorar: graphite bar, filters, MAPA / LISTA with neutral underline
+ Inicio: dark `bar` landing, Aldia mark, big resolved counter, Explorar mi ciudad, Reportar un problema
+ Explorar: dark bar with search, locate, filter and menu icons; MAPA / LISTA with accent underline
  MAPA: viewport clusters/pins, summary sheet, zoom, locate, overlay/layer control
- LISTA: large-photo cards, status icon + word, location, note, date/id, heart/share
+ LISTA: large-photo cards, status dot + word, location, note, date/id, heart/share
  Avisos: locally observed state changes, refresh, offline stored inbox
  Mis reportes: outbox, saved drafts, sent/followed reports (existing behavior)
  Perfil: phone placeholder, name-visibility preference, language/version, local data deletion
@@ -92,6 +89,13 @@ Detail: photo, citizen state + verifier verdict, public timeline, nearby reports
   not claim to submit a server review.
 
 ## Validation and limits
+
+- Calm-palette update (2026-11-20): format, analyzer clean, **106/106 tests passed**, `flutter build linux --debug` built.
+  Explorar gained a search field (filters the list by category, state word and note), a locate action that centers the map,
+  and an overflow menu (refresh, clear filters). Not exercised: physical devices, real tiles, live camera, screenshots
+  against the reference (no visual diff was made).
+
+### Previous validation (neutral palette, 2026-11-19)
 
 - Neutral-palette checks: format completed; analyzer clean; **104/104 tests passed**, including new WCAG token-pair
   and light/dark status-word/icon tests. The map regression checks that different states retain the same outlined

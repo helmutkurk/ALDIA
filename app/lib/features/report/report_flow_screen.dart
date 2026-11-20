@@ -113,12 +113,6 @@ class _FlowViewState extends State<_FlowView> with WidgetsBindingObserver {
       appBar: AppBar(
         title: const Text(S.newReport),
         actions: [
-          if (Navigator.of(context).canPop())
-            IconButton(
-              tooltip: S.close,
-              onPressed: () => Navigator.of(context).maybePop(),
-              icon: const Icon(Icons.close),
-            ),
           IconButton(
             tooltip: 'Ayuda para reportar',
             icon: const Icon(Icons.help_outline),
@@ -138,6 +132,12 @@ class _FlowViewState extends State<_FlowView> with WidgetsBindingObserver {
               ),
             ),
           ),
+          if (Navigator.of(context).canPop())
+            IconButton(
+              tooltip: S.close,
+              onPressed: () => Navigator.of(context).maybePop(),
+              icon: const Icon(Icons.close),
+            ),
         ],
       ),
       bottomNavigationBar: result || outcome == SubmitState.sending
@@ -363,13 +363,29 @@ class _PhotoStep extends StatelessWidget {
             child: Semantics(
               button: true,
               label: 'Abrir cámara para tomar la foto',
-              child: SizedBox(
-                width: 160,
-                height: 160,
-                child: IconButton.filledTonal(
-                  onPressed: controller.takePhoto,
-                  icon: const Icon(Icons.camera_alt_outlined, size: 64),
-                  tooltip: 'Abrir cámara',
+              child: Tooltip(
+                message: 'Abrir cámara',
+                child: Material(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  shape: CircleBorder(
+                    side: BorderSide(
+                      color: Theme.of(context).colorScheme.primary,
+                      width: 3,
+                    ),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: controller.takePhoto,
+                    child: SizedBox(
+                      width: 176,
+                      height: 176,
+                      child: Icon(
+                        Icons.camera_alt_outlined,
+                        size: 72,
+                        color: Theme.of(context).colorScheme.onPrimaryContainer,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),

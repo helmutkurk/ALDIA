@@ -53,22 +53,25 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text(S.mapFallback), findsOneWidget);
       expect(find.text('En revisión'), findsOneWidget);
-      expect(find.byIcon(Icons.manage_search), findsOneWidget);
-      expect(find.byType(NeutralMapPin), findsNWidgets(2));
-      // Different states use the same neutral fill and a visible outline.
-      for (final container in tester.widgetList<Container>(
-        find.descendant(
-          of: find.byType(NeutralMapPin),
-          matching: find.byType(Container),
-        ),
+      expect(find.byType(StatusMapPin), findsNWidgets(2));
+      // Pin fill follows the state (orange open, blue resolved), white outline.
+      final fills = <Color?>[];
+      for (final pin in tester.widgetList<StatusMapPin>(
+        find.byType(StatusMapPin),
       )) {
-        final decoration = container.decoration! as BoxDecoration;
-        expect(decoration.color, AldiaColors.primary);
-        expect(
-          decoration.border,
-          Border.all(color: AldiaColors.onPrimary, width: 2),
+        final outer = tester.widget<Container>(
+          find
+              .descendant(
+                of: find.byWidget(pin),
+                matching: find.byType(Container),
+              )
+              .first,
         );
+        final decoration = outer.decoration! as BoxDecoration;
+        fills.add(decoration.color);
+        expect(decoration.border, Border.all(color: Colors.white, width: 3));
       }
+      expect(fills, [AldiaColors.open, AldiaColors.resolved]);
 
       await tester.tap(find.text('En revisión'));
       await tester.pumpAndSettle();

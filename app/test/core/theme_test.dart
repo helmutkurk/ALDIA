@@ -28,27 +28,32 @@ void main() {
     expect(_contrast(Colors.white, Colors.white), 1);
   });
 
-  test('light palette matches the shared neutral design tokens', () {
+  test('light palette matches the shared calm design tokens', () {
     final theme = buildTheme();
     final scheme = theme.colorScheme;
-    expect(scheme.primary, const Color(0xFF1F2937));
+    expect(AldiaColors.bar, const Color(0xFF3A3F44));
+    expect(AldiaColors.accent, const Color(0xFFE8731A));
+    expect(scheme.primary, const Color(0xFF0F7A99));
     expect(scheme.onPrimary, Colors.white);
     expect(scheme.surface, Colors.white);
-    expect(theme.scaffoldBackgroundColor, const Color(0xFFF5F5F4));
-    expect(scheme.outlineVariant, const Color(0xFFE5E7EB));
-    expect(scheme.onSurface, const Color(0xFF111827));
-    expect(scheme.onSurfaceVariant, const Color(0xFF4B5563));
+    expect(theme.scaffoldBackgroundColor, const Color(0xFFF3F4F6));
+    expect(scheme.outlineVariant, const Color(0xFFD9DEE3));
+    expect(scheme.onSurface, const Color(0xFF1F2933));
+    expect(scheme.onSurfaceVariant, const Color(0xFF52606D));
+    expect(theme.tabBarTheme.indicatorColor, AldiaColors.accent);
     for (final (state, color) in [
-      ('nuevo', const Color(0xFFB45309)),
-      ('en_revision', const Color(0xFFB45309)),
-      ('programado', const Color(0xFF4B5563)),
-      ('en_proceso', const Color(0xFF4B5563)),
-      ('resuelto', const Color(0xFF15803D)),
+      ('nuevo', const Color(0xFFE8731A)),
+      ('en_revision', const Color(0xFFE8731A)),
+      ('programado', const Color(0xFF3F9A47)),
+      ('en_proceso', const Color(0xFF3F9A47)),
+      ('resuelto', const Color(0xFF2D8CD0)),
       ('no_procede', const Color(0xFF6B7280)),
       ('rechazado_verificador', const Color(0xFFB91C1C)),
     ]) {
       expect(AldiaColors.status(state, Brightness.light), color, reason: state);
     }
+    expect(AldiaColors.statusIsHollow('pendiente_verificacion'), isTrue);
+    expect(AldiaColors.statusIsHollow('nuevo'), isFalse);
   });
 
   for (final theme in [buildTheme(), buildDarkTheme()]) {
@@ -68,8 +73,17 @@ void main() {
         'error container': (s.onErrorContainer, s.errorContainer),
         'snackbar': (s.onInverseSurface, s.inverseSurface),
         'snackbar action': (s.inversePrimary, s.inverseSurface),
-        'map pin / header': (AldiaColors.onPrimary, AldiaColors.primary),
+        'cluster pin': (AldiaColors.onPrimary, AldiaColors.primary),
         'pressed action': (AldiaColors.onPrimary, AldiaColors.primaryDark),
+        'top bar': (
+          AldiaColors.onBar,
+          AldiaColors.barOfBrightness(theme.brightness),
+        ),
+        'tab label on bar': (
+          const Color(0xFFD9DEE3),
+          AldiaColors.barOfBrightness(theme.brightness),
+        ),
+        'pin letter': (AldiaColors.text, Colors.white),
         for (final background in [
           theme.scaffoldBackgroundColor,
           s.surface,
@@ -83,21 +97,12 @@ void main() {
         ]) ...{
           'body on $background': (s.onSurface, background),
           'secondary text on $background': (s.onSurfaceVariant, background),
-          'text button on $background': (s.primary, background),
+          'text button on $background': (
+            theme.textButtonTheme.style!.foregroundColor!.resolve({})!,
+            background,
+          ),
           'error on $background': (s.error, background),
         },
-        for (final state in [
-          ...citizenStates.keys,
-          'pending',
-          'verified',
-          'rejected',
-          null,
-          'unknown',
-        ])
-          'status $state on surface': (
-            AldiaColors.status(state, theme.brightness),
-            s.surface,
-          ),
       };
       for (final entry in pairs.entries) {
         final (foreground, background) = entry.value;
@@ -109,6 +114,23 @@ void main() {
           greaterThanOrEqualTo(4.5),
           reason: '${entry.key}: ${ratio.toStringAsFixed(2)}:1',
         );
+      }
+    });
+  }
+
+  for (final theme in [buildTheme(), buildDarkTheme()]) {
+    test('${theme.brightness.name} status dots are visible (3:1 non-text)', () {
+      for (final state in [
+        ...citizenStates.keys,
+        'pending',
+        'verified',
+        'rejected',
+        null,
+        'unknown',
+      ]) {
+        final dot = AldiaColors.status(state, theme.brightness);
+        final ratio = _contrast(dot, theme.colorScheme.surface);
+        expect(ratio, greaterThanOrEqualTo(3), reason: '$state $ratio');
       }
     });
   }

@@ -45,6 +45,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   _Tab _tab = _Tab.home;
   bool _exploring = false;
+  bool _searching = false;
+  String _query = '';
+  final _mapKey = GlobalKey<_MapViewState>();
   late Future<int?> _resolved;
   // Tabs are built on first visit and then kept (map camera, scroll position).
   final _visited = <_Tab>{_Tab.home};
@@ -151,13 +154,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     : const Duration(milliseconds: 300),
                 child: Column(
                   children: [
-                    TabBar(
-                      indicatorColor: Theme.of(context).colorScheme.primary,
-                      indicatorWeight: 3,
-                      tabs: const [
-                        Tab(text: 'MAPA'),
-                        Tab(text: 'LISTA'),
-                      ],
+                    Material(
+                      color: AldiaColors.barOf(context),
+                      child: const TabBar(
+                        labelColor: AldiaColors.onBar,
+                        unselectedLabelColor: Color(0xFFD9DEE3),
+                        indicatorWeight: 4,
+                        tabs: [
+                          Tab(text: 'MAPA'),
+                          Tab(text: 'LISTA'),
+                        ],
+                      ),
                     ),
                     Expanded(
                       child: TabBarView(
@@ -166,6 +173,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             : null,
                         children: [
                           _MapView(
+                            key: _mapKey,
                             state: _state,
                             category: _category,
                             onOpen: _open,
@@ -173,6 +181,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           _ReportList(
                             future: _list,
                             filtered: _filtered,
+                            query: _query,
                             onOpen: _open,
                             onRetry: _reload,
                             onClear: _clearFilters,
@@ -207,28 +216,64 @@ class _HomeScreenState extends State<HomeScreen> {
     final exploring = _tab == _Tab.home && _exploring;
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: AldiaColors.primary,
-        foregroundColor: Colors.white,
+        backgroundColor: AldiaColors.barOf(context),
+        foregroundColor: AldiaColors.onBar,
+        iconTheme: const IconThemeData(color: AldiaColors.onBar),
+        actionsIconTheme: const IconThemeData(color: AldiaColors.onBar),
+        shape: null,
         leading: exploring
             ? IconButton(
                 tooltip: 'Volver a Inicio',
-                onPressed: () => setState(() => _exploring = false),
+                onPressed: () => setState(() {
+                  _exploring = false;
+                  _searching = false;
+                  _query = '';
+                }),
                 icon: const Icon(Icons.arrow_back),
               )
             : null,
-        title: Text(
-          exploring
-              ? 'Explorar mi ciudad'
-              : switch (_tab) {
-                  _Tab.notices => 'Avisos',
-                  _Tab.mine => S.myReports,
-                  _Tab.profile => 'Perfil',
-                  _ => S.appName,
-                },
-          style: const TextStyle(color: Colors.white),
-        ),
+        title: exploring && _searching
+            ? TextField(
+                autofocus: true,
+                style: const TextStyle(color: AldiaColors.onBar),
+                cursorColor: AldiaColors.onBar,
+                textInputAction: TextInputAction.search,
+                decoration: const InputDecoration(
+                  hintText: 'Buscar reportes',
+                  hintStyle: TextStyle(color: Color(0xFFD9DEE3)),
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  filled: false,
+                ),
+                onChanged: (value) => setState(() => _query = value.trim()),
+              )
+            : Text(
+                exploring
+                    ? 'Explorar mi ciudad'
+                    : switch (_tab) {
+                        _Tab.notices => 'Avisos',
+                        _Tab.mine => S.myReports,
+                        _Tab.profile => 'Perfil',
+                        _ => S.appName,
+                      },
+                style: const TextStyle(color: AldiaColors.onBar),
+              ),
         actions: [
-          if (exploring)
+          if (exploring) ...[
+            IconButton(
+              tooltip: _searching ? 'Cerrar búsqueda' : 'Buscar reportes',
+              onPressed: () => setState(() {
+                _searching = !_searching;
+                if (!_searching) _query = '';
+              }),
+              icon: Icon(_searching ? Icons.close : Icons.search),
+            ),
+            IconButton(
+              tooltip: S.useMyLocation,
+              onPressed: () => _mapKey.currentState?.locate(),
+              icon: const Icon(Icons.my_location),
+            ),
             IconButton(
               tooltip: S.filtersLabel,
               onPressed: _editFilters,
@@ -238,6 +283,21 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: const Icon(Icons.filter_list),
               ),
             ),
+            PopupMenuButton<String>(
+              tooltip: 'Más opciones',
+              iconColor: AldiaColors.onBar,
+              onSelected: (value) =>
+                  value == 'clear' ? _clearFilters() : _reload(),
+              itemBuilder: (_) => [
+                const PopupMenuItem(value: 'reload', child: Text('Actualizar')),
+                if (_filtered)
+                  const PopupMenuItem(
+                    value: 'clear',
+                    child: Text(S.clearFilters),
+                  ),
+              ],
+            ),
+          ],
         ],
       ),
       body: Column(
@@ -324,74 +384,89 @@ class _Landing extends StatelessWidget {
   final VoidCallback onReport;
 
   @override
-  Widget build(BuildContext context) => ColoredBox(
-    color: Theme.of(context).scaffoldBackgroundColor,
-    child: Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 680),
-        child: ListView(
-          shrinkWrap: true,
-          padding: const EdgeInsets.all(AldiaSpace.xl),
-          children: [
-            Icon(
-              Icons.location_city_outlined,
-              color: Theme.of(context).colorScheme.primary,
-              size: 88,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Tu ciudad, al día',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.headlineMedium
-                  ?.copyWith(color: Theme.of(context).colorScheme.onSurface),
-            ),
-            const SizedBox(height: 24),
-            FutureBuilder<int?>(
-              future: resolved,
-              builder: (context, snapshot) => Column(
-                children: [
-                  Text(
-                    snapshot.data?.toString() ?? '—',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  Text(
-                    snapshot.hasData
-                        ? 'reportes resueltos'
-                        : 'Reportes resueltos: dato no disponible',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    const onBar = AldiaColors.onBar;
+    const muted = Color(0xFFD9DEE3);
+    return ColoredBox(
+      color: AldiaColors.barOf(context),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 680),
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.all(AldiaSpace.xl),
+            children: [
+              const ExcludeSemantics(
+                child: Icon(
+                  Icons.location_city_outlined,
+                  color: onBar,
+                  size: 72,
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 24),
-              child: Divider(
-                color: Theme.of(context).colorScheme.outlineVariant,
+              const SizedBox(height: AldiaSpace.l),
+              Semantics(
+                header: true,
+                child: Text(
+                  'Tu ciudad, al día',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.headlineMedium?.copyWith(color: onBar),
+                ),
               ),
-            ),
-            FilledButton.tonalIcon(
-              onPressed: onExplore,
-              icon: const Icon(Icons.explore_outlined),
-              label: const Text('Explorar mi ciudad'),
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: onReport,
-              icon: const Icon(Icons.add_a_photo_outlined),
-              label: const Text('Reportar un problema'),
-            ),
-          ],
+              const SizedBox(height: AldiaSpace.xl),
+              FutureBuilder<int?>(
+                future: resolved,
+                builder: (context, snapshot) => Column(
+                  children: [
+                    Text(
+                      snapshot.data?.toString() ?? '—',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.displayLarge?.copyWith(
+                        color: onBar,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      snapshot.hasData
+                          ? 'reportes resueltos'
+                          : 'Reportes resueltos: dato no disponible',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: muted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: AldiaSpace.xl),
+                child: Divider(color: Color(0xFF6B7278)),
+              ),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(64),
+                  backgroundColor: AldiaColors.surface,
+                  foregroundColor: AldiaColors.text,
+                ),
+                onPressed: onExplore,
+                icon: const Icon(Icons.explore_outlined),
+                label: const Text('Explorar mi ciudad'),
+              ),
+              const SizedBox(height: AldiaSpace.l),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(64),
+                ),
+                onPressed: onReport,
+                icon: const Icon(Icons.add_a_photo_outlined),
+                label: const Text('Reportar un problema'),
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 AnimationStyle? _sheetStyle(BuildContext context) =>
@@ -519,6 +594,7 @@ class _ReportList extends StatelessWidget {
   const _ReportList({
     required this.future,
     required this.filtered,
+    required this.query,
     required this.onOpen,
     required this.onRetry,
     required this.onClear,
@@ -526,6 +602,7 @@ class _ReportList extends StatelessWidget {
 
   final Future<List<Report>> future;
   final bool filtered;
+  final String query;
   final void Function(Report) onOpen;
   final VoidCallback onRetry;
   final VoidCallback onClear;
@@ -546,7 +623,26 @@ class _ReportList extends StatelessWidget {
             onAction: onRetry,
           );
         }
-        final reports = snapshot.data!;
+        final all = snapshot.data!;
+        final needle = query.toLowerCase();
+        final reports = needle.isEmpty
+            ? all
+            : [
+                for (final r in all)
+                  if ([
+                    categoryById(r.category).label,
+                    citizenStateFor(r.citizenState).label,
+                    r.note ?? '',
+                  ].any((t) => t.toLowerCase().contains(needle)))
+                    r,
+              ];
+        if (reports.isEmpty && needle.isNotEmpty) {
+          return const EmptyState(
+            icon: Icons.search_off,
+            title: 'Sin resultados para tu búsqueda',
+            help: 'Prueba con otra palabra o quita la búsqueda.',
+          );
+        }
         if (reports.isEmpty) {
           return filtered
               ? EmptyState(
@@ -585,6 +681,7 @@ class _ReportList extends StatelessWidget {
 /// available or a filter is active (the clusters endpoint has no filters).
 class _MapView extends StatefulWidget {
   const _MapView({
+    super.key,
     required this.state,
     required this.category,
     required this.onOpen,
@@ -621,6 +718,17 @@ class _MapViewState extends State<_MapView> {
     _debounce?.cancel();
     _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> locate() async {
+    final point = await context.read<LocationService>().currentPosition();
+    if (!mounted) return;
+    if (point != null) {
+      _controller.move(point, 16);
+    } else {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text(S.locationUnavailable)));
+    }
   }
 
   void _scheduleLoad() {
@@ -812,19 +920,7 @@ class _MapViewState extends State<_MapView> {
                 ),
                 IconButton(
                   tooltip: S.useMyLocation,
-                  onPressed: () async {
-                    final point = await context
-                        .read<LocationService>()
-                        .currentPosition();
-                    if (!mounted || !context.mounted) return;
-                    if (point != null) {
-                      _controller.move(point, 16);
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text(S.locationUnavailable)),
-                      );
-                    }
-                  },
+                  onPressed: locate,
                   icon: const Icon(Icons.my_location),
                 ),
               ],
@@ -880,7 +976,10 @@ class _StatePin extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            NeutralMapPin(child: Icon(state.icon)),
+            StatusMapPin(
+              state: report.citizenState,
+              letter: state.label.characters.first.toUpperCase(),
+            ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 4),
               decoration: BoxDecoration(

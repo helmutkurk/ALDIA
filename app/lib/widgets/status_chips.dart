@@ -14,6 +14,56 @@ String statusLabel(String status) => switch (status) {
 String reportStatusLabel(Report report) =>
     '${statusLabel(report.status)}${report.verification?.isStub == true ? ' (prueba)' : ''}';
 
+/// Status dot: filled in the status color, or hollow while verification is
+/// pending. Always placed next to the status word, never alone.
+class StatusDot extends StatelessWidget {
+  const StatusDot({super.key, required this.state, this.size = 10});
+  final String? state;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = AldiaColors.status(state, Theme.of(context).brightness);
+    final hollow = AldiaColors.statusIsHollow(state);
+    return ExcludeSemantics(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: hollow ? Colors.transparent : color,
+          border: Border.all(color: color, width: 2),
+        ),
+      ),
+    );
+  }
+}
+
+/// Dot plus status word in the normal text color (reference card style).
+class StatusLabel extends StatelessWidget {
+  const StatusLabel({super.key, required this.state, this.style});
+  final String? state;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    final info = citizenStateFor(state);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        StatusDot(state: state),
+        const SizedBox(width: AldiaSpace.s),
+        Flexible(
+          child: Text(
+            info.label,
+            style: style ?? Theme.of(context).textTheme.labelLarge,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// Compact state label: functional icon plus text on an opaque surface
 /// (never color alone). Wraps to two lines instead of overflowing.
 class StateChip extends StatelessWidget {
@@ -45,7 +95,7 @@ class StateChip extends StatelessWidget {
               child: Text(
                 info.label,
                 style: Theme.of(context).textTheme.labelMedium
-                    ?.copyWith(color: foreground),
+                    ?.copyWith(color: scheme.onSurface),
               ),
             ),
           ],
@@ -70,7 +120,7 @@ class CitizenStateChip extends StatelessWidget {
       side: BorderSide(color: foreground),
       avatar: Icon(info.icon, size: 20, color: foreground),
       label: Text(info.label),
-      labelStyle: TextStyle(color: foreground),
+      labelStyle: TextStyle(color: theme.colorScheme.onSurface),
       materialTapTargetSize: MaterialTapTargetSize.padded,
     );
   }
@@ -101,7 +151,7 @@ class StatusChips extends StatelessWidget {
             color: foreground,
           ),
           label: Text(reportStatusLabel(report)),
-          labelStyle: TextStyle(color: foreground),
+          labelStyle: TextStyle(color: theme.colorScheme.onSurface),
         ),
       ],
     );

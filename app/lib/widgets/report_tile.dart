@@ -5,6 +5,7 @@ import '../core/categories.dart';
 import '../core/citizen_states.dart';
 import '../core/strings.dart';
 import '../core/theme.dart';
+import 'status_chips.dart';
 import '../data/report.dart';
 import '../data/report_repository.dart';
 import '../services/share_service.dart';
@@ -21,10 +22,6 @@ class ReportTile extends StatelessWidget {
     final state = citizenStateFor(report.citizenState);
     final repository = context.read<ReportRepository>();
     final theme = Theme.of(context);
-    final statusColor = AldiaColors.status(
-      report.citizenState,
-      theme.brightness,
-    );
     return Card(
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -58,24 +55,24 @@ class ReportTile extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: Wrap(
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            spacing: 8,
-                            children: [
-                              Icon(state.icon, size: 12, color: statusColor),
-                              Text(
-                                state.label,
-                                style: theme.textTheme.labelLarge?.copyWith(
-                                  color: statusColor,
-                                ),
+                        Wrap(
+                          alignment: WrapAlignment.spaceBetween,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: AldiaSpace.s,
+                          runSpacing: AldiaSpace.xs,
+                          children: [
+                            Text(
+                              S.age(report.createdAt, DateTime.now()),
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
                               ),
-                            ],
-                          ),
+                            ),
+                            StatusLabel(state: report.citizenState),
+                          ],
                         ),
                         const SizedBox(height: 8),
                         Text(category.label, style: theme.textTheme.titleLarge),
+                        const SizedBox(height: AldiaSpace.xs),
                         Text(
                           'Punto: ${report.position.latitude.toStringAsFixed(5)}, ${report.position.longitude.toStringAsFixed(5)}',
                           style: theme.textTheme.bodySmall,

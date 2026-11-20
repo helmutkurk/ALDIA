@@ -35,8 +35,8 @@ void main() {
         }
         for (final chip in tester.widgetList<Chip>(find.byType(Chip))) {
           expect(chip.backgroundColor, theme.colorScheme.surface);
-          expect(chip.labelStyle?.color, (chip.avatar as Icon).color);
-          expect(chip.side?.color, chip.labelStyle?.color);
+          expect(chip.labelStyle?.color, theme.colorScheme.onSurface);
+          expect(chip.side?.color, (chip.avatar as Icon).color);
         }
         expect(tester.takeException(), isNull);
       },
