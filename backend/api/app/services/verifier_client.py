@@ -9,14 +9,29 @@ logger = logging.getLogger(__name__)
 
 
 class VerifierClient:
-    def __init__(self, url: str, transport: httpx.BaseTransport | None = None) -> None:
+    def __init__(
+        self,
+        url: str,
+        transport: httpx.BaseTransport | None = None,
+        timeout: float = 10.0,
+    ) -> None:
         self.url = f"{url}/verify"
+        self.health_url = f"{url}/health"
         self.client = httpx.Client(
-            timeout=httpx.Timeout(10.0, connect=3.0),
+            timeout=httpx.Timeout(timeout, connect=min(3.0, timeout)),
             transport=transport,
             follow_redirects=False,
             trust_env=False,
         )
+
+    def healthy(self) -> bool:
+        try:
+            response = self.client.get(self.health_url, timeout=1.0)
+            response.raise_for_status()
+            body = response.json()
+            return isinstance(body, dict) and body.get("status") == "ok"
+        except (httpx.HTTPError, ValueError):
+            return False
 
     def verify(self, photo: bytes, report: ReportCreate) -> VerifierResult | None:
         fields = {

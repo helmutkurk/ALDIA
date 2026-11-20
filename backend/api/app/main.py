@@ -11,7 +11,14 @@ from starlette.exceptions import HTTPException
 from app.config import Settings
 from app.db import Database
 from app.dependencies import Services
-from app.middleware import UniformCORSMiddleware, UploadLimitMiddleware
+from app.logging_config import configure_logging
+from app.middleware import (
+    SECURITY_HEADERS,
+    SecurityMiddleware,
+    UniformCORSMiddleware,
+    UploadLimitMiddleware,
+)
+from app.openapi import install_openapi
 from app.routes import auth, exports, health, open311, reports, stats, triage
 from app.security import CSRF_COOKIE, SESSION_COOKIE
 from app.services.storage import PhotoStorage
@@ -25,12 +32,15 @@ def create_app(
     *,
     verifier_transport: httpx.BaseTransport | None = None,
 ) -> FastAPI:
+    configure_logging()
     config = settings or Settings()
     services = Services(
         config,
         Database(config.database_url),
         PhotoStorage(config.photo_dir),
-        VerifierClient(config.verifier_url, verifier_transport),
+        VerifierClient(
+            config.verifier_url, verifier_transport, config.verifier_timeout_seconds
+        ),
     )
 
     @asynccontextmanager
@@ -56,6 +66,7 @@ def create_app(
         ],
         allow_credentials=True,
     )
+    app.add_middleware(SecurityMiddleware, settings=config)
 
     @app.exception_handler(RequestValidationError)
     async def invalid_request(
@@ -122,12 +133,12 @@ def create_app(
         # Starlette's outer error handler sits outside the CORS middleware.
         # Add allowed-origin headers here so browsers can read the error envelope.
         origin = request.headers.get("origin")
-        headers: dict[str, str] = {}
+        headers: dict[str, str] = dict(SECURITY_HEADERS)
         if origin is not None:
-            if "*" in config.allowed_origins:
-                headers["Access-Control-Allow-Origin"] = "*"
-            elif origin in config.allowed_origins:
-                headers = {"Access-Control-Allow-Origin": origin, "Vary": "Origin"}
+            if origin in config.allowed_origins:
+                headers.update(
+                    {"Access-Control-Allow-Origin": origin, "Vary": "Origin"}
+                )
             if "Access-Control-Allow-Origin" in headers:
                 headers["Access-Control-Allow-Credentials"] = "true"
         return JSONResponse(
@@ -148,4 +159,5 @@ def create_app(
     app.include_router(open311.router)
     app.include_router(triage.router)
     app.include_router(reports.router)
+    install_openapi(app, max_upload_bytes=config.max_upload_bytes)
     return app

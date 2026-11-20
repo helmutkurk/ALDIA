@@ -1,4 +1,5 @@
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -13,12 +14,38 @@ class Settings(BaseSettings):
     photo_dir: Path = Path("/data/photos")
     verifier_url: str = "http://verifier:8001"
     max_upload_bytes: int = Field(default=8388608, gt=0)
+    max_request_bytes: int = Field(default=65536, gt=0)
+    public_post_rate_limit: int = Field(default=60, gt=0)
+    public_post_window_seconds: int = Field(default=60, gt=0)
+    verifier_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
     cors_origins: str = "http://localhost:5173"
     env: str = "production"
     auth_dev_tokens: bool = False
 
     staff_token: str | None = Field(default=None, repr=False, exclude=True)
     supervisor_token: str | None = Field(default=None, repr=False, exclude=True)
+
+    @field_validator("cors_origins")
+    @classmethod
+    def explicit_origins(cls, value: str) -> str:
+        for origin in (part.strip() for part in value.split(",") if part.strip()):
+            parsed = urlsplit(origin)
+            if (
+                parsed.scheme not in {"http", "https"}
+                or not parsed.hostname
+                or parsed.username is not None
+                or parsed.password is not None
+                or parsed.path
+                or parsed.query
+                or parsed.fragment
+                or "*" in origin
+            ):
+                raise ValueError("CORS_ORIGINS must contain explicit HTTP(S) origins")
+            try:
+                _ = parsed.port
+            except ValueError as exc:
+                raise ValueError("Invalid origin port") from exc
+        return value
 
     @property
     def dev_tokens_enabled(self) -> bool:

@@ -91,3 +91,46 @@ Append-only, one block per iteration. Plan: `documentation/mvp-plan.md`.
   remain for Claude/Helmut: run `make dev-all` outside this job and inspect `http://localhost:5173/#/panel`, both
   chart tables and tooltips at desktop and phone widths. Vault/session maintenance is handed to the orchestrator
   because this job authorizes writes only in `backend/api`, `portal` and `documentation`.
+
+## 2026-11-20 — Backend demo and municipal IT readiness (uncommitted)
+
+- Scope: direct work on `develop`, no branch switch, commit or push. No new
+  dependencies, environment-file reads or personal photos. Concurrent app/portal
+  and statistics changes were preserved. Vault/session maintenance is handed to
+  the orchestrator because this job restricts writes to backend and documentation.
+- Demo: 62 synthetic Zona 4 cases (60 public), all categories/states over 60 days,
+  increasing weekly cumulative resolution share, Spanish public notes/rejections,
+  duplicates and three stable before/after comparison cases. Existing one-photo
+  contract uses paired synthetic scenes in one JPEG; no new after-photo upload.
+  Older seeds need `--reset` in an isolated demo database to replace existing rows.
+- Hardening: configurable per-peer-IP public POST budget, explicit-origin CORS,
+  universal security headers, bounded non-photo request bodies, JSON application
+  logs with route templates only, dependency health (200/503), private photo
+  permissions and configurable verifier timeout retaining pending behavior.
+  Server launch commands suppress banners and untrusted proxy headers.
+- Integration: Spanish OpenAPI metadata/examples/shared errors, six-service
+  Open311 catalogue, session/CSRF REST and CSV call sheet, polling limits;
+  backup/restore runbook and technical data/retention proposal.
+- Files changed by this job under `backend/api`: `Dockerfile`, `Makefile`,
+  `README.md`, `app/config.py`, `app/db.py`, `app/main.py`, `app/middleware.py`,
+  `app/logging_config.py`, `app/openapi.py`, `app/schemas.py`,
+  `app/routes/health.py`, `app/routes/open311.py`, `app/services/storage.py`,
+  `app/services/verifier_client.py`, `scripts/seed_demo.py`,
+  `tests/test_hardening.py`, `tests/test_reports.py` (health fixture/expectation).
+  Under `backend/verifier`: `Dockerfile`, `Makefile` (launch flags only).
+  Documentation: `api-contract.md`, `demo-script.md`, `integration.md`,
+  `operations.md` and this log. Concurrent statistics edits are not this job's work.
+- Validation: with `UV_CACHE_DIR=/tmp/aldia-uv-cache`,
+  `make -C backend/api lint test` passed Ruff, formatting, mypy and **398 tests**;
+  `make -C backend/verifier lint test` passed the same checks and **55 tests**.
+  Both retain an existing Starlette/httpx deprecation warning. New tests concern
+  rate limits, CORS/security headers/body-limit responses and dependency health.
+- Isolated recovery/HTTP smoke: SQLite migration to 0004; seed idempotence;
+  backup/restore integrity; 62 reports, 265 events and 62 matching photo hashes;
+  live API/verifier readiness, three comparison photo fetches, CSV BOM, six
+  Open311 services, all OpenAPI response-content examples, no Server header,
+  privacy-safe JSON log keys. No credentials were created or printed by the smoke.
+- Limits: no live PostgreSQL restore or Docker/browser verification in this job;
+  rehearse the documented app/portal clicks on the actual device/browser. Rate
+  limiting remains process-local; custom/root launchers need documented Uvicorn
+  flags and a trusted ingress/shared edge limiter before scaled deployment.

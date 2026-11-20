@@ -62,7 +62,7 @@ the portal and the app can already show it. Add `"resolution": "open"` to the re
 
 | Method and path | Purpose |
 |---|---|
-| `GET /api/health` | `{"status": "ok"}` |
+| `GET /api/health` | Dependency readiness: `{"status":"ok","dependencies":{"database":"ok","verifier":"ok","photos":"ok"}}`; 503 with `status: degraded` and `unavailable` for failed dependencies. |
 | `GET /api/categories` | `[{"id": "pothole", "label": "Bache"}]` |
 | `POST /api/reports` | `multipart/form-data`: `photo` (JPEG or PNG, max 8 MB), `category`, `latitude`, `longitude`, `captured_at`, optional `note` (max 280). Returns `201` + report. The API calls the verifier, adds the `duplicate` check and stores the result. |
 | `GET /api/reports` | Query: `bbox=min_lon,min_lat,max_lon,max_lat`, `category`, `status`, `limit` (1-500, default 100), `offset`. Returns `{"items": [report], "total": 0}` newest first. |
@@ -71,6 +71,7 @@ the portal and the app can already show it. Add `"resolution": "open"` to the re
 | `GET /api/stats` | v0.1, for the portal dashboard: `{"total": 0, "by_category": {"pothole": 0}, "by_status": {"verified": 0}, "by_resolution": {"open": 0}}`. Same optional filters as the list (`bbox`, `category`, `status`, `resolution`). |
 | `GET /api/reports.csv` | v0.1, CSV export with the same filters: `id,category,latitude,longitude,captured_at,created_at,status,resolution,photo_url`. |
 | `GET /api/open311/v2/requests.json` | v0.1, read-only Open311 GeoReport v2 view of verified reports: `service_request_id`, `status` (`open` or `closed`, closed when `resolution` is `fixed`), `service_code` (category id), `service_name` (label), `description` (note), `lat`, `long`, `requested_datetime`, `updated_datetime`, `media_url`. |
+| `GET /api/open311/v2/services.json` | Six category services: `service_code`, Spanish `service_name` and `description`, `metadata: false`, `type: realtime`, `keywords`, `group`. |
 
 The list also accepts `resolution=open|acknowledged|fixed`.
 
@@ -223,7 +224,7 @@ second token `SUPERVISOR_TOKEN` (optional) gives role `supervisor` for overrides
   `sort` (`newest` default, `oldest`, `updated`, `age_in_state`), `limit` (max 100 when paginating), `offset`. Response adds
   `"limit"` and `"offset"` echo fields. Default window without `created_from`: last 30 days unless `include_old=true`.
 - `GET /api/stats` adds (same filters, municipality day boundaries `America/Guatemala`):
-  `recibidos`, `rechazados_verificador`, `abiertos`, `resueltos`, `cerrados_sin_solucion`, `tasa_resolucion` (resueltos created in
+  `recibidos`, `rechazados_verificador`, `abiertos`, `resueltos`, `cerrados_sin_solucion`, `tasa_resolucion` (a ratio from 0 to 1, not a percentage: resueltos created in
   the period / (recibidos - duplicados - fuera_de_competencia), null if the denominator is 0), `resolucion_horas`
   `{"median","p90","mean","n"}` (resolved only, `resolved_at - verified_at`), `primera_respuesta_horas` `{"median","p90","n"}`,
   `antiguedad_abiertos` `{"0-2","3-7","8-30",">30"}` (days since `verified_at`), `sla_cumplido` (share of resolved within category SLA,
@@ -343,3 +344,36 @@ actor_role, action, target and time; no passwords, cookie values or headers are 
 The seed creates `operador` and `supervisor` accounts only with `ENV=dev`, printing a random password once per newly
 created account. Production bootstrap uses `python -m app.cli create-admin`, with a password prompt or stdin,
 never a password argument. See `decisions/staff-auth.md` for operational limits.
+
+## Demo-readiness hardening
+
+Public `POST /api/reports` and `POST /api/auth/login` share a per-peer-IP,
+per-process sliding-window budget (default 60 requests/60 seconds; configurable
+with `PUBLIC_POST_RATE_LIMIT` and `PUBLIC_POST_WINDOW_SECONDS`). Invalid requests
+and idempotent retries count. Rejections return the uniform `rate_limited`
+envelope, HTTP 429 and numeric `Retry-After`. The existing username/IP login
+limiter and account lockouts remain in effect. Staff case writes require their
+existing session/CSRF authorization and do not consume this public budget.
+
+Report multipart bodies are capped at `MAX_UPLOAD_BYTES + 65536`; other
+POST/PUT/PATCH bodies at `MAX_REQUEST_BYTES` (default 65536). Excess returns 413
+with the existing `upload_too_large` envelope. CORS permits explicit origins only
+from `CORS_ORIGINS`; wildcard, path and credential forms fail configuration.
+All API responses include `X-Content-Type-Options: nosniff`,
+`Referrer-Policy: no-referrer` and
+`Permissions-Policy: camera=(), microphone=(), geolocation=()`.
+
+Health is dependency readiness: SQL connectivity, verifier health and actual
+private-photo-directory write. It returns 200 when all three are available,
+otherwise 503 with a `status`/`dependencies` envelope (the deliberate exception
+to the error envelope). It reveals no connection details or filesystem paths.
+Verifier network-operation timeout is configurable by `VERIFIER_TIMEOUT_SECONDS`
+(default 10 seconds); failed verification calls retain pending reports as before.
+
+`/docs` and `/openapi.json` provide Spanish descriptions and request/response
+examples with the shared error schema. See [integration](integration.md) for
+Open311/CSV/session REST and polling limits, [operations](operations.md) for
+proxy trust, JSON logging, permissions, backup/restore and retention proposals,
+and [demo script](demo-script.md) for synthetic fixtures. The three seeded
+before/after comparisons are paired scenes inside the existing single-photo
+JPEG; this adds no completion-photo upload endpoint or real repair evidence.

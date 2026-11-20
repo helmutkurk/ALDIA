@@ -183,8 +183,9 @@ def get_stats(
             and in_period(r.closed_at)
             for r in reports
         ),
-        tasa_resolucion=100
-        * sum(r.state == "resuelto" and r.resolved_at is not None for r in cohort)
+        tasa_resolucion=sum(
+            r.state == "resuelto" and r.resolved_at is not None for r in cohort
+        )
         / denominator
         if denominator
         else None,

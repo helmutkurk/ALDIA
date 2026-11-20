@@ -18,7 +18,7 @@ export VERIFIER_URL=http://127.0.0.1:8001
 export ENV=dev       # local HTTP cookies only; production requires HTTPS
 uv run alembic upgrade head
 uv run python -m app.cli create-admin --username admin  # hidden password prompt, min 12 characters
-uv run uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000 --no-access-log
+uv run uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000 --no-access-log --no-server-header --no-proxy-headers
 ```
 
 Start the verifier separately (see its README). `make install`, `make migrate`
@@ -33,7 +33,11 @@ Do not edit the lockfile manually. No environment file is loaded automatically.
 | `PHOTO_DIR` | `/data/photos` | Private directory writable by the service user; never mount it as a static web directory. |
 | `VERIFIER_URL` | `http://verifier:8001` | Internal verifier base URL. |
 | `MAX_UPLOAD_BYTES` | `8388608` | Maximum original photo bytes (8 MiB). |
-| `CORS_ORIGINS` | `http://localhost:5173` | Comma-separated allowed origins. An empty value permits none. |
+| `MAX_REQUEST_BYTES` | `65536` | Maximum other POST/PUT/PATCH body bytes, including JSON staff writes. |
+| `PUBLIC_POST_RATE_LIMIT` | `60` | Combined public report/login POST budget per direct peer IP per process. |
+| `PUBLIC_POST_WINDOW_SECONDS` | `60` | Sliding-window duration; 429 returns `Retry-After`. |
+| `VERIFIER_TIMEOUT_SECONDS` | `10` | Per-network-operation verification timeout; connect at most 3 seconds. |
+| `CORS_ORIGINS` | `http://localhost:5173` | Comma-separated exact HTTP(S) origins, no wildcard/path/trailing slash. Empty permits none. |
 | `ENV` | `production` | Only exact `dev` disables Secure cookies and permits demo accounts. |
 | `AUTH_DEV_TOKENS` | `false` | Legacy header fallback requires both this flag and `ENV=dev`; every attempt logs a credential-free warning. |
 | `STAFF_TOKEN` | unset | Legacy dev-only operator credential, at least 32 characters. Never needed for account login. |
@@ -41,6 +45,13 @@ Do not edit the lockfile manually. No environment file is loaded automatically.
 
 Override the contract's demonstration database credentials for deployment using
 an external secret manager. Keep the verifier and database on a private network.
+If uv's default cache is read-only, set `UV_CACHE_DIR=/tmp/aldia-uv-cache`.
+
+See [operations and data handling](../../documentation/operations.md) for deployment,
+rate-limit/proxy boundaries, consistent backup and isolated restore drills, and
+proposed retention. The [integration call sheet](../../documentation/integration.md)
+covers Open311, CSV, session-authenticated REST and polling. `/docs` and
+`/openapi.json` include Spanish descriptions, examples and uniform error schemas.
 
 ## Behavior and storage
 
@@ -59,8 +70,10 @@ endpoint. If the database commit fails, the new photo is removed. File storage
 and SQL are separate resources: a process crash between writing the photo and
 committing can leave an orphan file; operators should reconcile UUID files
 against reports during maintenance. Back up the database and photo volume together.
+The service enforces photo-directory mode `0700` on write/health checks, with
+new JPEGs mode `0600`; provision an owned directory for the service account.
 
-The verifier client has a 3-second connect timeout and a 10-second network
+The verifier client defaults to a 3-second connect timeout and a 10-second network
 operation timeout, no redirects, and no retries. Unreachable, timed-out, non-2xx,
 or malformed verifier responses leave the report `pending` with
 `verification: null`. This starter has no background retry worker.
@@ -83,6 +96,14 @@ and generic Spanish messages; raw exceptions and submitted values are not sent
 to clients. Application logs contain no coordinates or request payloads. Supplied
 server commands disable access logs because query strings can include a bbox;
 configure reverse proxies to avoid logging coordinates as well.
+Application records are JSON lines; request records include only method, route
+template, status and elapsed milliseconds, without IP, raw URL, body or identity.
+All responses carry `nosniff`, `no-referrer` and restrictive API Permissions-Policy
+headers; supplied server commands disable the Uvicorn server banner.
+Public report/login POSTs share the configurable in-memory per-IP budget above;
+invalid submissions count too. It resets on restart and is not shared across
+workers. Forwarded headers are disabled by supplied launch commands; configure a
+trusted ingress and shared edge limiter before scaling (see the runbook).
 
 ## v0.2 workflow and reads
 
@@ -158,7 +179,7 @@ Categories also expose their SLA hours and municipal group.
 Statistics retain all v0.1 counts with zero keys and add the binding dashboard
 formulas. `recibidos` requires an answer date. Resolved and staff-closed totals
 use their event dates in the selected period, including cases created earlier;
-other metrics use the creation cohort. `tasa_resolucion` is a percentage of
+other metrics use the creation cohort. `tasa_resolucion` is a ratio from 0 to 1 of
 currently resolved cases created in the cohort divided by received cases minus
 duplicates and out-of-jurisdiction cases; `tasa_resolucion_n` is that denominator.
 Resolution durations and SLA use cases resolved in the period. SLA is a fraction
@@ -178,6 +199,8 @@ Open311 remains read-only, verified-only and capped at 1000, with its original
 service/date/status filters and no implicit 30-day window. Groups `resolved` and
 `closed` map to `closed`, others to `open`; `updated_datetime` uses the state
 change date. Photo URLs and requested timestamps retain their v0.1 meaning.
+`GET /api/open311/v2/services.json` lists all six stable category service codes,
+Spanish names/descriptions, `metadata: false`, `type: realtime` and group labels.
 
 ## App retries
 
@@ -192,10 +215,17 @@ If moderation has hidden it, replay returns 404 and still creates nothing.
 
 ## Demo data
 
-`scripts/seed_demo.py` creates 44 synthetic reports around Guatemala City (all categories and all 11 states, events
-spread over 60 days, a few duplicates, generated 800x600 JPEGs). It writes through the SQLAlchemy models and
+`scripts/seed_demo.py` creates 62 synthetic reports (60 public) in a compact Zona 4
+neighborhood in Guatemala City: all categories and 11 states over 60 days, a growing
+weekly cumulative resolved share, duplicate links and explained verifier rejections.
+Three stable fixed cases show paired synthetic ANTES/DESPUES scenes in the existing
+800x600 JPEG photo; a separate completion-photo upload is not implemented.
+It writes through the SQLAlchemy models and
 `PhotoStorage`, marks every row with a note starting `[demo]`, and uses deterministic ids, so repeated runs create
 nothing new. It refuses production flags including `ENV=production`.
+Use `--reset` to replace an older seed: idempotence preserves existing row content.
+See the [five-minute demo script](../../documentation/demo-script.md) for exact
+UI actions, stable report links, weekly figures and limits of the synthetic evidence.
 Only `ENV=dev` creates `operador`/`supervisor` accounts with random initial passwords
 printed once when each account is created. No fixed credentials exist. Reruns preserve
 passwords; `--reset`/`--purge` affect reports only. Capture initial output privately and
@@ -273,6 +303,10 @@ docker run --rm --network aldia -p 8000:8000 --env DATABASE_URL --env VERIFIER_U
 ```
 
 The multi-stage image uses a frozen production-only uv environment, runs as
-UID/GID 10001, and checks `/api/health`. Health is a liveness check, not a promise
-of database or verifier availability. Use HTTPS and real staff accounts for deployments;
-keep the legacy fallback disabled. The verifier remains a stub; demo photos are synthetic.
+UID/GID 10001, and checks `/api/health`. Health now checks SQL connectivity, verifier `/health` and writable
+photo storage. HTTP 200 returns `{"status":"ok","dependencies":{"database":"ok","verifier":"ok","photos":"ok"}}`;
+any failed dependency returns 503 with `status: degraded` and that dependency
+`unavailable`. Use it for readiness/alerting, keeping process liveness separate.
+Use HTTPS and real staff accounts for deployments; keep the legacy fallback
+disabled. The verifier is heuristic with category classification still a stub;
+demo photos and recorded demo verdicts are synthetic.

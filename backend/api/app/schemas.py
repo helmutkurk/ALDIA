@@ -29,12 +29,57 @@ def validate_category(value: str) -> str:
     return value
 
 
+class ErrorDetail(StrictModel):
+    code: str = Field(
+        description="Código estable del error.", examples=["validation_error"]
+    )
+    message: str = Field(
+        description="Explicación del error.", examples=["Solicitud inválida."]
+    )
+
+
+class ErrorResponse(StrictModel):
+    error: ErrorDetail
+
+
 class ReportCreate(StrictModel):
-    category: str
-    latitude: Annotated[float, Field(ge=-90, le=90)]
-    longitude: Annotated[float, Field(ge=-180, le=180)]
-    captured_at: AwareDatetime
-    note: Annotated[str | None, Field(max_length=280)] = None
+    category: str = Field(
+        description="Código de la categoría de /api/categories.", examples=["pothole"]
+    )
+    latitude: Annotated[
+        float,
+        Field(
+            ge=-90,
+            le=90,
+            description="Latitud del problema en grados decimales.",
+            examples=[14.6349],
+        ),
+    ]
+    longitude: Annotated[
+        float,
+        Field(
+            ge=-180,
+            le=180,
+            description="Longitud del problema en grados decimales.",
+            examples=[-90.5069],
+        ),
+    ]
+    captured_at: AwareDatetime = Field(
+        description=(
+            "Fecha y hora de la captura con zona horaria; usa una foto reciente."
+        ),
+        examples=["2026-11-20T12:00:00Z"],
+    )
+    note: Annotated[
+        str | None,
+        Field(
+            max_length=280,
+            description=(
+                "Describe el problema sin nombres, teléfonos ni otros datos personales."
+            ),
+            examples=["Bache junto al cruce peatonal."],
+        ),
+    ] = None
 
     _category = field_validator("category")(validate_category)
 
@@ -333,6 +378,16 @@ class Open311Filters(StrictModel):
         ):
             raise ValueError("Invalid date range")
         return self
+
+
+class Open311Service(StrictModel):
+    service_code: str
+    service_name: str
+    description: str
+    metadata: Literal[False] = False
+    type: Literal["realtime"] = "realtime"
+    keywords: str
+    group: str
 
 
 class Open311Request(StrictModel):

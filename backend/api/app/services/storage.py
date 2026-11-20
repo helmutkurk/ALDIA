@@ -19,6 +19,17 @@ class PhotoStorage:
             raise ValueError("Photo ID must be a UUID") from exc
         return self.root / f"{validated}.jpg"
 
+    def ensure_private(self) -> None:
+        self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        self.root.chmod(0o700)
+
+    def probe(self) -> None:
+        """Exercise an actual write, without leaving a health-check artifact."""
+        self.ensure_private()
+        with tempfile.TemporaryFile(dir=self.root) as file:
+            file.write(b"health")
+            file.flush()
+
     def prepare(self, data: bytes) -> bytes:
         """Sniff, fully decode, orient, and re-encode without any source metadata."""
         try:
@@ -44,7 +55,7 @@ class PhotoStorage:
 
     def save(self, report_id: UUID, data: bytes) -> None:
         target = self.path(report_id)
-        self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        self.ensure_private()
         temporary: str | None = None
         try:
             with tempfile.NamedTemporaryFile(dir=self.root, delete=False) as file:

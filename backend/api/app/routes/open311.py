@@ -2,16 +2,30 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query
 
-from app.categories import CATEGORIES
+from app.categories import CATEGORIES, CATEGORY_GROUPS
 from app.dependencies import SessionDep
 from app.models import Report
 from app.report_queries import report_query
-from app.schemas import Open311Filters, Open311Request, ReadFilters
+from app.schemas import Open311Filters, Open311Request, Open311Service, ReadFilters
 from app.serialization import utc
 from app.state_machine import STATE_GROUPS
 
 router = APIRouter(prefix="/api/open311/v2")
 SERVICE_NAMES = dict(CATEGORIES)
+
+
+@router.get("/services.json", response_model=list[Open311Service])
+def list_services() -> list[Open311Service]:
+    return [
+        Open311Service(
+            service_code=code,
+            service_name=label,
+            description=f"Reportes de {label.lower()}.",
+            keywords=code,
+            group=CATEGORY_GROUPS[code],
+        )
+        for code, label in CATEGORIES
+    ]
 
 
 @router.get("/requests.json", response_model=list[Open311Request])
