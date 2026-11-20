@@ -1,32 +1,33 @@
-# Design tokens (neutral, 2026-11-19)
+# Design tokens (calm SeeClickFix-style palette, 2026-11-20)
 
-Decision (Helmut): **simple, neutral colors; no distinctive brand colors** (not yellow, not saturated blue or teal like the
-reference apps). The interface is graphite, white and warm gray; color appears only where it carries meaning (report status), and
-always together with a word or icon. App and portal share these values: `app/lib/core/theme.dart`,
-`portal/src/styles/tokens.css` and this file. Agree changes between both owners.
+Decision (Helmut, 2026-11-20): the portal follows **FixMyStreet's structure** (map and list side by side, filters, report page,
+dashboard with big numbers and charts) with **SeeClickFix's calm colors**; the app follows SeeClickFix's screens and colors.
+Avoid FixMyStreet's yellow and black. Colors are approximations chosen by eye from the reference captures, not brand assets.
+App and portal share these values: `app/lib/core/theme.dart`, `portal/src/styles/tokens.css` and this file.
 
 | Token | Hex | Use |
 |---|---|---|
-| `primary` | `#1F2937` | main actions, header bar, selected tab |
-| `primary-dark` | `#111827` | pressed state, strong text on light |
-| `on-primary` | `#FFFFFF` | text on primary |
-| `background` | `#F5F5F4` | page background |
-| `surface` | `#FFFFFF` | cards, sheets |
-| `border` | `#E5E7EB` | dividers, outlines |
-| `text` | `#111827` | main text |
-| `text-muted` | `#4B5563` | secondary text |
-| `focus` | `#111827` | focus ring (2 px, offset 2 px) |
+| `bar` | `#3A3F44` | dark top bar (app map/list bar, portal header), white text |
+| `primary` | `#0F7A99` | main buttons, links, selected controls (white text on it: 5.0:1) |
+| `primary-dark` | `#0B6079` | pressed state, strong links |
+| `accent` | `#E8731A` | tab underline, highlights, focus accents (never for text) |
+| `background` | `#F3F4F6` | page background |
+| `surface` | `#FFFFFF` | cards, sheets, panels |
+| `border` | `#D9DEE3` | dividers, outlines |
+| `text` | `#1F2933` | main text |
+| `text-muted` | `#52606D` | secondary text (7.0:1 on white) |
+| `focus` | `#0B6079` | focus ring, 2 px with 2 px offset |
 
-Status colors (functional only, muted, always with text):
+Status colors are used for dots, pins and chart series, always **with the status word next to them in the normal text color**:
 
-| Status group | Hex | Word |
+| Group | Dot/pin | Word (examples) |
 |---|---|---|
-| open | `#B45309` | Abierto / Nuevo / En revisión |
-| in work | `#4B5563` with an outlined marker | Programado / En proceso |
-| resolved | `#15803D` | Resuelto |
-| closed | `#6B7280` | Cerrado / No procede / Duplicado |
-| rejected or error | `#B91C1C` | Rechazado |
+| open | `#E8731A` orange | Abierto, Nuevo, En revisión |
+| in work | `#3F9A47` green | Programado, En proceso, Reconocido |
+| resolved | `#2D8CD0` blue | Resuelto |
+| closed | `#6B7280` gray | Cerrado, No procede, Duplicado |
+| rejected / error | `#B91C1C` red | Rechazado |
+| pending | outlined `#52606D` | Pendiente de verificación |
 
-Rules: contrast at least 4.5:1 for text; never color alone; pins use the neutral primary with a status icon/letter and an outline,
-not rainbow fills; dark mode inverts surface and text, keeps the same status words. Font: system font stack (portal), platform
-default (app).
+Rules: text contrast at least 4.5:1 (test the pairs in code); never color alone; dark mode keeps the same hues with darker
+surfaces; system font stack (portal), platform default (app); minimalist, generous spacing, no decoration without purpose.
