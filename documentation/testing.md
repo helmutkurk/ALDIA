@@ -422,3 +422,60 @@ Prepare the day before; run the whole list again one hour before.
 
 - [ ] Stop the stack (`make down`), remove the demo data if the machine is shared, log out and disable/reset demo accounts if the environment will be reused.
 - [ ] Note questions and feature requests in `docs/` or the team workspace, not in this public repo if they include strategy.
+
+
+## Citizen phone login v0.5 (development only)
+
+```bash
+UV_CACHE_DIR=/tmp/aldia-uv-cache make -C backend/api lint test
+cd app
+mise exec -- dart format lib test
+mise exec -- flutter analyze
+mise exec -- flutter test
+```
+
+`backend/api/tests/test_citizens.py` uses generated synthetic phone input, an
+in-memory capturing provider, temporary SQLite and the fake verifier. It covers
+uniform 202 requests and generic 401 verification, expiry/attempt consumption,
+60-second cooldown, resends, phone/IP budgets, device binding, 90-day token expiry,
+rotation/logout, report ownership, cross-owner retry conflicts, anonymous/required
+login, public alias opt-in, no-store errors and CORS. Existing migration tests also
+check the new tables against metadata and exercise upgrade/downgrade.
+No test needs a real number, delivery credential or environment file.
+
+Manual app/API check (not executed on a physical phone in this change):
+
+1. Apply API migrations and run with `ENV=dev CITIZEN_SMS_PROVIDER=console` using
+   the API README. Use synthetic input only. Default `null` intentionally cannot
+   complete login. Start the app against that API.
+2. At submit choose verification. Default prefix is +502; enter eight national
+   digits. The **API log** shows a six-digit code inside a loud **DEV ONLY — NO SMS
+   SENT** banner, without the phone. Read it privately; do not copy the log into
+   bug reports, CI output or screenshots. No real message is delivered.
+3. An incorrect or expired code shows a clear Spanish error. Resend becomes
+   available after 60 seconds. Disconnect the network and confirm an offline error
+   leaves the form usable; reconnect and retry. Code lifetime is ten minutes.
+4. Verify successfully, submit a synthetic live photo, open **Mis reportes** and
+   **Perfil**. Confirm local/server items merge without duplicates, the number is
+   masked, restart retains the session and logout revokes it. Restart persistence
+   and Keychain/Keystore behavior require a real supported target to validate.
+5. Repeat with `REQUIRE_CITIZEN_LOGIN=true` in the API and the matching Dart define.
+   Anonymous submit must fail; verified submit succeeds. With both false, the
+   optional **Continuar sin avisos** path remains available.
+6. Log in again on the same installation to rotate the token; the old one no
+   longer works. A second installation keeps its own session. Anonymous historical
+   reports remain anonymous. Staff login/roles continue to use the v0.4 interface.
+
+Local validation on 2026-11-20: API lint/format/mypy and 423 tests passed; app
+format (65 files), analyze and 124 tests passed. The installed SDK was read-only;
+app checks used the existing writable Flutter 3.47.9 / Dart 3.13.7 copy:
+
+```bash
+mise exec -- env PATH=/tmp/aldia-flutter-sdk/bin:$PATH PUB_CACHE=/tmp/aldia-pub-cache dart format lib test
+mise exec -- env PATH=/tmp/aldia-flutter-sdk/bin:$PATH PUB_CACHE=/tmp/aldia-pub-cache flutter analyze --no-pub
+mise exec -- env PATH=/tmp/aldia-flutter-sdk/bin:$PATH PUB_CACHE=/tmp/aldia-pub-cache flutter test --no-pub
+```
+
+Widget and HTTP-fake tests do not prove real SMS, push, browser secure storage,
+Android/iOS Keystore/Keychain or PostgreSQL behavior. See the
+[citizen decision](decisions/citizen-login.md) for production blockers and privacy.

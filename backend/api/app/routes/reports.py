@@ -9,6 +9,7 @@ from sqlalchemy import delete, text
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import UploadFile
 
+from app.citizen_security import CitizenIdentity, identity
 from app.dependencies import (
     OptionalStaffDep,
     Services,
@@ -40,8 +41,17 @@ from app.state_machine import (
 router = APIRouter(prefix="/api/reports")
 
 
+def check_replay_owner(report: Report, citizen: CitizenIdentity | None) -> None:
+    if report.citizen_id != (citizen.id if citizen else None):
+        raise HTTPException(409, detail="idempotency_conflict")
+
+
 def create_report(
-    data: ReportCreate, content: bytes, services: Services, key: UUID | None
+    data: ReportCreate,
+    content: bytes,
+    services: Services,
+    key: UUID | None,
+    citizen: CitizenIdentity | None = None,
 ) -> tuple[ReportOut, bool]:
     # SQLite tests/local use one service lock; Postgres also locks across workers.
     with services.creation_lock, services.database.sessions() as session:
@@ -56,7 +66,9 @@ def create_report(
         if key is not None:
             record = session.get(IdempotencyRecord, key)
             if record is not None:
-                return detail(find_report(record.report_id, session), session), True
+                existing = find_report(record.report_id, session)
+                check_replay_owner(existing, citizen)
+                return detail(existing, session), True
         try:
             clean = services.storage.prepare(content)
         except ValueError as exc:
@@ -91,6 +103,8 @@ def create_report(
         )
         report = Report(
             id=uuid4(),
+            citizen_id=citizen.id if citizen else None,
+            citizen_alias=citizen.public_alias if citizen else None,
             category=data.category,
             latitude=data.latitude,
             longitude=data.longitude,
@@ -151,6 +165,12 @@ async def post_report(
     services: ServicesDep,
     idempotency_key: Annotated[UUID | None, Header()] = None,
 ) -> ReportOut:
+    with services.database.sessions() as auth_session:
+        citizen = identity(request, auth_session, services.settings)
+    if services.settings.require_citizen_login and citizen is None:
+        raise HTTPException(401, detail="citizen_unauthorized")
+    if citizen is not None:
+        response.headers["Cache-Control"] = "no-store"
     if idempotency_key is not None:
         with services.database.sessions() as session:
             record = session.get(IdempotencyRecord, idempotency_key)
@@ -158,7 +178,9 @@ async def post_report(
                 record.created_at
             ) < timedelta(hours=24):
                 response.status_code = 200
-                return detail(find_report(record.report_id, session), session)
+                existing = find_report(record.report_id, session)
+                check_replay_owner(existing, citizen)
+                return detail(existing, session)
     async with request.form(max_files=2, max_fields=16, max_part_size=4096) as form:
         if len(form.multi_items()) != len(form):
             raise HTTPException(422)
@@ -184,7 +206,7 @@ async def post_report(
         if len(content) > services.settings.max_upload_bytes:
             raise HTTPException(413)
         report, repeated = await run_in_threadpool(
-            create_report, data, content, services, idempotency_key
+            create_report, data, content, services, idempotency_key, citizen
         )
         if repeated:
             response.status_code = 200

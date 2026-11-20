@@ -16,6 +16,7 @@ export DATABASE_URL=sqlite:///./aldia.db
 export PHOTO_DIR=/tmp/aldia-api-photos
 export VERIFIER_URL=http://127.0.0.1:8001
 export ENV=dev       # local HTTP cookies only; production requires HTTPS
+export CITIZEN_SMS_PROVIDER=console  # synthetic citizen login, prints DEV code locally
 uv run alembic upgrade head
 uv run python -m app.cli create-admin --username admin  # hidden password prompt, min 12 characters
 uv run uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000 --no-access-log --no-server-header --no-proxy-headers
@@ -39,6 +40,9 @@ Do not edit the lockfile manually. No environment file is loaded automatically.
 | `VERIFIER_TIMEOUT_SECONDS` | `10` | Per-network-operation verification timeout; connect at most 3 seconds. |
 | `CORS_ORIGINS` | `http://localhost:5173` | Comma-separated exact HTTP(S) origins, no wildcard/path/trailing slash. Empty permits none. |
 | `ENV` | `production` | Only exact `dev` disables Secure cookies and permits demo accounts. |
+| `PHONE_HASH_KEY` | unset | External HMAC secret, at least 32 characters; insecure fallback only with exact `ENV=dev`. |
+| `CITIZEN_SMS_PROVIDER` | `null` | Refuses delivery; `console` only with `ENV=dev`, logs a DEV code without the phone, sends nothing. |
+| `REQUIRE_CITIZEN_LOGIN` | `false` | Require citizen bearer + installation id for report creation; production requires a configured HMAC secret. |
 | `AUTH_DEV_TOKENS` | `false` | Legacy header fallback requires both this flag and `ENV=dev`; every attempt logs a credential-free warning. |
 | `STAFF_TOKEN` | unset | Legacy dev-only operator credential, at least 32 characters. Never needed for account login. |
 | `SUPERVISOR_TOKEN` | unset | Legacy dev-only supervisor credential, at least 32 characters. |
@@ -310,3 +314,29 @@ any failed dependency returns 503 with `status: degraded` and that dependency
 Use HTTPS and real staff accounts for deployments; keep the legacy fallback
 disabled. The verifier is heuristic with category classification still a stub;
 demo photos and recorded demo verdicts are synthetic.
+
+
+## Citizen login quick start (v0.5, no real delivery)
+
+Apply `uv run alembic upgrade head` before restarting the API (migration `0005`).
+Start with `ENV=dev CITIZEN_SMS_PROVIDER=console` as above. In the app submit step
+choose to verify a synthetic Guatemala number, then read the six-digit code privately
+from the API log's **DEV ONLY — NO SMS SENT** banner. It is valid ten minutes,
+with five failed attempts and a 60-second resend cooldown. Never paste the code,
+number or token into an issue, shared log or screenshot. No SMS is sent.
+
+The app defaults to optional login and **Continuar sin avisos**. For mandatory login,
+set API `REQUIRE_CITIZEN_LOGIN=true` and run the app with the matching
+`--dart-define=REQUIRE_CITIZEN_LOGIN=true`. Profile displays a masked verified number
+and logout. Authenticated report creation uses `Authorization: Bearer …` and
+`X-Device-ID`; **Mis reportes** combines local and server-owned reports. Real-time
+push remains unimplemented. Anonymous local reports are never automatically claimed.
+
+Production defaults to the null provider. Without a configured key, valid requests
+still return 202 and verification returns 503. With a key but no delivery provider,
+requests return 202 and no usable challenge is created. No production phone login
+is available until the team selects and implements a real provider.
+See [contract v0.5](../../documentation/api-contract.md#v05-additions-citizen-phone-verification-no-delivery-service)
+and [privacy/operations decision](../../documentation/decisions/citizen-login.md).
+Migration downgrade to `0004` preserves report content but removes citizen identities,
+challenges, sessions, ownership and aliases. Back up before downgrading.

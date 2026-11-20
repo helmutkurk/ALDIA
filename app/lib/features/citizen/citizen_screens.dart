@@ -9,6 +9,8 @@ import '../../data/report.dart';
 import '../../data/report_repository.dart';
 import '../drafts/draft_store.dart';
 import '../outbox/outbox_service.dart';
+import '../../services/citizen_auth_service.dart';
+import 'login_sheet.dart';
 
 class NoticesScreen extends StatefulWidget {
   const NoticesScreen({super.key, required this.onOpen});
@@ -116,6 +118,26 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _deleting = false;
+  bool _signingOut = false;
+
+  Future<void> _signOut() async {
+    setState(() => _signingOut = true);
+    String? message;
+    try {
+      await context.read<ReportRepository>().auth.signOut();
+    } on CitizenAuthException catch (e) {
+      message = e.message;
+    } catch (_) {
+      message = 'No se pudo cerrar la sesión. Inténtalo de nuevo.';
+    }
+    if (!mounted) return;
+    setState(() => _signingOut = false);
+    widget.onCleared();
+    if (message != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
+    }
+  }
 
   Future<void> _clear() async {
     final confirmed = await showDialog<bool>(
@@ -151,6 +173,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         await drafts!.delete(draft.id);
       }
       await repository.clearLocalData();
+      try {
+        await repository.auth.signOut();
+      } catch (_) {}
       if (!mounted) return;
       widget.onCleared();
       ScaffoldMessenger.of(
@@ -173,12 +198,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final local = context.read<ReportRepository>().local;
+    final repository = context.read<ReportRepository>();
+    final local = repository.local;
+    final auth = repository.auth;
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 680),
         child: AnimatedBuilder(
-          animation: local,
+          animation: Listenable.merge([local, auth]),
           builder: (context, _) => ListView(
             padding: const EdgeInsets.all(AldiaSpace.xl),
             children: [
@@ -195,32 +222,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              const ListTile(
+              ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.phone_outlined),
-                title: Text('Número de teléfono'),
+                leading: const Icon(Icons.phone_outlined),
+                title: const Text('Número de teléfono'),
                 subtitle: Text(
-                  'Sin registrar. El acceso con código por teléfono estará disponible más adelante. Puedes reportar sin cuenta.',
+                  auth.maskedPhone ?? 'Sin verificar. Verifica tu número para consultar tus reportes desde tu cuenta.',
                 ),
               ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Mostrar mi nombre'),
-                subtitle: const Text(
-                  'Preferencia guardada en este dispositivo. No se publica ningún nombre mientras no tengas una cuenta.',
-                ),
-                value: local.showName,
-                onChanged: (value) async {
-                  try {
-                    await local.setShowName(value);
-                  } catch (_) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text(S.storageError)),
-                      );
+              if (auth.isSignedIn)
+                OutlinedButton.icon(
+                  onPressed: _signingOut ? null : _signOut,
+                  icon: const Icon(Icons.logout),
+                  label: const Text('Cerrar sesión'),
+                )
+              else
+                FilledButton(
+                  onPressed: () async {
+                    final verified = await showCitizenLogin(context, auth);
+                    if (mounted && verified) {
+                      setState(() {});
+                      widget.onCleared();
                     }
-                  }
-                },
+                  },
+                  child: const Text('Verificar mi número'),
+                ),
+              const ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.visibility_outlined),
+                title: Text('Nombre público'),
+                subtitle: Text(
+                  'Al verificar tu número puedes elegir un nombre y autorizar su publicación en reportes nuevos. Tu número siempre es privado.',
+                ),
               ),
               const ListTile(
                 contentPadding: EdgeInsets.zero,

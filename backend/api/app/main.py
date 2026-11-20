@@ -19,7 +19,7 @@ from app.middleware import (
     UploadLimitMiddleware,
 )
 from app.openapi import install_openapi
-from app.routes import auth, exports, health, open311, reports, stats, triage
+from app.routes import auth, citizens, exports, health, open311, reports, stats, triage
 from app.security import CSRF_COOKIE, SESSION_COOKIE
 from app.services.storage import PhotoStorage
 from app.services.verifier_client import VerifierClient
@@ -34,6 +34,8 @@ def create_app(
 ) -> FastAPI:
     configure_logging()
     config = settings or Settings()
+    if config.require_citizen_login and config.citizen_hash_key is None:
+        raise ValueError("PHONE_HASH_KEY is required when citizen login is mandatory")
     services = Services(
         config,
         Database(config.database_url),
@@ -63,6 +65,8 @@ def create_app(
             "X-Staff-Token",
             "X-CSRF-Token",
             "Idempotency-Key",
+            "Authorization",
+            "X-Device-ID",
         ],
         allow_credentials=True,
     )
@@ -104,8 +108,20 @@ def create_app(
         code, message = codes.get(
             exc.status_code, ("request_error", "No se pudo procesar la solicitud.")
         )
+        citizen_errors = {
+            "citizen_code_invalid": (
+                "El código no es válido o venció. Solicita otro e inténtalo de nuevo."
+            ),
+            "citizen_unauthorized": "Verifica tu número para continuar.",
+            "citizen_unavailable": "La verificación de número no está disponible.",
+            "idempotency_conflict": "Esta solicitud ya pertenece a otro envío.",
+        }
+        if isinstance(exc.detail, str) and exc.detail in citizen_errors:
+            code, message = exc.detail, citizen_errors[exc.detail]
         headers = dict(exc.headers or {})
-        if _request.url.path.startswith(("/api/auth/", "/api/admin/")):
+        if _request.url.path.startswith(
+            ("/api/auth/", "/api/admin/", "/api/citizens/")
+        ):
             headers["Cache-Control"] = "no-store"
         response = JSONResponse(
             status_code=exc.status_code,
@@ -114,6 +130,7 @@ def create_app(
         )
         if (
             exc.status_code == 401
+            and code not in {"citizen_code_invalid", "citizen_unauthorized"}
             and SESSION_COOKIE in _request.cookies
             and _request.url.path != "/api/auth/login"
         ):
@@ -153,6 +170,7 @@ def create_app(
         )
 
     app.include_router(auth.router)
+    app.include_router(citizens.router)
     app.include_router(health.router)
     app.include_router(stats.router)
     app.include_router(exports.router)

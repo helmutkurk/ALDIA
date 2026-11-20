@@ -38,6 +38,7 @@ def serialize(report: Report) -> ReportOut:
         assigned_at=utc(report.assigned_at) if report.assigned_at else None,
         duplicate_of=report.duplicate_of,
         public_note=report.public_note,
+        citizen_alias=report.citizen_alias,
         verification=Verification.model_validate(report.verification)
         if report.verification is not None
         else None,

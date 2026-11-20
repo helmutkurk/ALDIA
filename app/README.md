@@ -26,9 +26,14 @@ No reference assets, copy or code are included.
   link as fallback. Configure `PUBLIC_PORTAL_URL` before sharing outside the development laptop.
 - Avisos records state changes observed when refreshing the device's own/followed reports or opening their details. The first
   observation establishes a quiet baseline. Inbox/follows survive restarts; there is no push or background polling.
-- Perfil shows the phone-account placeholder, local name-visibility preference, language and version. **Borrar mis
-  datos** confirms before deleting local drafts/photos, outbox, follows, notices and sent-report ids. Already submitted
-  public reports remain on the server. Phone-code login and real name publication need backend support.
+- At submit, phone-code verification uses Guatemala's `+502` prefix and eight national digits. The code has six digits;
+  resending is disabled for 60 seconds. An optional display name stays private unless explicitly opted into publication.
+  **Continuar sin avisos** sends anonymously when login is optional.
+- Perfil shows only the verified number's masked last two digits and **Cerrar sesión**. **Borrar mis datos** confirms
+  before deleting local drafts/photos, outbox, follows, notices, sent-report ids and the local login session. Already
+  submitted public reports remain on the server; this does not delete the citizen account.
+- Mis reportes merges paginated `GET /api/citizens/me/reports` account reports with device-local ids and follows,
+  deduplicated by report id. Local items remain usable when the account endpoint cannot be reached.
 
 Citizen wording for all 11 states stays in `lib/core/citizen_states.dart`; v0.1 responses derive it from verifier status
 and resolution. A stub verifier is always labeled as a test.
@@ -40,10 +45,15 @@ Drafts and the outbox retain JSON plus photos in app-private storage (`path_prov
 restore; missing photo files require retaking the photo without discarding other fields. The selected address label is
 local draft metadata and is not added to the API upload.
 
-`LocalCitizenStore` uses `shared_preferences` for follows, observed states, up to 100 notices and profile preference.
+`LocalCitizenStore` uses `shared_preferences` for follows, observed states and up to 100 notices.
+Citizen credentials use exact-pinned `flutter_secure_storage: 11.2.0`: one device UUID, the opaque bearer token,
+absolute expiry and masked phone only. Raw phone/code values are transient and never written to preferences,
+drafts or outbox. Tokens expire after 90 days; verification rotates the prior token for that device. Requests
+include `X-Device-ID` with the bearer, including outbox retries. Offline logout clears local credentials and
+explains that server revocation could not be confirmed; verify again online to rotate the server token.
 It defaults to memory in tests. Inbox storage failures do not trigger another upload of an accepted report.
 
-Aldia's teal tokens remain in `lib/core/theme.dart`. Screens preserve semantics, 48 dp targets, light/dark schemes,
+Aldia's shared palette remains in `lib/core/theme.dart` and `../documentation/design-tokens.md`. Screens preserve semantics, 48 dp targets, light/dark schemes,
 scrollable layouts at 200% text and reduced-motion routes, sheets and tabs. Tests inject offline map tiles, GPS, camera
 and geocoder; they never query Nominatim.
 
@@ -73,7 +83,30 @@ with no asset or gallery access. Android/iOS always request the live camera, inc
 never use the fake, even if the define is supplied. A desktop release needs a real camera implementation to report.
 
 Other defines: `API_BASE_URL`, `TILE_URL`, `PUBLIC_PORTAL_URL` (default `http://localhost:5173`, links use `#/reports/<id>`).
-Use HTTPS outside local development. Account login, push, remote deletion and actual manual review are pending backend work.
+Use HTTPS outside local development. Push, remote deletion and actual manual review remain pending.
+
+### Phone-code demo (nothing is sent)
+
+Run the API with exact `ENV=dev` and `CITIZEN_SMS_PROVIDER=console`, after applying migration `0005`.
+The six-digit development code appears only in the API log under a loud DEV banner; no SMS or WhatsApp
+message is sent. Use synthetic numbers only. The default `null` provider refuses delivery. Read the code
+locally; never paste it, phone numbers or bearer credentials into shared logs or screenshots.
+
+API `REQUIRE_CITIZEN_LOGIN=true` must match app `--dart-define=REQUIRE_CITIZEN_LOGIN=true`.
+The default is false in both. Required mode blocks submission/queuing until verification; optional mode
+offers **Continuar sin avisos**. A valid session automatically authenticates later submissions. Signing
+out preserves local report references; account reports become available again after verification.
+
+Provisional outbox behavior: queued reports use the session active when actually sent. Switching accounts while
+items are queued can associate an unsent item with the new account, or produce an idempotency conflict if an
+earlier accepted upload used the prior account. Drain or delete pending items before changing accounts in this
+demo. Persisted account binding and an explicit account-switch queue policy remain follow-up work.
+
+Linux needs a Secret Service/keyring and the build dependency `libsecret` (for example `libsecret-1-dev`
+on Debian/Ubuntu). Keychain Sharing entitlements are wired for all iOS runner configurations; Android
+backup is disabled to prevent restoring device-bound encrypted credentials without their key. Native
+secure-storage behavior still requires device/platform validation; unit/widget tests use memory fakes.
+Web storage is browser-based and requires HTTPS or localhost, so native device storage is the release target.
 
 ## Mobile distribution
 
@@ -109,7 +142,7 @@ in `user-dirs.dirs` so the demo can persist drafts without writing outside the a
 ## Layout
 
 `lib/core/`: theme, strings, states and fallback categories. `lib/data/`: API, reports and local citizen storage.
-`lib/services/`: location, geocoder, camera, sharing, connectivity and future identity interfaces.
+`lib/services/`: location, geocoder, camera, sharing, connectivity and citizen identity services.
 `lib/features/`: shell/explore, citizen inbox/profile, onboarding, wizard, details, mine, drafts and outbox.
 `lib/widgets/`: report cards, states, map layers, empty states and reduced-motion routes.
-`android/`, `ios/`, `linux/`: platform projects. No new package dependencies were added for this UI work.
+`android/`, `ios/`, `linux/`: platform projects. Citizen login adds the approved secure-storage dependency only.

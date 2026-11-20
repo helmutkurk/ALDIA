@@ -201,7 +201,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       await advanceToReview(tester);
-      await tapText(tester, S.send);
+      await tapText(tester, 'Continuar sin avisos');
 
       expect(find.textContaining('(prueba)'), findsWidgets);
       expect(find.text(S.freshnessReason), findsOneWidget);
@@ -233,7 +233,7 @@ void main() {
       await tester.pumpWidget(host(fakeRepository(createdStatus: 'pending')));
       await tester.pumpAndSettle();
       await advanceToReview(tester);
-      await tapText(tester, S.send);
+      await tapText(tester, 'Continuar sin avisos');
       expect(find.text(S.pendingHelp), findsOneWidget);
     },
   );

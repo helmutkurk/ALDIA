@@ -23,6 +23,7 @@ import '../drafts/draft_record.dart';
 import '../drafts/draft_store.dart';
 import '../outbox/outbox_service.dart';
 import 'report_flow_controller.dart';
+import '../citizen/login_sheet.dart';
 
 class ReportFlowScreen extends StatelessWidget {
   const ReportFlowScreen({super.key, this.draft});
@@ -99,6 +100,16 @@ class _FlowViewState extends State<_FlowView> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  Future<void> _submit(ReportFlowController controller) async {
+    final repository = context.read<ReportRepository>();
+    final auth = repository.auth;
+    if (!auth.isSignedIn) {
+      final verified = await showCitizenLogin(context, auth);
+      if (!mounted || !verified) return;
+    }
+    await controller.submit();
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = context.watch<ReportFlowController>();
@@ -155,9 +166,16 @@ class _FlowViewState extends State<_FlowView> with WidgetsBindingObserver {
                         onPressed: c.back,
                         child: const Text(S.back),
                       ),
+                    if (c.isLastStep &&
+                        !context.read<ReportRepository>().requireCitizenLogin &&
+                        !context.read<ReportRepository>().auth.isSignedIn)
+                      TextButton(
+                        onPressed: c.canAdvance ? c.submit : null,
+                        child: const Text('Continuar sin avisos'),
+                      ),
                     FilledButton(
                       onPressed: c.canAdvance
-                          ? (c.isLastStep ? c.submit : c.next)
+                          ? (c.isLastStep ? () => _submit(c) : c.next)
                           : null,
                       child: Text(
                         c.isLastStep
@@ -937,6 +955,12 @@ class _ReviewStep extends StatelessWidget {
           S.uploadSize((c.photo?.bytes.length ?? 0) + 1024 + c.note.length * 4),
         ),
         const _Notice(S.publicPhotoNotice),
+        const SizedBox(height: 16),
+        Text(
+          context.read<ReportRepository>().auth.isSignedIn
+              ? 'Tu número está verificado. Podrás consultar este reporte desde tu cuenta.'
+              : 'Para recibir avisos de tu reporte verifica tu número.',
+        ),
       ],
     );
   }

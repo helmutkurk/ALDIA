@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.db import Database
+from app.middleware import PublicPostLimiter
 from app.models import StaffSession, StaffUser
 from app.security import (
     CSRF_COOKIE,
@@ -20,6 +21,7 @@ from app.security import (
     digest,
     signature,
 )
+from app.services.sms import SmsProvider, sms_provider
 from app.services.storage import PhotoStorage
 from app.services.verifier_client import VerifierClient
 
@@ -33,6 +35,23 @@ class Services:
     creation_lock: Lock = field(default_factory=Lock)
     auth_lock: Lock = field(default_factory=Lock)
     login_limiter: LoginLimiter = field(default_factory=LoginLimiter)
+    sms: SmsProvider = field(init=False)
+    citizen_request_phone: PublicPostLimiter = field(init=False)
+    citizen_request_ip: PublicPostLimiter = field(init=False)
+    citizen_verify_phone: PublicPostLimiter = field(init=False)
+    citizen_verify_ip: PublicPostLimiter = field(init=False)
+    citizen_lock: Lock = field(default_factory=Lock)
+
+    def __post_init__(self) -> None:
+        self.sms = sms_provider(self.settings)
+        self.citizen_request_phone = PublicPostLimiter(
+            self.settings, limit=3, window=900
+        )
+        self.citizen_request_ip = PublicPostLimiter(self.settings, limit=10, window=900)
+        self.citizen_verify_phone = PublicPostLimiter(
+            self.settings, limit=10, window=900
+        )
+        self.citizen_verify_ip = PublicPostLimiter(self.settings, limit=30, window=900)
 
 
 def get_services(request: Request) -> Services:

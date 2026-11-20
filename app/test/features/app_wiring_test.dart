@@ -123,7 +123,7 @@ void main() {
     await tester.tap(find.text(S.newReport));
     await tester.pumpAndSettle();
     await advanceToReview(tester);
-    await tapText(tester, S.send);
+    await tapText(tester, 'Continuar sin avisos');
 
     expect(wired.outbox.entries, hasLength(1));
     expect(wired.posts, isEmpty);

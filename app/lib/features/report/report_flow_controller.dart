@@ -374,7 +374,8 @@ class ReportFlowController extends ChangeNotifier {
     if (captured == null ||
         category == null ||
         !locationConfirmed ||
-        submitState == SubmitState.sending) {
+        submitState == SubmitState.sending ||
+        (_repository.requireCitizenLogin && !_repository.auth.isSignedIn)) {
       return;
     }
     submitState = SubmitState.sending;

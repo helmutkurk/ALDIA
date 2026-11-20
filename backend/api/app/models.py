@@ -73,6 +73,10 @@ class Report(Base):
     duplicate_of: Mapped[UUID | None] = mapped_column(Uuid, ForeignKey("reports.id"))
     public_note: Mapped[str | None] = mapped_column(String(280))
     previous_state: Mapped[str | None] = mapped_column(String(32))
+    citizen_id: Mapped[str | None] = mapped_column(
+        String(64), ForeignKey("citizens.id"), index=True
+    )
+    citizen_alias: Mapped[str | None] = mapped_column(String(60))
 
 
 class ReportEvent(Base):
@@ -143,3 +147,42 @@ class AuthEvent(Base):
     at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
+
+
+class Citizen(Base):
+    __tablename__ = "citizens"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    phone_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    phone_last2: Mapped[str] = mapped_column(String(2))
+    alias: Mapped[str | None] = mapped_column(String(60))
+    alias_public: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="0"
+    )
+
+
+class CitizenChallenge(Base):
+    __tablename__ = "citizen_challenges"
+
+    phone_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    phone_last2: Mapped[str] = mapped_column(String(2))
+    device_hash: Mapped[str] = mapped_column(String(64))
+    nonce: Mapped[str] = mapped_column(String(32))
+    code_hash: Mapped[str] = mapped_column(String(64))
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class CitizenSession(Base):
+    __tablename__ = "citizen_sessions"
+    __table_args__ = (
+        Index(
+            "ix_citizen_sessions_owner_device", "citizen_id", "device_hash", unique=True
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    citizen_id: Mapped[str] = mapped_column(String(64), ForeignKey("citizens.id"))
+    device_hash: Mapped[str] = mapped_column(String(64))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)

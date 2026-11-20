@@ -7,6 +7,7 @@ import 'package:latlong2/latlong.dart';
 import '../core/config.dart';
 import '../core/categories.dart';
 import 'report.dart';
+import '../services/identity_services.dart';
 
 class ApiException implements Exception {
   const ApiException(this.message, {this.statusCode});
@@ -20,12 +21,16 @@ class ApiException implements Exception {
 
 /// Thin client for the Aldia API. Contract: documentation/api-contract.md.
 class ApiClient {
-  ApiClient({required this._client, String? baseUrl})
-    : _baseUrl = (baseUrl ?? AppConfig.apiBaseUrl).replaceAll(
-        RegExp(r'/+$'),
-        '',
-      );
+  ApiClient({
+    required this._client,
+    String? baseUrl,
+    this.auth = const NoopAuthService(),
+  }) : _baseUrl = (baseUrl ?? AppConfig.apiBaseUrl).replaceAll(
+         RegExp(r'/+$'),
+         '',
+       );
 
+  final AuthService auth;
   final http.Client _client;
   final String _baseUrl;
 
@@ -128,6 +133,27 @@ class ApiClient {
     return Report.fromJson(jsonDecode(body) as Map<String, dynamic>);
   }
 
+  Future<List<Report>> citizenReports() async {
+    if (!auth.isSignedIn) return const [];
+    final reports = <Report>[];
+    var offset = 0;
+    while (true) {
+      final uri = Uri.parse('$_baseUrl/citizens/me/reports')
+          .replace(queryParameters: {'limit': '100', 'offset': '$offset'});
+      final body = await _send(
+        () => _client.get(uri, headers: auth.authorizationHeaders),
+      );
+      final data = jsonDecode(body) as Map<String, dynamic>;
+      final items = (data['items'] as List)
+          .map((e) => Report.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+      reports.addAll(items);
+      offset += items.length;
+      if (items.isEmpty || offset >= (data['total'] as int)) break;
+    }
+    return reports;
+  }
+
   Future<Report> createReport({
     required Uint8List photoBytes,
     required String filename,
@@ -150,6 +176,7 @@ class ApiClient {
               filename: filename,
             ),
           );
+    request.headers.addAll(auth.authorizationHeaders);
     if (idempotencyKey != null) {
       request.headers['Idempotency-Key'] = idempotencyKey;
     }
@@ -168,6 +195,12 @@ class ApiClient {
       final response = await call().timeout(AppConfig.requestTimeout);
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return utf8.decode(response.bodyBytes);
+      }
+      if (response.statusCode == 401 && auth.isSignedIn) {
+        // A rotated/revoked device token must offer verification on the next try.
+        try {
+          await auth.signOut();
+        } catch (_) {}
       }
       throw ApiException(
         _errorMessage(response),

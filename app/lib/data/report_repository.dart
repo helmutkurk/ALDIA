@@ -6,15 +6,20 @@ import 'api_client.dart';
 import 'my_reports_store.dart';
 import 'report.dart';
 import 'local_citizen_store.dart';
+import '../core/config.dart';
+import '../services/identity_services.dart';
 
 class ReportRepository {
   ReportRepository({
     required this._api,
     required this._store,
     LocalCitizenStore? local,
+    this.requireCitizenLogin = AppConfig.requireCitizenLogin,
   }) : local = local ?? LocalCitizenStore();
 
   final LocalCitizenStore local;
+  final bool requireCitizenLogin;
+  AuthService get auth => _api.auth;
   Future<int?> resolvedCount() => _api.resolvedCount();
 
   Future<void> clearLocalData() async {
@@ -74,6 +79,14 @@ class ReportRepository {
   /// Own and locally followed reports. Missing ids are skipped.
   Future<List<Report>> mine() async {
     final ids = {...await _store.ids(), ...local.followedIds};
+    List<Report> remote = const [];
+    ApiException? accountError;
+    try {
+      remote = await _api.citizenReports();
+    } on ApiException catch (error) {
+      // Keep local ids usable offline; the next refresh retries account reports.
+      accountError = error;
+    }
     final results = await Future.wait(
       ids.map((id) async {
         try {
@@ -83,7 +96,13 @@ class ReportRepository {
         }
       }),
     );
-    final reports = results.whereType<Report>().toList();
+    final reports = {
+      for (final report in results.whereType<Report>()) report.id: report,
+      for (final report in remote) report.id: report,
+    }.values.toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    if (reports.isEmpty && accountError != null) {
+      throw accountError;
+    }
     await _observe(reports);
     return reports;
   }
@@ -95,6 +114,12 @@ class ReportRepository {
     String? note,
     String? idempotencyKey,
   }) async {
+    if (requireCitizenLogin && !auth.isSignedIn) {
+      throw const ApiException(
+        'Verifica tu número antes de enviar el reporte.',
+        statusCode: 401,
+      );
+    }
     final report = await _api.createReport(
       photoBytes: photo.bytes,
       filename: photo.filename,

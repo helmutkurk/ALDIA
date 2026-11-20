@@ -377,3 +377,71 @@ proxy trust, JSON logging, permissions, backup/restore and retention proposals,
 and [demo script](demo-script.md) for synthetic fixtures. The three seeded
 before/after comparisons are paired scenes inside the existing single-photo
 JPEG; this adds no completion-photo upload endpoint or real repair evidence.
+
+## v0.5 additions: citizen phone verification (no delivery service)
+
+Additive to v0.1–v0.4; staff cookies, CSRF and permissions remain unchanged.
+No email, password or real SMS/WhatsApp delivery is introduced.
+
+| Method and path | Request and response |
+|---|---|
+| `POST /api/citizens/otp/request` | JSON `{phone, device_id}`; `202 {"accepted": true}` for every valid request, including unknown/known phones, cooldown, rate suppression and unavailable delivery. No account existence or delivery result is disclosed. |
+| `POST /api/citizens/otp/verify` | JSON `{phone, code, device_id, alias?, alias_public?}`; `200 {"token": "opaque bearer", "expires_at": "UTC ISO 8601"}`. Generic `401 citizen_code_invalid` for unknown, incorrect, expired, exhausted, consumed or wrong-device challenges. Verification rate limit: `429 rate_limited` + `Retry-After`. |
+| `POST /api/citizens/logout` | Bearer + `X-Device-ID`; `204`, immediately revokes that device session. Invalid/expired/mismatched credentials: `401 citizen_unauthorized`. |
+| `GET /api/citizens/me/reports` | Bearer + `X-Device-ID`; `{items, total, limit, offset}`, newest first; `limit` 1–100 (default 100), `offset` >= 0. Reports owned by this citizen across token rotations and verified devices; excludes hidden reports. Never grants staff access or exposes internal notes. |
+
+`phone` is normalized to E.164 (`+` and 8–15 ASCII digits, first digit nonzero).
+A bare eight-digit Guatemala number defaults to country `+502`; a `+502` number
+must have exactly eight national digits. Clients generate and securely retain a
+random UUID `device_id` before requesting a code. They send the same UUID in
+both OTP bodies and in `X-Device-ID` with every bearer-authenticated request,
+including report creation. The identifier binds use of the bearer to the client
+installation; it is not hardware attestation and theft of both values permits replay.
+
+OTP: six random ASCII digits, valid for ten minutes, at most five failed attempts.
+A resend invalidates the old code, is suppressed for 60 seconds and does not reset
+the failure budget within an active challenge. Request budgets are three per phone
+and ten per direct peer IP per 15 minutes; suppressed requests still return 202.
+Verification has independent ten-per-phone and thirty-per-IP budgets per 15 minutes.
+All limiter keys containing phone/device information are keyed hashes; client IPs
+are never read from untrusted forwarded headers. Limiters reuse the bounded,
+per-process sliding-window implementation; deploy a shared edge limiter before scaling.
+
+Tokens contain at least 256 random bits, expire absolutely after 90 days and are
+stored only as digests in SQL. Successful verification consumes the challenge and
+rotates/revokes any earlier token for that citizen and device. Other verified
+devices remain signed in. Phone numbers are stored only as HMAC-SHA256 using
+`PHONE_HASH_KEY` plus their last two digits; OTPs are keyed digests, never plaintext
+in SQL. `citizen_id` is a nullable internal keyed hash on reports, never serialized
+by any public/staff/export endpoint. Anonymous historical reports stay anonymous;
+knowing an idempotency key cannot claim ownership of them.
+
+`alias` is optional (1–60 trimmed characters), private by default.
+Only explicit `alias_public: true` opts into a public display name; reports created
+while opted in may include `citizen_alias`. No number, phone hash, session/device
+hash or ownership identifier is returned. The app stores only the masked last-two
+digits for profile display, alongside session credentials in secure storage.
+
+`POST /api/reports` accepts `Authorization: Bearer …` + `X-Device-ID` and stores
+ownership when authenticated. `REQUIRE_CITIZEN_LOGIN=false` by default preserves
+anonymous submission; `true` requires citizen authentication (`401`). Supplied
+invalid credentials return 401 even in optional mode. Staff authentication cannot
+substitute for citizen authentication. Idempotency remains 24 hours / original
+report / 200 on replay; only the same owner (or anonymous-to-anonymous) can replay
+an existing key; other owners get `409 idempotency_conflict`, without report data.
+
+Citizen responses use `Cache-Control: no-store`; auth errors use the existing
+error envelope and never echo submitted values. JSON validation never logs input.
+CORS additionally permits `Authorization` and `X-Device-ID`.
+
+Configuration: `PHONE_HASH_KEY` is a server secret (at least 32 characters), with
+an explicitly insecure development fallback only for exact `ENV=dev`. No production
+fallback exists. Unconfigured production citizen authentication fails closed;
+anonymous report submission remains available when login is optional.
+`CITIZEN_SMS_PROVIDER=null` is the default and refuses delivery in every environment.
+`console` is accepted only in exact `ENV=dev`: it prints the OTP with a loud DEV
+banner in the API log, never the phone number. It sends nothing. Console delivery
+must never be enabled with real users. Provider refusal still returns request 202;
+verification cannot succeed without a delivered development challenge. Missing production
+key configuration returns `503 citizen_unavailable` from verification. See
+[the citizen-login decision](decisions/citizen-login.md) for privacy and operational limits.

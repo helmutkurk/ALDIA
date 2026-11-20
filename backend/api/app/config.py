@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator
@@ -21,6 +22,22 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
     env: str = "production"
     auth_dev_tokens: bool = False
+    require_citizen_login: bool = False
+    citizen_sms_provider: Literal["null", "console"] = "null"
+    phone_hash_key: str | None = Field(default=None, repr=False, exclude=True)
+
+    @field_validator("phone_hash_key")
+    @classmethod
+    def valid_phone_hash_key(cls, value: str | None) -> str | None:
+        if value is not None and len(value) < 32:
+            raise ValueError("PHONE_HASH_KEY must contain at least 32 characters")
+        return value
+
+    @property
+    def citizen_hash_key(self) -> str | None:
+        if self.phone_hash_key is not None:
+            return self.phone_hash_key
+        return "insecure-local-citizen-key-do-not-deploy" if self.env == "dev" else None
 
     staff_token: str | None = Field(default=None, repr=False, exclude=True)
     supervisor_token: str | None = Field(default=None, repr=False, exclude=True)

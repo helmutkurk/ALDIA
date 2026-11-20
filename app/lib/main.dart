@@ -16,6 +16,7 @@ import 'services/connectivity_service.dart';
 import 'services/location_service.dart';
 import 'services/geocoder_service.dart';
 import 'services/photo_service.dart';
+import 'services/citizen_auth_service.dart';
 
 const _onboardingKey = 'onboarding_seen';
 
@@ -23,8 +24,17 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
   final client = http.Client();
+  final auth = PhoneAuthService(
+    client: client,
+    store: const SecureCitizenCredentialStore(),
+  );
+  // A storage failure leaves reporting available in optional mode. Login shows
+  // the actionable storage error and can retry initialization later.
+  try {
+    await auth.initialize();
+  } catch (_) {}
   final repository = ReportRepository(
-    api: ApiClient(client: client),
+    api: ApiClient(client: client, auth: auth),
     store: PrefsMyReportsStore(),
     local: LocalCitizenStore(preferences: prefs),
   );

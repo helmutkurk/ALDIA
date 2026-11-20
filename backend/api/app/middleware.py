@@ -21,9 +21,13 @@ SECURITY_HEADERS = {
 class PublicPostLimiter:
     """Bounded sliding window, direct peer IP only, local to one process."""
 
-    def __init__(self, settings: Settings) -> None:
-        self.limit = settings.public_post_rate_limit
-        self.window = settings.public_post_window_seconds
+    def __init__(
+        self, settings: Settings, *, limit: int | None = None, window: int | None = None
+    ) -> None:
+        self.limit = limit if limit is not None else settings.public_post_rate_limit
+        self.window = (
+            window if window is not None else settings.public_post_window_seconds
+        )
         self.buckets: dict[str, deque[float]] = {}
         self.lock = Lock()
 
@@ -64,6 +68,12 @@ class SecurityMiddleware:
             nonlocal status
             if message["type"] == "http.response.start":
                 status = message["status"]
+                if scope["path"].startswith("/api/citizens/"):
+                    message["headers"] = [
+                        (key, value)
+                        for key, value in message.get("headers", [])
+                        if key.lower() != b"cache-control"
+                    ] + [(b"cache-control", b"no-store")]
                 blocked = {b"server", b"x-powered-by"} | {
                     name.lower().encode() for name in SECURITY_HEADERS
                 }

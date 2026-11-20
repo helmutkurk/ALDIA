@@ -150,6 +150,7 @@ class ReportOut(StrictModel):
     assigned_at: AwareDatetime | None
     duplicate_of: UUID | None
     public_note: str | None
+    citizen_alias: str | None = None
     events: list[EventOut] = Field(default_factory=list)
 
 

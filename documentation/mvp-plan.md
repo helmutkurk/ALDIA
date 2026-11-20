@@ -23,6 +23,9 @@ portal 110, app 91. **Not verified**: nothing has been run end to end in a brows
 The verifier is a stub (it classifies nothing); a real model is Lorenz's work. Citizen login by phone and push are not built;
 staff access is a shared provisional token.
 
+Update 2026-11-20: citizen phone login now has a development-only OTP flow (v0.5, no real delivery).
+Push remains unbuilt. Staff accounts/sessions use contract v0.4; this citizen change preserves that interface.
+
 ## Backlog (strict order, one item at a time)
 
 1. `scripts/dev-local.sh` + `make dev-all`: start verifier, API on SQLite, portal; seed; print URLs; stop with Ctrl-C.
@@ -36,7 +39,7 @@ staff access is a shared provisional token.
    do not need) and run the wizard against the local API; fix crashes. Record what only a phone can verify.
 5. Replace the shared staff token with real staff users (hashed passwords, HttpOnly session cookie, roles operator/supervisor),
    keeping the old token only in dev mode behind a flag.
-6. Citizen login by phone code behind an interface with a fake provider (no real SMS), API and app wired.
+6. Citizen login by phone code: implemented in backend/app with null/console providers and contract v0.5; no real SMS. See [citizen decision](decisions/citizen-login.md). Physical-device/PostgreSQL checks and real provider selection remain pending.
 7. PostgreSQL: if a local server or `pglite`/testcontainers is available without Docker, run migrations and the seed on it.
 8. Contract v0.3 stats from the harvest of Isabel's branch (**only after Helmut writes "Isabel OK" in the log**).
 9. Update documentation for whatever changed.
@@ -98,7 +101,7 @@ Append one block per iteration to `documentation/log/<hostname>.md`: time, item,
 | 3 | `job-android-apk-ci.md`: CI job that builds a debug APK artifact and the Linux build | .github, app | queued |
 | 4 | `job-stats-v03.md`: contract v0.3 stats from the harvest + portal charts (with "ver tabla") | backend/api, portal | queued |
 | 5 | `job-staff-auth.md`: real staff users, roles, session cookie | backend/api, portal | queued |
-| 6 | `job-phone-login.md`: phone-code login with a fake provider, API and app | backend/api, app | queued |
+| 6 | `job-phone-login.md`: phone-code login with a fake provider, API and app | backend/api, app | implemented locally, uncommitted; checks recorded below |
 | 7 | `job-postgres.md`: run migrations and seed on PostgreSQL without Docker if possible | backend/api | queued |
 | 8 | Browser verification of the portal vs the reference captures (Claude + Chrome) | portal | after 23:20 |
 | 9 | `job-mobile-release-ready.md` (replaces 3): everything for Android and iOS releases that does not depend on accounts: debug APK/AAB artifact in CI, Linux build check, release signing wired to CI secrets (placeholders, no real keys), `documentation/mobile-release.md` with the exact Play Console / TestFlight steps, iOS bundle id, Info.plist, Podfile, export options, app icons and splash assets generated in code, store listing text in Spanish. What stays for Helmut: create the Android keystore, the Apple team and certificates, and the store accounts | app, .github, documentation | queued |
@@ -146,3 +149,29 @@ theme, check the wizard screens one by one against the reference list) and also 
 5. Adoption material in `documentation/pitch/` (public-safe, no strategy or budgets): one-pager (problem, how Aldia works, what a municipality
    gets, data protection, limits of the evidence), architecture diagram, integration options (Open311, CSV, API), and a pilot proposal outline.
 6. Quality pass with the Cursor skill `hks-thermo-nuclear-code-quality-review`, one job per area, 2 in parallel (job 10 above).
+
+
+## Citizen login implementation (2026-11-20)
+
+Contract v0.5 was written first, preserving the binding v0.4 staff interface.
+Migration `0005` adds keyed phone identities, OTP challenges, rotating device sessions
+and nullable report ownership. Anonymous submissions remain the default; required
+login is configurable in API and app. Console delivery exists only with exact
+`ENV=dev`, prints the development code privately in the API log and sends nothing.
+Null delivery is the default, including production. The app uses pinned secure
+storage, a submit-step verification sheet, masked profile/logout and merged local/
+server-owned reports. Real SMS/WhatsApp, push and production rollout remain pending.
+
+Work is directly on `develop`, without commits, branch changes or pushes, per the
+job instruction. Portal changes belong to another job. Validation: API `UV_CACHE_DIR=/tmp/aldia-uv-cache make -C backend/api lint test`
+passes Ruff, format, strict mypy and 423 tests (25 citizen cases), retaining one existing
+Starlette/httpx deprecation warning. App format is stable (65 files), analyze reports
+no issues and 124 tests pass. Direct `mise exec` commands hit the read-only installed
+SDK; equivalent checks used the existing writable `/tmp/aldia-flutter-sdk` and
+`/tmp/aldia-pub-cache`, same Flutter 3.47.9 / Dart 3.13.7, with `--no-pub` for
+analyze/test after dependency resolution. No new backend dependency was added;
+`flutter_secure_storage` is pinned to 11.2.0 and its lockfile generated by pub.
+Live browser/device/PostgreSQL tests remain separate. Root README is outside the
+job's allowed folders; quick start was updated in `backend/api/README.md` and linked
+from `documentation/README.md`. Vault/session maintenance is handed to the orchestrator
+because writes are restricted to backend/api, app and documentation.
