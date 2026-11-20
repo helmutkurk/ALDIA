@@ -33,33 +33,36 @@ const pairs = [
   ...[
     'text',
     'text-muted',
-    'primary',
     'primary-dark',
     'danger',
+    'success',
     'series-received',
     'series-resolved',
   ].flatMap((foreground) =>
     ['surface', 'background'].map((background) => [foreground, background]),
   ),
+  ['primary', 'surface'],
   ['on-primary', 'primary'],
   ['on-primary', 'primary-dark'],
-  // Status colours are dot fills; labels use text. These pairs also support
-  // status text on a white surface. Closed gray is not text on warm gray.
-  ...[
-    'state-open',
-    'state-work',
-    'state-resolved',
-    'state-closed',
-    'success',
-  ].map((name) => [name, 'surface']),
+  ['on-bar', 'bar'],
+  ['text', 'border'],
 ];
+// Status colors are dot, pin and series fills (non-text): at least 3:1 on
+// white; the status word beside them always uses the normal text color.
+const dots = ['state-open', 'state-work', 'state-resolved', 'state-closed'];
 
-describe('neutral palette text contrast', () => {
+describe('calm palette text contrast', () => {
   it('uses the WCAG luminance endpoints', () => {
     expect(luminance('#000000')).toBe(0);
     expect(luminance('#ffffff')).toBe(1);
   });
   it.each(pairs)('%s on %s is at least 4.5:1', (foreground, background) => {
     expect(contrast(foreground, background)).toBeGreaterThanOrEqual(4.5);
+  });
+  it.each(dots)('%s dot is at least 3:1 on the surface', (name) => {
+    expect(contrast(name, 'surface')).toBeGreaterThanOrEqual(3);
+  });
+  it('white pin outline separates pins from the map halo', () => {
+    expect(contrast('text', 'surface')).toBeGreaterThanOrEqual(4.5);
   });
 });

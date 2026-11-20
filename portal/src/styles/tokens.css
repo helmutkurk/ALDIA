@@ -1,29 +1,38 @@
-/* Binding mirror of documentation/design-tokens.md (neutral, 2026-11-19). */
+/* Binding mirror of documentation/design-tokens.md (calm palette, 2026-11-20). */
 :root {
-  --primary: #1f2937;
-  --primary-dark: #111827;
+  --bar: #3a3f44;
+  --on-bar: #ffffff;
+  --primary: #0f7a99;
+  --primary-dark: #0b6079;
   --on-primary: #ffffff;
+  --accent: #e8731a; /* underlines and highlights only, never text */
   --surface: #ffffff;
-  --background: #f5f5f4;
-  --border: #e5e7eb;
-  --text: #111827;
-  --text-muted: #4b5563;
-  --focus: #111827;
+  --background: #f3f4f6;
+  --border: #d9dee3;
+  --text: #1f2933;
+  --text-muted: #52606d;
+  --focus: #0b6079;
 
-  /* Functional status only; always paired with a word. */
-  --state-open: #b45309;
-  --state-work: #4b5563;
-  --state-resolved: #15803d;
+  /* Status dots, pins and series; always paired with the status word. */
+  --state-open: #e8731a;
+  --state-work: #3f9a47;
+  --state-resolved: #2d8cd0;
   --state-closed: #6b7280;
   --state-pending: #ffffff;
-  --success: var(--state-resolved);
+  --success: #2e7d32;
   --danger: #b91c1c;
 
-  /* Portal-only layout and neutral data-series tokens. */
+  /* Portal-only layout, spacing scale and data-series tokens. */
   --header-height: 3.5rem;
   --radius: 0.5rem;
   --radius-sm: 0.3rem;
-  --shadow-raised: 0 2px 10px rgb(17 24 39 / 14%);
-  --series-received: var(--primary);
-  --series-resolved: var(--text-muted);
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2.5rem;
+  --shadow-raised: 0 2px 10px rgb(31 41 51 / 16%);
+  --series-received: var(--primary-dark);
+  --series-resolved: var(--success);
 }

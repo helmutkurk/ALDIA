@@ -1,9 +1,8 @@
 # Portal UI notes (restyle of the map page and dashboard)
 
-Scope: `portal/` and this note. The portal follows the neutral palette in `documentation/design-tokens.md`.
-Decision (Helmut, 2026-11-19): simple neutral colors, with no distinctive brand color. Primary actions and header
-use graphite `#1F2937`, surfaces white, and the page warm gray `#F5F5F4`. System fonts and existing behavior remain.
-This supersedes the earlier teal treatment. (Codex, 2026-11-19)
+Scope: `portal/` and this note. The portal follows FixMyStreet's structure with the calm palette in
+`documentation/design-tokens.md` (decision Helmut, 2026-11-20), which replaces the neutral graphite palette of
+2026-11-19. System fonts, behavior, routes and a11y features are unchanged. (Claude, 2026-11-20)
 
 ## What was taken from the two reference screenshots (principles, not appearance)
 
@@ -30,21 +29,22 @@ The reference's "pick your council" box has no data source here (the API has no 
 ## Decisions in the portal
 Map page:
 - `src/header.js`: shared slim header (Aldia, Mapa, Triaje, Panel, Modo personal). Links keep the filter scope; the
-  current page is a filled pill (not colour alone); Modo personal opens and focuses the staff disclosure.
+  current page has the orange `accent` underline plus bold weight (not colour alone); Modo personal opens and focuses the staff disclosure.
 - Panel top is a short title band; visible filters are Estado (state group), Categoría, Ordenar, Incluir reportes
   antiguos; the other filters sit in "Más filtros" (`details`). All filter ids, names and URL behaviour are unchanged.
 - Count line `1 a 25 de 86 reportes` (uses offset and shown rows).
 - Rows: title (category label), date, state chip (text plus a dot), verifier badge, lazy decorative thumbnail
   (`alt=""`, hidden silently if it fails). No `innerHTML`; thumbnails reuse `createPhoto`, which validates the URL.
-- Pins 36 px with neutral graphite fill, white inner ring, dark outer outline and the state letter; in-work and
-  pending pins also have a dashed ring. Marker titles, accessible names, selected details and list rows retain full
-  state words. Clusters are 48 px graphite circles with a white ring and a numeric count. Zoom control 48 px, bottom right.
-- Status colors are functional dot fills only: open `#B45309`, in-work `#4B5563` (outlined), resolved `#15803D`, closed
-  `#6B7280`, rejected/error `#B91C1C`. Every status has a word; chip text stays dark on both white and warm gray.
-  Closed gray is not used as text on warm gray because that pair is below 4.5:1.
-- Filters, selection outlines, list cards, KPI cards, buttons, browser theme color and favicon use neutral tokens.
-  Focus is 2 px with 2 px offset; the header and dashboard band use white focus rings on graphite. Disabled buttons
-  and placeholders retain readable neutral text.
+- Pins 36 px, filled with the status color (open orange, in work green, resolved blue, closed gray; pending is white
+  with a dashed outline), white outline and the status letter. Marker titles, accessible names, selected details and
+  list rows keep full state words; the legend dots use the same colors. Clusters are 48 px `primary` circles with a
+  white ring and the count. Zoom control 48 px, bottom right, no heavy outline.
+- Status in the list is a dot of the status color plus the word in normal text color. Dots and pins are non-text and
+  are tested at 3:1 on white; text pairs at 4.5:1.
+- Header and dashboard band use `bar` with white text; the panel header is white. Primary buttons and links are
+  `primary` / `primary-dark` (links use `primary-dark` because `primary` is 4.47:1 on the page gray). `accent` marks
+  only the current nav item, the selected list row, selected tabs and the dashboard band rule; never text.
+  Focus is 2 px `focus` with 2 px offset (white on `bar`).
 - Phones: list first; fixed pill button "Ver mapa" / "Ver lista" swaps list and map.
 
 Dashboard:
@@ -58,42 +58,22 @@ Dashboard:
   source and is omitted. Suggested contract addition: a `daily` array and an `updates` count in `/api/stats`.
 - Top 5 categorías from `by_category`; ages of open reports; v0.2 indicators in the same card style; state-group bars;
   category x group table; CSV export moved into an "Exportar datos" box.
-- Category frequency uses solid graphite (Resueltos), diagonal hatching (Abiertos), and white with an outline
-  (Cerrados), with matching legend swatches and per-row written counts. Repair bars are graphite with written hours.
-  Detailed group distributions use solid, diagonal, horizontal, dots, crosshatch and outlined fills, alongside
-  labelled count columns. SVG pattern ids are unique across all charts; tables and keyboard tooltips remain available.
+- Category frequency keeps solid, diagonal hatching and outline fills in `primary` (tests require these), with legend
+  swatches and written counts. Detailed group distributions keep their distinct patterns.
+  SVG pattern ids are unique across all charts; tables and keyboard tooltips remain available.
 
 ## Portal tokens
-Shared neutral values, `--on-primary` and `--focus` mirror `documentation/design-tokens.md` in `src/styles/tokens.css`.
-Portal-only layout tokens: `--header-height`, `--radius`, `--radius-sm`, `--shadow-raised`.
-Data series: `--series-received` (= primary graphite), `--series-resolved` (= muted graphite).
-Functional aliases: `--success` (= resolved), `--danger` (= rejected/error); pending dots use the documented open color.
-There is no decorative accent token. Status colors do not fill map pins or data charts.
+`src/styles/tokens.css` mirrors `documentation/design-tokens.md` (`bar`, `primary`, `accent`, status colors, `focus`).
+Portal-only: `--header-height`, `--radius`, `--radius-sm`, spacing scale `--space-1..6`, `--shadow-raised`, `--success`
+(#2E7D32, text-safe green), `--danger`. Series: `--series-received` (= `primary-dark`, solid, circle marker) and
+`--series-resolved` (= `success`, dashed, square marker); direct end labels remain, so color is never the only cue.
 
-## Verification (2026-11-19)
-- `cd portal && mise exec -- npm run check`: lint, formatting, Vitest and production build pass.
-- `tests/contrast.test.js` reads the CSS tokens and resolves aliases, linearizes sRGB, computes WCAG relative
-  luminance, and asserts text foreground/background pairs at least 4.5:1. It covers main/muted text, links, buttons,
-  header, data-series labels, errors and status colors on white. Status words on warm gray use main text.
-- Dashboard tests also check direct labels, circle/square markers, neutral fills and unique/resolvable pattern ids.
-- No legacy teal or decorative amber hex values remain in `src/` or `index.html`; the documented functional
-  open-status color is retained. No dependencies were added.
-
-## Skill sources used
-- `impeccable/reference/colorize.md` (neutral pass): semantic roles, non-color encodings and measured contrast.
-- `impeccable/reference/new-work.md`: decided this is an extension of an established surface (inherit, no new identity).
-- `impeccable/reference/craft-floor.md`: contrast, spacing, type, states, browser surfaces (focus, selection), plus the
-  "refuse" list. The brief explicitly asked for big numbers and sparklines, so those two items were kept, minimal and
-  with text equivalents; no eyebrows, gradients, nested cards or coloured side borders.
-- `impeccable/reference/polish.md`: system consistency, loading/empty/error states, touch targets, responsive pass.
-- `impeccable/reference/audit.md`: checklist for accessibility, responsive, theming and implementation integrity.
-- `anthropics-skills/hks-frontend-design/SKILL.md`: restrained typography (one system family, clear scale, no all-caps
-  labels), structure that carries information, and no template chrome.
-Detector scripts and `impeccable install` were not run (no network use).
+## Verification (2026-11-20)
+- `cd portal && mise exec -- npm run check`: lint, format, 149 Vitest tests and build pass.
+- `tests/contrast.test.js` asserts every text pair >= 4.5:1 (text, muted, links, danger, success, series, on-bar/bar,
+  on-primary/primary) and status dots >= 3:1 on white.
 
 ## Not verified
-No browser QA was possible. Unchecked: real rendering of the header on 390 px width (two rows assumed, map height uses
-`100dvh - 6rem`), pin outline against OSM tiles, Leaflet zoom control overrides, chart tick sizes on phones, `:has()`
-behaviour in older browsers (the phone map/list swap depends on it), rendered SVG patterns/direct labels, keyboard
-focus placement, and contrast of raster map tiles. Token-pair text contrast is automated above. Use
-`portal/tests/browser-review.sh` steps at 1280x800 and 390x844.
+No browser QA was possible. Unchecked: header at 390 px, pin appearance on OSM tiles, Leaflet control overrides,
+chart sizes on phones, `:has()` in older browsers (phone map/list swap), rendered SVG patterns, keyboard focus
+placement, dark mode (not implemented in the portal). Use `portal/tests/browser-review.sh` at 1280x800 and 390x844.

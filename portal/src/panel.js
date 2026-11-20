@@ -77,7 +77,11 @@ export function createReportDetails(report, photoOptions = {}) {
     element(
       'p',
       report.verification.mode === 'stub' ? 'stub-warning' : 'muted',
-      report.verification.mode === 'stub' ? t.stubWarning : t.modelVerification,
+      report.verification.mode === 'stub'
+        ? t.stubWarning
+        : report.verification.mode === 'heuristic'
+          ? t.heuristicVerification
+          : t.modelVerification,
     ),
   );
   if (!report.verification.checks.length)

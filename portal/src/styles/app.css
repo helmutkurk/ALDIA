@@ -40,9 +40,16 @@ button {
   background: var(--surface);
   border: 1px solid var(--text-muted);
   border-radius: var(--radius-sm);
+  transition:
+    background-color 120ms ease-out,
+    border-color 120ms ease-out;
 }
 button:where(:hover:not(:disabled)) {
   background: var(--background);
+  border-color: var(--text);
+}
+button:where(:active:not(:disabled)) {
+  background: var(--border);
 }
 input::placeholder,
 textarea::placeholder {
@@ -54,8 +61,8 @@ a {
   text-underline-offset: 0.2em;
 }
 ::selection {
-  color: var(--surface);
-  background: var(--primary-dark);
+  color: var(--on-primary);
+  background: var(--primary);
 }
 :focus-visible {
   outline: 2px solid var(--focus);
@@ -73,14 +80,17 @@ p {
 h1 {
   font-size: 1.5rem;
   line-height: 1.2;
-  letter-spacing: -0.025em;
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
 h2 {
-  font-size: 1rem;
-  line-height: 1.4;
+  font-size: 1.0625rem;
+  line-height: 1.35;
+  font-weight: 600;
 }
 h3 {
-  font-size: 0.9rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
 }
 .muted,
 .report-date {
@@ -107,9 +117,16 @@ h3 {
   background: var(--surface);
   border: 2px solid var(--primary);
   border-radius: var(--radius-sm);
+  color: var(--primary-dark);
 }
 .skip-link:focus {
   transform: translateY(0);
+}
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline-offset: 0;
+  border-color: var(--focus);
 }
 input,
 textarea {
@@ -149,22 +166,34 @@ button:disabled {
   cursor: default;
   color: var(--text-muted);
   background: var(--background);
+  border-color: var(--border);
 }
-.retry-button {
-  margin-top: 1rem;
+.retry-button,
+.search-button {
   padding: 0.5rem 1rem;
   border: 0;
   border-radius: var(--radius-sm);
   color: var(--on-primary);
   background: var(--primary);
-  font-weight: 650;
+  font-weight: 600;
+}
+.retry-button {
+  margin-top: var(--space-4);
 }
 .retry-button:hover:not(:disabled),
-.retry-button:active:not(:disabled) {
+.retry-button:active:not(:disabled),
+.search-button:hover:not(:disabled),
+.search-button:active:not(:disabled) {
+  color: var(--on-primary);
   background: var(--primary-dark);
 }
 .error-message {
   color: var(--text);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--danger);
+  border-radius: var(--radius-sm);
   overflow-wrap: anywhere;
 }
 .error-message strong {
@@ -184,14 +213,14 @@ button:disabled {
   gap: 0.5rem 1.5rem;
   min-height: var(--header-height);
   padding: 0 1.25rem;
-  color: var(--on-primary);
-  background: var(--primary);
+  color: var(--on-bar);
+  background: var(--bar);
 }
 .site-header :focus-visible {
-  outline-color: var(--on-primary);
+  outline-color: var(--on-bar);
 }
 .site-header .brand {
-  color: var(--on-primary);
+  color: var(--on-bar);
   font-weight: 800;
   font-size: 1.5rem;
   letter-spacing: -0.04em;
@@ -210,8 +239,9 @@ button:disabled {
   min-height: 44px;
   padding: 0 0.85rem;
   border: 1px solid transparent;
+  border-bottom: 3px solid transparent;
   border-radius: var(--radius-sm);
-  color: var(--on-primary);
+  color: var(--on-bar);
   background: transparent;
   font-size: 0.95rem;
   text-decoration: none;
@@ -221,15 +251,16 @@ button:disabled {
 .site-nav button:hover {
   background: rgb(255 255 255 / 16%);
 }
-/* The current page is a filled pill, not a colour change alone. */
+/* The current page: orange underline plus bold weight, not colour alone. */
 .site-nav a[aria-current='page'] {
-  color: var(--primary-dark);
-  background: var(--on-primary);
+  border-bottom-color: var(--accent);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
   font-weight: 700;
 }
 .site-nav .staff-link {
   margin-left: 0.5rem;
   border-color: rgb(255 255 255 / 70%);
+  border-bottom-width: 1px;
 }
 
 /* ---------- map page: layout ---------- */
@@ -251,15 +282,17 @@ button:disabled {
   scrollbar-color: var(--text-muted) var(--background);
 }
 .panel-header {
-  padding: 1rem 1.25rem;
-  color: var(--on-primary);
-  background: var(--primary);
+  padding: var(--space-4) 1.25rem var(--space-3);
+  color: var(--text);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
 }
 .panel-header h1 {
   font-size: 1.25rem;
 }
 .panel-place {
   margin-top: 0.15rem;
+  color: var(--text-muted);
   font-size: 0.875rem;
 }
 
@@ -302,7 +335,7 @@ label.filter-field {
   min-height: 44px;
   cursor: pointer;
   font-size: 0.875rem;
-  font-weight: 650;
+  font-weight: 600;
   color: var(--primary-dark);
 }
 .filters-more-body {
@@ -318,6 +351,7 @@ label.filter-field {
   flex-wrap: wrap;
   gap: 0.4rem;
   padding: 0.25rem 1.25rem 0.75rem;
+  background: var(--surface);
   font-size: 0.8125rem;
 }
 .filter-chips p {
@@ -335,6 +369,9 @@ label.filter-field {
 }
 .filter-chips button:hover {
   background: var(--background);
+}
+.filter-chips button::after {
+  content: ' \00d7';
 }
 
 /* count line and list */
@@ -391,11 +428,15 @@ label.filter-field {
 }
 .report-button[aria-pressed='true'] {
   background: var(--background);
-  box-shadow: inset 0 0 0 2px var(--primary);
+  box-shadow: inset 4px 0 0 var(--accent);
+}
+.report-button:focus-visible {
+  outline-offset: -3px;
 }
 .report-category {
   flex: 1 1 100%;
   font-size: 1rem;
+  font-weight: 600;
   line-height: 1.3;
 }
 .report-date {
@@ -411,6 +452,7 @@ label.filter-field {
   height: 4rem;
   object-fit: cover;
   border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
   background: var(--background);
 }
 .thumb-missing {
@@ -464,9 +506,10 @@ label.filter-field {
 }
 .state-chip {
   padding: 0.1rem 0.5rem;
-  border: 1px solid var(--text-muted);
+  border: 1px solid var(--border);
   border-radius: 999px;
-  font-weight: 650;
+  background: var(--surface);
+  font-weight: 600;
 }
 .state-chip::before,
 .status-badge::before,
@@ -475,7 +518,6 @@ label.filter-field {
   display: inline-block;
   width: 0.65rem;
   height: 0.65rem;
-  border: 1px solid var(--text);
   border-radius: 50%;
   flex-shrink: 0;
 }
@@ -483,8 +525,7 @@ label.filter-field {
   background: var(--state-open);
 }
 .state-chip--in_work::before {
-  background: var(--surface);
-  border: 2px solid var(--state-work);
+  background: var(--state-work);
 }
 .state-chip--resolved::before {
   background: var(--state-resolved);
@@ -495,7 +536,7 @@ label.filter-field {
 }
 .state-chip--pending::before {
   background: var(--state-pending);
-  border-style: dashed;
+  border: 2px dashed var(--text-muted);
 }
 .status-badge--verified::before,
 .legend-dot--verified {
@@ -571,7 +612,29 @@ label.filter-field {
 .map-legend .legend-dot {
   width: 0.85rem;
   height: 0.85rem;
-  border-width: 2px;
+}
+.state-pin--open,
+.legend-dot.state-pin--open {
+  background: var(--state-open);
+}
+.state-pin--in_work,
+.legend-dot.state-pin--in_work {
+  background: var(--state-work);
+}
+.state-pin--resolved,
+.legend-dot.state-pin--resolved {
+  background: var(--state-resolved);
+}
+.state-pin--closed,
+.state-pin--hidden,
+.legend-dot.state-pin--closed,
+.legend-dot.state-pin--hidden {
+  background: var(--state-closed);
+}
+.state-pin--pending,
+.legend-dot.state-pin--pending {
+  background: var(--state-pending);
+  border: 2px dashed var(--text-muted);
 }
 .tile-error {
   position: absolute;
@@ -589,7 +652,7 @@ label.filter-field {
 /* Zoom controls: large, bottom right, outlined. */
 .leaflet-bar,
 .leaflet-touch .leaflet-bar {
-  border: 2px solid var(--text);
+  border: 0;
   border-radius: var(--radius);
   box-shadow: var(--shadow-raised);
   overflow: hidden;
@@ -607,6 +670,9 @@ label.filter-field {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
+.leaflet-bar a:focus-visible {
+  outline-offset: -3px;
+}
 .leaflet-bar a:last-child,
 .leaflet-touch .leaflet-bar a:last-child {
   border-bottom: 0;
@@ -619,7 +685,7 @@ label.filter-field {
   margin-right: 0.75rem;
 }
 .leaflet-container a {
-  color: var(--primary-dark);
+  color: var(--primary);
 }
 .leaflet-container .leaflet-popup-close-button {
   width: 44px;
@@ -635,7 +701,8 @@ label.filter-field {
   scrollbar-color: var(--text-muted) var(--background);
 }
 
-/* Neutral graphite pins: status letters, white ring and dark outer outline. */
+/* Pins: status color, white outline, status letter. The legend and every
+   accessible name carry the status word, so color is never the only cue. */
 .status-pin {
   display: grid;
   place-items: center;
@@ -645,10 +712,8 @@ label.filter-field {
   border-radius: 50% 50% 50% 0;
   transform: rotate(-45deg);
   border: 3px solid var(--surface);
-  box-shadow:
-    0 0 0 2px var(--text),
-    0 4px 10px rgb(17 24 39 / 35%);
-  background: var(--primary);
+  box-shadow: 0 3px 8px rgb(31 41 51 / 40%);
+  background: var(--state-closed);
   color: transparent;
   font-size: 0;
 }
@@ -665,9 +730,10 @@ label.filter-field {
   font-size: 12px;
   font-weight: 800;
 }
-.state-pin--in_work,
-.state-pin--pending {
+.status-pin.state-pin--pending {
+  border-color: var(--text-muted);
   border-style: dashed;
+  background: var(--surface);
 }
 .report-marker:focus-visible .status-pin {
   outline: 2px solid var(--focus);
@@ -680,11 +746,9 @@ label.filter-field {
   height: 48px;
   border-radius: 50%;
   border: 3px solid var(--surface);
-  box-shadow:
-    0 0 0 2px var(--text),
-    0 4px 10px rgb(17 24 39 / 35%);
+  box-shadow: 0 3px 8px rgb(31 41 51 / 40%);
   color: var(--on-primary);
-  background: var(--primary-dark);
+  background: var(--primary);
   font-weight: 800;
   font-size: 1rem;
 }
@@ -768,17 +832,7 @@ label.filter-field {
   min-width: 0;
   width: 100%;
   min-height: 44px;
-  caret-color: var(--primary-dark);
-}
-.search-button {
-  padding: 0.5rem 0.9rem;
-  color: var(--on-primary);
-  background: var(--primary-dark);
-  border: 0;
-  border-radius: var(--radius-sm);
-}
-.search-button:hover:not(:disabled) {
-  background: var(--primary);
+  caret-color: var(--primary);
 }
 .place-search p,
 .search-attribution {
@@ -845,7 +899,7 @@ label.filter-field {
   display: none;
 }
 .selected-report {
-  border-top: 2px solid var(--primary);
+  border-top: 1px solid var(--border);
   order: 0;
 }
 .selected-report:not(:empty) {
@@ -926,7 +980,8 @@ label.filter-field {
   margin: 1rem 0;
 }
 .queue-tabs [aria-selected='true'] {
-  border: 2px solid var(--primary);
+  border-color: var(--text-muted);
+  border-bottom: 3px solid var(--accent);
   font-weight: 700;
 }
 .queue-list {
@@ -940,6 +995,7 @@ label.filter-field {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 1rem;
+  box-shadow: 0 1px 2px rgb(31 41 51 / 6%);
 }
 .age-badge {
   font-variant-numeric: tabular-nums;
@@ -974,14 +1030,15 @@ label.filter-field {
 }
 .dash-band {
   padding: 1.25rem max(1rem, calc((100% - 64rem) / 2)) 1.75rem;
-  color: var(--on-primary);
-  background: var(--primary);
+  color: var(--on-bar);
+  background: var(--bar);
+  border-bottom: 4px solid var(--accent);
 }
 .dash-band a {
-  color: var(--on-primary);
+  color: var(--on-bar);
 }
 .dash-band :focus-visible {
-  outline-color: var(--on-primary);
+  outline-color: var(--on-bar);
 }
 .page .dash-band h1 {
   margin: 0.75rem 0 0.25rem;
@@ -989,12 +1046,14 @@ label.filter-field {
 }
 .dash-scope {
   max-width: 48rem;
-  color: var(--on-primary);
+  color: var(--on-bar);
 }
 .dash-body {
   max-width: 64rem;
   margin: 0 auto;
   padding: 0.5rem clamp(1rem, 4vw, 1.5rem) 3rem;
+  background: var(--surface);
+  min-height: calc(100dvh - var(--header-height) - 8rem);
 }
 .dashboard-total {
   margin: 1.5rem 0 0;
@@ -1010,7 +1069,8 @@ label.filter-field {
   padding-bottom: 0.5rem;
   margin-bottom: 1rem;
   border-bottom: 1px solid var(--border);
-  font-size: 1.2rem;
+  font-size: 1.25rem;
+  font-weight: 400;
 }
 .dash-pair {
   display: grid;
@@ -1026,8 +1086,9 @@ label.filter-field {
 .zone-box,
 .export-box {
   padding: 1rem 1.25rem;
-  background: var(--surface);
+  background: var(--background);
   border: 1px solid var(--border);
+  border-top: 4px solid var(--primary);
   border-radius: var(--radius);
 }
 .dash-block.zone-box,
@@ -1069,6 +1130,7 @@ label.filter-field {
 }
 .chart-grid {
   stroke: var(--border);
+  stroke-dasharray: none;
   stroke-width: 1;
 }
 .chart-tick {
@@ -1108,9 +1170,9 @@ label.filter-field {
 }
 .chart-total dd {
   margin: 0;
-  font-size: 2.25rem;
+  font-size: 2.5rem;
   line-height: 1.1;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
@@ -1134,7 +1196,7 @@ label.filter-field {
   min-height: 44px;
   cursor: pointer;
   font-size: 0.875rem;
-  font-weight: 650;
+  font-weight: 600;
   color: var(--primary-dark);
 }
 .sparklines {
@@ -1161,9 +1223,9 @@ label.filter-field {
 }
 .spark-value {
   margin-top: 0.5rem;
-  font-size: 2rem;
+  font-size: 2.25rem;
   line-height: 1.1;
-  font-weight: 600;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
 .spark-item--recibidos .spark-value {
@@ -1229,6 +1291,7 @@ label.filter-field {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 0.85rem 1rem;
+  box-shadow: 0 1px 2px rgb(31 41 51 / 6%);
 }
 .metric-card dt {
   font-size: 0.8125rem;
@@ -1236,8 +1299,8 @@ label.filter-field {
 }
 .metric-card dd {
   margin: 0.35rem 0 0;
-  font-size: 1.5rem;
-  font-weight: 650;
+  font-size: 1.75rem;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
 .metric-card small {
@@ -1298,10 +1361,10 @@ label.filter-field {
     display: block;
     transform: translateX(-50%);
     padding: 0 1.5rem;
-    border: 2px solid var(--on-primary);
+    border: 2px solid var(--surface);
     border-radius: 999px;
     color: var(--on-primary);
-    background: var(--primary-dark);
+    background: var(--primary);
     box-shadow: var(--shadow-raised);
     font-weight: 700;
   }

@@ -5,7 +5,7 @@ import { RESOLUTIONS, STATUSES, t } from './i18n.js';
 
 /** @typedef {{code: string, message: string}} ErrorDetail */
 /** @typedef {{name: string, passed: boolean, detail: string}} VerificationCheck */
-/** @typedef {{passed: boolean, mode: 'stub'|'model', checks: VerificationCheck[]}} Verification */
+/** @typedef {{passed: boolean, mode: 'stub'|'heuristic'|'model', checks: VerificationCheck[]}} Verification */
 /**
  * @typedef {object} Report
  * @property {string} id
@@ -180,7 +180,7 @@ function isReport(value) {
     (v === null
       ? value.status === 'pending'
       : typeof v === 'object' &&
-        ['stub', 'model'].includes(v.mode) &&
+        ['stub', 'heuristic', 'model'].includes(v.mode) &&
         typeof v.passed === 'boolean' &&
         Array.isArray(v.checks) &&
         v.checks.every(

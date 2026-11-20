@@ -155,6 +155,8 @@ export const t = Object.freeze({
   stubWarning: 'Verificación de prueba: no es una verificación real.',
   stubSuffix: ' (prueba)',
   modelVerification: 'Verificación automática',
+  heuristicVerification:
+    'Verificación técnica automática (lugar, hora, nitidez, exposición). No clasifica el tipo de problema.',
   passed: 'Superada',
   failed: 'No superada',
   noChecks: 'No hay comprobaciones disponibles.',
