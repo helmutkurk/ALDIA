@@ -272,7 +272,7 @@
   position: relative;
   display: flex;
   gap: 0.4rem;
-  padding-right: 1.25rem;
+  padding-right: 3rem;
 }
 .search-controls input {
   flex: 1;
@@ -285,12 +285,12 @@
 }
 .search-hint {
   position: absolute;
-  right: -0.5rem;
+  right: 0;
   top: 0;
 }
 .search-hint summary {
   min-height: 44px;
-  width: 24px;
+  width: 44px;
   display: grid;
   place-items: center;
   color: var(--primary-dark);

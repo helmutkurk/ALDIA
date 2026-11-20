@@ -222,7 +222,7 @@ export function createPortal({
     else panelElement.scrollTo?.(0, 0);
   });
   // Phones show the list first; the toggle lives outside the scrolling panel.
-  panelElement.after(toggle);
+  panelElement.before(toggle);
   const header = headerElement
     ? createSiteHeader(headerElement, {
         onStaff() {

@@ -69,6 +69,15 @@ export function createDashboard(root, { api, filters }) {
       list.append(row);
     }
     section.append(list);
+    section.append(
+      element(
+        'p',
+        'muted chart-note',
+        dimension === 'category'
+          ? 'Tipos de problemas con más reportes; ayuda a priorizar los recursos municipales.'
+          : 'Cantidad de reportes en cada estado; permite ver dónde se acumula el trabajo.',
+      ),
+    );
     return section;
   }
   async function load() {

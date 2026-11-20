@@ -64,6 +64,13 @@ a {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
+:focus:not(:focus-visible) {
+  outline: none;
+}
+/* Route headings remain focusable for announcements, including after a keyboard route change. */
+h1[tabindex='-1']:focus {
+  outline: none;
+}
 [hidden] {
   display: none !important;
 }
@@ -216,11 +223,27 @@ button:disabled {
   outline-color: var(--on-bar);
 }
 .site-header .brand {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   color: var(--on-bar);
   font-weight: 800;
   font-size: 1.5rem;
   letter-spacing: -0.04em;
   text-decoration: none;
+}
+.menu-toggle {
+  display: none;
+  min-width: 44px;
+  padding: 0 0.75rem;
+  color: var(--on-bar);
+  background: transparent;
+  border-color: var(--on-bar);
+}
+.menu-toggle:where(:hover, :active) {
+  color: var(--on-bar);
+  background: rgb(255 255 255 / 16%);
+  border-color: var(--on-bar);
 }
 .site-nav {
   display: flex;

@@ -64,6 +64,7 @@ function chartRow(label, description, segments) {
   );
   const svg = svgNode('svg', {
     viewBox: '0 0 640 32',
+    preserveAspectRatio: 'none',
     class: 'category-chart-svg',
   });
   const patterns = chartPatterns(svg);
@@ -164,6 +165,11 @@ export function categoryCharts(rows) {
     }
     repair.append(
       repairs,
+      element(
+        'p',
+        'muted chart-note',
+        'Mediana de horas para resolver por tipo de problema; ayuda a planificar las cuadrillas.',
+      ),
       dataTable(
         t.dash.categoryRepair,
         [t.category, t.dash.median, t.dash.p90, t.dash.repairSamples],
@@ -208,6 +214,11 @@ export function categoryCharts(rows) {
     frequency.append(
       legend,
       counts,
+      element(
+        'p',
+        'muted chart-note',
+        'Cantidad de reportes por tipo de problema y su estado actual; ayuda a priorizar recursos municipales.',
+      ),
       dataTable(
         t.dash.categoryFrequency,
         [

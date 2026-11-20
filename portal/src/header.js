@@ -14,7 +14,31 @@ export function createSiteHeader(root, { onStaff }) {
   brand.textContent = t.appName;
   const nav = document.createElement('nav');
   nav.className = 'site-nav';
+  nav.id = 'site-navigation';
   nav.setAttribute('aria-label', ui.mainNav);
+  const menu = document.createElement('button');
+  menu.type = 'button';
+  menu.className = 'menu-toggle';
+  menu.textContent = 'Menú';
+  menu.setAttribute('aria-controls', nav.id);
+  menu.setAttribute('aria-expanded', 'false');
+  const setMenu = (open) => {
+    menu.setAttribute('aria-expanded', String(open));
+    root.classList.toggle('nav-open', open);
+  };
+  menu.addEventListener('click', () =>
+    setMenu(menu.getAttribute('aria-expanded') !== 'true'),
+  );
+  const escape = (event) => {
+    if (
+      event.key === 'Escape' &&
+      menu.getAttribute('aria-expanded') === 'true'
+    ) {
+      setMenu(false);
+      menu.focus();
+    }
+  };
+  root.addEventListener('keydown', escape);
   const links = {};
   for (const [name, text, className] of [
     ['map', ui.navMap, 'map-link'],
@@ -42,7 +66,7 @@ export function createSiteHeader(root, { onStaff }) {
   };
   staff.addEventListener('click', enterStaff);
   nav.append(staff, help.button);
-  root.replaceChildren(brand, nav, help.guide);
+  root.replaceChildren(brand, menu, nav, help.guide);
   return {
     setStaffOpen(open) {
       staff.setAttribute('aria-expanded', String(open));
@@ -55,6 +79,7 @@ export function createSiteHeader(root, { onStaff }) {
     },
     /** @param {string} routeName */
     setRoute(routeName) {
+      setMenu(false);
       const current = {
         map: 'map',
         triage: 'triage',
@@ -67,6 +92,8 @@ export function createSiteHeader(root, { onStaff }) {
     },
     destroy() {
       staff.removeEventListener('click', enterStaff);
+      root.removeEventListener('keydown', escape);
+      root.classList.remove('nav-open');
       root.replaceChildren();
     },
   };

@@ -101,9 +101,6 @@
   border-radius: var(--radius);
 }
 @media (min-width: 701px) and (max-width: 1000px) {
-  .workspace {
-    grid-template-columns: minmax(21rem, 46%) minmax(0, 1fr);
-  }
   .chart-layout {
     grid-template-columns: minmax(0, 1fr) 10rem;
     gap: 1rem;

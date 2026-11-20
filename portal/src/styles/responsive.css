@@ -1,6 +1,39 @@
 /* ---------- phones: list first, map on demand ---------- */
 .map-toggle {
   display: none;
+  position: sticky;
+}
+.filters-toggle {
+  display: none;
+}
+.filter-sheet {
+  position: fixed;
+  inset: auto 0 0;
+  bottom: 0;
+  width: min(100%, 40rem);
+  max-width: 100%;
+  max-height: 85dvh;
+  margin: 0 auto;
+  padding: 1.25rem 1rem max(1.25rem, env(safe-area-inset-bottom));
+  overflow-y: auto;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.filter-sheet::backdrop {
+  background: rgb(31 41 51 / 45%);
+}
+.filters-done {
+  width: 100%;
+  margin-top: 1rem;
+  color: var(--on-primary);
+  background: var(--primary);
+}
+.filters-done:where(:hover, :active),
+.map-toggle:where(:hover, :active) {
+  color: var(--on-primary);
+  background: var(--primary-dark);
 }
 @media (max-width: 700px) {
   .site-header {
@@ -8,9 +41,27 @@
     flex-wrap: wrap;
   }
   .site-nav {
+    display: none;
     width: 100%;
     justify-content: space-between;
     gap: 0;
+  }
+  .site-header.nav-open .site-nav {
+    display: flex;
+  }
+  .menu-toggle {
+    display: inline-flex;
+    align-items: center;
+  }
+  .filters-home {
+    display: none;
+  }
+  .filters-toggle {
+    display: block;
+    margin: 0.75rem 1rem;
+  }
+  .filter-sheet .filters {
+    padding-inline: 0;
   }
   .site-nav a,
   .site-nav button {
@@ -23,20 +74,20 @@
   .workspace {
     display: block;
     height: auto;
-    min-height: calc(100dvh - 6rem);
+    min-height: calc(100dvh - var(--header-height));
     overflow: visible;
   }
   .panel {
     overflow: visible;
     border-right: 0;
-    padding-bottom: 5rem;
+    padding-bottom: 1rem;
   }
   .pagination {
     position: static;
   }
   .map-region {
     display: none;
-    height: calc(100dvh - 6rem);
+    height: calc(100dvh - var(--header-height) - 44px);
   }
   .map-region.map-visible {
     display: block;
@@ -45,15 +96,15 @@
     display: none;
   }
   .map-toggle {
-    position: fixed;
-    bottom: 1rem;
-    left: 50%;
-    z-index: 1500;
+    position: sticky;
+    top: 0;
+    z-index: 1050;
     display: block;
-    transform: translateX(-50%);
+    width: 100%;
+    min-height: 44px;
     padding: 0 1.5rem;
     border: 2px solid var(--surface);
-    border-radius: 999px;
+    border-radius: 0;
     color: var(--on-primary);
     background: var(--primary);
     box-shadow: var(--shadow-raised);
@@ -77,15 +128,13 @@
   }
   .report-button {
     padding-inline: 1rem;
-    padding-right: 7.25rem;
+    padding-right: 6.5rem;
   }
   .row-thumbnail {
     right: 1rem;
-    width: 5.5rem;
   }
   .report-list .detail-link {
-    right: 1rem;
-    width: 5.5rem;
+    padding-inline: 1rem;
   }
   .map-title {
     font-size: 0.8125rem;
@@ -102,6 +151,9 @@
   .chart-layout {
     grid-template-columns: minmax(0, 1fr);
   }
+  .dash-pair > * {
+    grid-column: 1 / -1;
+  }
   .chart-layout {
     gap: 1rem;
   }
@@ -114,6 +166,11 @@
   }
   h1 {
     font-size: 1.25rem;
+  }
+}
+@media (min-width: 701px) and (max-width: 1000px) {
+  .workspace {
+    grid-template-columns: minmax(0, 44%) minmax(0, 1fr);
   }
 }
 @media (max-width: 380px) {

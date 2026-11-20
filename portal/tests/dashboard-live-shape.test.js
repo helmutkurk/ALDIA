@@ -91,6 +91,18 @@ it('renders real-shaped counters, cumulative lines, seven-day activity and categ
   expect(recent.searchParams.get('bbox')).toBe('-91,14,-90,15');
   expect(root.querySelectorAll('.top-categories li')).toHaveLength(5);
   expect(root.querySelector('.category-repair').textContent).toContain('57 h');
+  for (const name of ['category-repair', 'category-frequency']) {
+    const chart = root.querySelector(`.${name}`);
+    expect(
+      chart.querySelector('.chart-note').textContent.length,
+    ).toBeGreaterThan(30);
+    const details = chart.querySelector('details');
+    expect(details.querySelector('summary').textContent).toBe('Ver tabla');
+    details.querySelector('summary').click();
+    expect(details.open).toBe(true);
+  }
+  expect(root.querySelector('.csv-link').textContent).toBe('Descargar CSV');
+  expect(document.activeElement).toBe(root.querySelector('h1[tabindex="-1"]'));
   expect(root.querySelector('.dash-body > .weekly-chart')).toBe(
     root.querySelector('.dashboard-total').nextElementSibling,
   );

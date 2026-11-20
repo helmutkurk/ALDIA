@@ -8,13 +8,13 @@ import {
 import { SORTS, filtersHash } from './filters.js';
 import { ui } from './i18n.js';
 import { element } from './dom.js';
-import { statusBadge } from './report-details.js';
+import { reportRow } from './report-row.js';
+import { mobileFilters } from './mobile-filters.js';
 export { element } from './dom.js';
 export { createReportDetails } from './report-details.js';
-import { createPhoto } from './photo.js';
 import { CATEGORIES, categoryLabel } from './categories.js';
 import { filterReports } from './state.js';
-import { formatDate, RESOLUTIONS, STATUSES, statusLabel, t } from './i18n.js';
+import { RESOLUTIONS, STATUSES, statusLabel, t } from './i18n.js';
 
 /**
  * @param {HTMLElement} root
@@ -188,7 +188,8 @@ export function createPanel(
   retry.type = 'button';
   retry.addEventListener('click', onRetry);
   results.append(reportsTitle, announcement, message, list);
-  root.replaceChildren(header, filters, chips, results, pagination);
+  const sheet = mobileFilters(filters);
+  root.replaceChildren(header, ...sheet.nodes, chips, results, pagination);
   /** @type {Readonly<import('./state.js').State>|undefined} */
   let previous;
   let photos = new AbortController();
@@ -295,31 +296,8 @@ export function createPanel(
             `${stateLabel(reportState(report))}. ${statusLabel(report)}`,
           ),
         );
-        const thumb = createPhoto(report, {
-          api,
-          signal: photos.signal,
-          thumbnail: true,
-          quiet: true,
-          className: 'row-thumbnail',
-        });
         button.replaceChildren(
-          element('strong', 'report-category', categoryLabel(report.category)),
-          Object.assign(
-            element('time', 'report-date', formatDate(report.captured_at)),
-            { dateTime: report.captured_at },
-          ),
-          element(
-            'span',
-            `state-chip state-chip--${STATE_GROUPS[reportState(report)]}`,
-            stateLabel(reportState(report)),
-          ),
-          element(
-            'span',
-            'report-snippet',
-            report.note ?? report.public_note ?? '',
-          ),
-          statusBadge(report),
-          thumb,
+          ...reportRow(report, { api, signal: photos.signal }),
         );
         if (!previousButtons.has(report.id))
           button.addEventListener('click', () => onSelect(report.id));
@@ -342,6 +320,7 @@ export function createPanel(
   return {
     render,
     destroy() {
+      sheet.destroy();
       photos.abort();
       filters.removeEventListener('change', onChange, true);
       retry.removeEventListener('click', onRetry);

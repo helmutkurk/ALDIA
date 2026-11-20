@@ -15,6 +15,11 @@ Ensure the API was restarted with the ratio fix: tasa_resolucion must be 0–1.
 
 Checklist:
 - Desktop map/list layout; mobile list-first layout and map toggle; no overflow.
+- At 390px: collapsed Menú, sticky Ver mapa/Ver lista and modal bottom-sheet filters.
+- Sheet keeps filter values on close/Escape; resizing to 768px restores the controls beside the map.
+- At 768px: 44% reading panel and two-column map layout; pagination wraps when needed.
+- Each row: visible 72x72 lazy thumbnail or icon + sin foto, two-line note and neutral category SVG.
+- Relative dates have exact Guatemala dates on hover; selected rows retain the accent left bar.
 - All filters, active chips and count; URL hash reflects edits and browser history.
 - Default 30 days, include-old toggle, server pagination and sort ordering.
 - Move the map after changing pages: the list returns to page one.
@@ -36,6 +41,9 @@ Checklist:
 - Category stacks use primary/hatching/outlined fills matching the legend and written counts.
 - Detailed group patterns stay visible; no broken SVG references after routing/filter changes.
 - KPI strip and category medians stay legible; check 2px focus rings including dark bands.
+- Route h1 receives focus without an outline; Tab still draws rings on interactive controls.
+- Dashboard: 1100px/12-column alignment, seven-day numbers/sparklines, both Ver tabla toggles,
+  municipal chart captions, SLA/vencidos cards, top-five categories and CSV action.
 - CSV comma/semicolon download keeps all filters and uses staff header when active.
 - Logout/pagehide immediately removes internal notes and staff-only controls.
 - Place search requires Buscar/Enter, 500ms debounce and 1s rate limit; cache.
