@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme.dart';
 import 'report_flow_controller.dart';
 
 class SummaryRow extends StatelessWidget {
@@ -21,19 +20,19 @@ class SummaryRow extends StatelessWidget {
     return Semantics(
       container: true,
       child: Container(
-        padding: const EdgeInsets.all(AldiaSpace.m),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.primaryContainer,
+          color: Theme.of(context).colorScheme.surfaceContainerLow,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CircleAvatar(
+            ExcludeSemantics(
               child: Icon(
-                c.photo == null
-                    ? Icons.add_a_photo_outlined
-                    : Icons.photo_camera,
+                Icons.location_on_outlined,
+                size: 24,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(width: 12),
@@ -41,14 +40,16 @@ class SummaryRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    c.step == FlowStep.location
-                        ? '¿Es este el lugar correcto?'
-                        : 'Tu reporte',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  Text(place),
-                  if (category != null) Text(category.label),
+                  Text(place, style: Theme.of(context).textTheme.bodyMedium),
+                  if (category != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      category.label,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -65,13 +66,30 @@ class FlowNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 8),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Icon(Icons.info_outline),
-        const SizedBox(width: 8),
-        Expanded(child: Text(text)),
-      ],
+    child: Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.info_outline,
+            size: 20,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: Theme.of(context).textTheme.bodyMedium
+                  ?.copyWith(color: Theme.of(context).colorScheme.onSurface),
+            ),
+          ),
+        ],
+      ),
     ),
   );
 }

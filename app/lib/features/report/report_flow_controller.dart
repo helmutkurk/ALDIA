@@ -55,6 +55,8 @@ class ReportFlowController extends ChangeNotifier {
   bool _disposed = false;
   int _manualPicks = 0;
   int _lookup = 0;
+  int _restoreGeneration = 0;
+  int _integrityGeneration = 0;
 
   FlowStep step = FlowStep.location;
   LatLng position = AppConfig.defaultCenter;
@@ -64,6 +66,11 @@ class ReportFlowController extends ChangeNotifier {
   double? accuracy;
   LatLng? gpsPosition;
   bool locating = false;
+  bool restoring = false;
+  bool restoreFailed = false;
+  bool takingPhoto = false;
+  bool following = false;
+  bool followError = false;
   bool lookingForDuplicates = false;
   String? categoryId;
   String? placeLabel;
@@ -90,6 +97,10 @@ class ReportFlowController extends ChangeNotifier {
 
   String get idempotencyKey => _id;
   bool get canAdvance =>
+      !restoring &&
+      !restoreFailed &&
+      !takingPhoto &&
+      !following &&
       !lookingForDuplicates &&
       switch (step) {
         FlowStep.photo => photo != null,
@@ -110,51 +121,105 @@ class ReportFlowController extends ChangeNotifier {
   }
 
   Future<void> restore(DraftRecord draft) async {
-    _id = draft.id;
-    _createdAt = draft.createdAt;
-    position = draft.position;
-    locationConfirmed = draft.locationConfirmed;
-    categoryId = draft.categoryId;
-    placeLabel = draft.placeLabel;
-    note = draft.note;
-    failedAttempts = draft.failedAttempts;
-    _photoPath = draft.photoPath;
-    photo = await _drafts?.readPhoto(draft);
-    _storedPhoto = photo;
-    step =
-        FlowStep.values.where((s) => s.name == draft.step).firstOrNull ??
-        FlowStep.location;
-    missingPhoto = photo == null && draft.photoPath != null;
-    if (photo == null &&
-        (draft.photoPath != null || step.index > FlowStep.photo.index)) {
-      step = FlowStep.photo;
+    if (_disposed) return;
+    final generation = ++_restoreGeneration;
+    restoring = true;
+    restoreFailed = false;
+    _changed(save: false);
+    try {
+      final restoredPhoto = await _drafts?.readPhoto(draft);
+      if (_disposed || generation != _restoreGeneration) return;
+      _id = draft.id;
+      _createdAt = draft.createdAt;
+      position = draft.position;
+      locationConfirmed = draft.locationConfirmed;
+      categoryId = draft.categoryId;
+      placeLabel = draft.placeLabel;
+      note = draft.note;
+      failedAttempts = draft.failedAttempts;
+      _photoPath = draft.photoPath;
+      photo = restoredPhoto;
+      _storedPhoto = restoredPhoto;
+      step =
+          FlowStep.values.where((s) => s.name == draft.step).firstOrNull ??
+          FlowStep.location;
+      missingPhoto = restoredPhoto == null && draft.photoPath != null;
+      if (restoredPhoto == null &&
+          (draft.photoPath != null || step.index > FlowStep.photo.index)) {
+        step = FlowStep.photo;
+      }
+      if (step == FlowStep.duplicates) {
+        // Suggestions are transient; refresh after a restart.
+        step = FlowStep.category;
+      }
+      // Also supports drafts created with the previous photo-first wizard.
+      if (!locationConfirmed) {
+        step = FlowStep.location;
+      } else if (categoryId == null && step.index > FlowStep.category.index) {
+        step = FlowStep.category;
+      }
+      restoring = false;
+      restoreFailed = false;
+      _changed();
+      await _saving;
+    } catch (_) {
+      if (_disposed || generation != _restoreGeneration) return;
+      restoring = false;
+      restoreFailed = true;
+      _changed(save: false);
     }
-    if (step == FlowStep.duplicates) {
-      // Suggestions are transient; refresh after a restart.
-      step = FlowStep.category;
-    }
-    // Also supports drafts created with the previous photo-first wizard.
-    if (!locationConfirmed) {
-      step = FlowStep.location;
-    } else if (categoryId == null && step.index > FlowStep.category.index) {
-      step = FlowStep.category;
-    }
-    _changed();
   }
 
   Future<void> checkPhotoIntegrity() async {
     await _saving;
-    if (_photoPath == null || _drafts == null) return;
-    final stored = await _drafts.readPhoto(_record());
-    if (stored == null) {
-      photo = null;
-      _storedPhoto = null;
-      missingPhoto = true;
-      step = FlowStep.photo;
-      submitState = SubmitState.editing;
-      _changed();
+    if (_disposed ||
+        _photoPath == null ||
+        _drafts == null ||
+        !_integrityEligible) {
+      return;
+    }
+    final generation = ++_integrityGeneration;
+    final id = _id;
+    final path = _photoPath;
+    final identity = photo ?? _storedPhoto;
+    try {
+      final stored = await _drafts.readPhoto(_record());
+      if (!_integrityCurrent(generation, id, path, identity)) return;
+      if (stored == null) {
+        photo = null;
+        _storedPhoto = null;
+        missingPhoto = true;
+        step = FlowStep.photo;
+        if (submitState == SubmitState.failed) {
+          submitState = SubmitState.editing;
+        }
+        _changed();
+      }
+    } catch (_) {
+      if (!_integrityCurrent(generation, id, path, identity)) return;
+      storageError = true;
+      _changed(save: false);
     }
   }
+
+  bool get _integrityEligible =>
+      !restoring &&
+      !takingPhoto &&
+      !following &&
+      (submitState == SubmitState.editing || submitState == SubmitState.failed);
+
+  bool _integrityCurrent(
+    int generation,
+    String id,
+    String? path,
+    CapturedPhoto? identity,
+  ) =>
+      !_disposed &&
+      generation == _integrityGeneration &&
+      _integrityEligible &&
+      _id == id &&
+      _photoPath == path &&
+      identical(photo ?? _storedPhoto, identity);
 
   DraftRecord _record() => DraftRecord(
     id: _id,
@@ -173,6 +238,8 @@ class ReportFlowController extends ChangeNotifier {
   Future<void> saveDraft() {
     final store = _drafts;
     if (store == null ||
+        restoring ||
+        restoreFailed ||
         submitState == SubmitState.queued ||
         submitState == SubmitState.followed ||
         (submitState == SubmitState.done && result?.status != 'rejected')) {
@@ -213,41 +280,61 @@ class ReportFlowController extends ChangeNotifier {
   }
 
   Future<void> useMyLocation() async {
+    if (_disposed || restoring || restoreFailed || locating || following) {
+      return;
+    }
     final picksBefore = _manualPicks;
     locating = true;
+    locationIssue = null;
     _changed(save: false);
-    final diagnostics = _location;
-    LocationFix fix;
-    if (diagnostics is LocationDiagnostics) {
-      fix = await (diagnostics as LocationDiagnostics).locate();
-    } else {
-      final point = await _location.currentPosition();
-      fix = LocationFix(
-        position: point,
-        issue: point == null ? LocationIssue.denied : null,
-      );
+    LocationFix? fix;
+    try {
+      final diagnostics = _location;
+      if (diagnostics is LocationDiagnostics) {
+        fix = await (diagnostics as LocationDiagnostics).locate();
+      } else {
+        final point = await _location.currentPosition();
+        fix = LocationFix(
+          position: point,
+          issue: point == null ? LocationIssue.denied : null,
+        );
+      }
+    } catch (_) {
+      fix = const LocationFix(issue: LocationIssue.unavailable);
+    } finally {
+      if (!_disposed) {
+        locating = false;
+        if (picksBefore == _manualPicks && fix != null) {
+          locationIssue = fix.issue;
+          locationDenied = fix.issue != null;
+          accuracy = fix.accuracy;
+          gpsPosition = fix.position;
+          if (fix.position != null) {
+            position = fix.position!;
+            placeLabel = null;
+            locationConfirmed = true;
+          }
+        }
+        _changed(save: picksBefore == _manualPicks);
+      }
     }
-    locating = false;
-    if (picksBefore != _manualPicks || _disposed) return;
-    locationIssue = fix.issue;
-    locationDenied = fix.issue != null;
-    accuracy = fix.accuracy;
-    gpsPosition = fix.position;
-    if (fix.position != null) {
-      position = fix.position!;
-      placeLabel = null;
-      locationConfirmed = true;
-    }
-    _changed();
   }
 
   Future<void> openLocationSettings() async {
     if (_location case final LocationDiagnostics diagnostics) {
-      await diagnostics.openSettings();
+      try {
+        await diagnostics.openSettings();
+      } catch (_) {
+        if (_disposed) return;
+        locationIssue = LocationIssue.unavailable;
+        locationDenied = true;
+        _changed(save: false);
+      }
     }
   }
 
   void setPosition(LatLng value, {String? label}) {
+    if (restoring || restoreFailed || following || _disposed) return;
     _manualPicks++;
     _lookup++;
     position = value;
@@ -259,27 +346,39 @@ class ReportFlowController extends ChangeNotifier {
   }
 
   void setCategory(String id) {
+    if (restoring || restoreFailed || following || _disposed) return;
     categoryId = id;
     _lookup++;
     _changed();
   }
 
   Future<void> takePhoto() async {
+    if (_disposed || restoring || restoreFailed || takingPhoto || following) {
+      return;
+    }
+    takingPhoto = true;
     photoError = false;
+    _changed(save: false);
     try {
       final captured = await _photos.takePhoto();
+      if (_disposed) return;
       if (captured != null) {
         photo = captured;
         missingPhoto = false;
       }
     } catch (_) {
-      photoError = true;
+      if (!_disposed) photoError = true;
+    } finally {
+      if (!_disposed) {
+        takingPhoto = false;
+        _changed();
+      }
     }
-    _changed();
-    await _saving;
+    if (!_disposed) await _saving;
   }
 
   void setNote(String value) {
+    if (restoring || restoreFailed || following || _disposed) return;
     note = String.fromCharCodes(value.runes.take(AppConfig.maxNoteLength));
     _changed();
   }
@@ -301,7 +400,7 @@ class ReportFlowController extends ChangeNotifier {
         }
       }
       lookingForDuplicates = false;
-      if (_disposed || generation != _lookup) {
+      if (_disposed || generation != _lookup || following) {
         _changed(save: false);
         return;
       }
@@ -317,13 +416,20 @@ class ReportFlowController extends ChangeNotifier {
   }
 
   void back() {
-    if (step.index == 0) return;
+    if (restoring ||
+        restoreFailed ||
+        takingPhoto ||
+        following ||
+        step.index == 0) {
+      return;
+    }
     _lookup++;
     step = FlowStep.values[step.index - 1];
     _changed();
   }
 
   void edit(FlowStep target) {
+    if (restoring || restoreFailed || following) return;
     if (result?.status == 'rejected') _startCorrection();
     step = target;
     submitState = SubmitState.editing;
@@ -340,6 +446,7 @@ class ReportFlowController extends ChangeNotifier {
   }
 
   void retakePhoto() {
+    if (restoring || restoreFailed || following || takingPhoto) return;
     if (result?.status == 'rejected') _startCorrection();
     photo = null;
     _photoPath = null;
@@ -351,19 +458,32 @@ class ReportFlowController extends ChangeNotifier {
   }
 
   Future<void> follow(Report report) async {
-    await _repository.follow(report);
-    await _saving;
-    await _drafts?.delete(_id);
-    result = report;
-    photo = null;
-    submitState = SubmitState.followed;
+    if (_disposed || restoring || restoreFailed || following) return;
+    following = true;
+    followError = false;
     _changed(save: false);
+    try {
+      await _repository.follow(report);
+      await _saving;
+      await _drafts?.delete(_id);
+      if (_disposed) return;
+      result = report;
+      photo = null;
+      submitState = SubmitState.followed;
+    } catch (_) {
+      if (!_disposed) followError = true;
+    } finally {
+      if (!_disposed) {
+        following = false;
+        _changed(save: false);
+      }
+    }
   }
 
   Future<void> saveForManualReview() async {
-    if (!canManualReview) return;
+    if (!canManualReview || following || restoring || restoreFailed) return;
     await saveDraft();
-    if (storageError) return;
+    if (storageError || _disposed) return;
     submitState = SubmitState.manualSaved;
     _changed(save: false);
   }
@@ -371,7 +491,11 @@ class ReportFlowController extends ChangeNotifier {
   Future<void> submit() async {
     final captured = photo;
     final category = categoryId;
-    if (captured == null ||
+    if (restoring ||
+        restoreFailed ||
+        takingPhoto ||
+        following ||
+        captured == null ||
         category == null ||
         !locationConfirmed ||
         submitState == SubmitState.sending ||
@@ -420,6 +544,8 @@ class ReportFlowController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _restoreGeneration++;
+    _integrityGeneration++;
     super.dispose();
   }
 }

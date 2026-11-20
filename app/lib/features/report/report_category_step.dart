@@ -24,13 +24,16 @@ class _CategoryStepState extends State<CategoryStep> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text(S.chooseCategory),
-        const SizedBox(height: AldiaSpace.m),
+        Text(S.chooseCategory, style: Theme.of(context).textTheme.bodyLarge),
+        const SizedBox(height: 16),
         TextField(
+          style: Theme.of(context).textTheme.bodyLarge,
           decoration: const InputDecoration(
             labelText: 'Buscar categoría',
             prefixIcon: Icon(Icons.search),
           ),
+          textInputAction: TextInputAction.search,
+          onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
           onChanged: (value) => setState(() => _query = value),
         ),
         if (categories.isEmpty)
@@ -39,7 +42,7 @@ class _CategoryStepState extends State<CategoryStep> {
           ),
         for (final group in groups) ...[
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
+            padding: const EdgeInsets.only(top: 24, bottom: 12),
             child: Semantics(
               header: true,
               child: Text(
@@ -50,7 +53,7 @@ class _CategoryStepState extends State<CategoryStep> {
           ),
           for (final category in categories.where((c) => c.group == group))
             Padding(
-              padding: const EdgeInsets.only(bottom: AldiaSpace.s),
+              padding: const EdgeInsets.only(bottom: 8),
               child: _CategoryRow(
                 category: category,
                 selected: widget.controller.categoryId == category.id,
@@ -81,9 +84,7 @@ class _CategoryRow extends StatelessWidget {
       button: true,
       selected: selected,
       child: Material(
-        color: selected
-            ? scheme.primaryContainer
-            : scheme.surfaceContainerLowest,
+        color: selected ? scheme.primaryContainer : scheme.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
           side: BorderSide(
@@ -103,15 +104,34 @@ class _CategoryRow extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Icon(category.icon, size: 28, color: scheme.primary),
+                  Icon(
+                    category.icon,
+                    size: 24,
+                    color: selected
+                        ? scheme.onPrimaryContainer
+                        : scheme.primary,
+                  ),
                   const SizedBox(width: AldiaSpace.l),
                   Expanded(
                     child: Text(
                       category.label,
-                      style: Theme.of(context).textTheme.titleMedium,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: selected
+                            ? scheme.onPrimaryContainer
+                            : scheme.onSurface,
+                      ),
                     ),
                   ),
-                  if (selected) Icon(Icons.check_circle, color: scheme.primary),
+                  SizedBox(
+                    width: 24,
+                    child: selected
+                        ? Icon(
+                            Icons.check_circle,
+                            size: 24,
+                            color: scheme.onPrimaryContainer,
+                          )
+                        : null,
+                  ),
                 ],
               ),
             ),
