@@ -1,17 +1,21 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:image_fade/image_fade.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/categories.dart';
 import '../../core/citizen_states.dart';
+import '../../core/date_format.dart';
 import '../../core/strings.dart';
+import '../../core/text_x.dart';
 import '../../data/report.dart';
 import '../../data/report_repository.dart';
+import '../../services/haptics.dart';
+import '../../widgets/bottom_padding.dart';
 import '../../widgets/report_tile.dart';
 import '../../widgets/routes.dart';
 import '../../widgets/status_chips.dart';
-
-final _dateFormat = DateFormat('d/M/y HH:mm');
 
 class ReportDetailScreen extends StatefulWidget {
   const ReportDetailScreen({super.key, required this.report});
@@ -88,7 +92,8 @@ class _DetailBody extends StatelessWidget {
     final state = citizenStateFor(report.citizenState);
     final events = report.events.where((e) => e.toState != null).toList();
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16)
+          .copyWith(bottom: BottomPadding.of(context)),
       children: [
         Semantics(
           header: true,
@@ -97,13 +102,27 @@ class _DetailBody extends StatelessWidget {
         const SizedBox(height: 12),
         AspectRatio(
           aspectRatio: 4 / 3,
-          child: Image.network(
-            context.read<ReportRepository>().photoUrl(report),
-            fit: BoxFit.contain,
-            semanticLabel: S.photoLabel(category.label, state.label),
-            errorBuilder: (_, _, _) => const Icon(
-              Icons.broken_image,
-              semanticLabel: S.photoAlternative,
+          child: Semantics(
+            image: true,
+            label: S.photoLabel(category.label, state.label),
+            child: ExcludeSemantics(
+              child: ImageFade(
+                image: NetworkImage(
+                  context.read<ReportRepository>().photoUrl(report),
+                ),
+                fit: BoxFit.contain,
+                placeholder: ColoredBox(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                ),
+                errorBuilder: (context, exception) => ColoredBox(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  child: Icon(
+                    Icons.broken_image,
+                    size: 20,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
             ),
           ),
         ),
@@ -113,9 +132,9 @@ class _DetailBody extends StatelessWidget {
         Text(state.explanation),
         const SizedBox(height: 8),
         Text(S.reference(report.id)),
-        Text(_dateFormat.format(report.createdAt.toLocal())),
-        if (report.note?.isNotEmpty == true) Text(report.note!),
-        if (report.publicNote?.isNotEmpty == true) ...[
+        Text(report.createdAt.formattedDateTime()),
+        if (report.note.isUsable) Text(report.note!),
+        if (report.publicNote.isUsable) ...[
           const SizedBox(height: 12),
           Semantics(
             header: true,
@@ -202,10 +221,8 @@ class _TimelineEntry extends StatelessWidget {
                     state.label,
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
-                  if (event.at != null)
-                    Text(_dateFormat.format(event.at!.toLocal())),
-                  if (event.publicNote?.isNotEmpty == true)
-                    Text(event.publicNote!),
+                  if (event.at != null) Text(event.at.formattedDateTime()),
+                  if (event.publicNote.isUsable) Text(event.publicNote!),
                 ],
               ),
             ),
@@ -229,6 +246,7 @@ class _DuplicateHint extends StatelessWidget {
       }
     } catch (_) {
       if (context.mounted) {
+        unawaited(HapticsHelper.error());
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text(S.loadError)));
       }

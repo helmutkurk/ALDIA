@@ -8,11 +8,14 @@ import 'package:provider/provider.dart';
 import '../../core/categories.dart';
 import '../../core/config.dart';
 import '../../core/strings.dart';
+import '../../core/text_x.dart';
 import '../../core/theme.dart';
 import '../../data/report_repository.dart';
 import '../../services/location_service.dart';
 import '../../services/geocoder_service.dart';
+import '../../services/haptics.dart';
 import '../../services/photo_service.dart';
+import '../../widgets/bottom_padding.dart';
 import '../../widgets/report_tile.dart';
 import '../../widgets/map_layers_button.dart';
 import '../../widgets/neutral_map_pin.dart';
@@ -74,6 +77,22 @@ class _FlowViewState extends State<_FlowView> with WidgetsBindingObserver {
     final key = '${c.step.name}:${c.submitState.name}';
     if (_lastHeading == key) return;
     _lastHeading = key;
+    switch (c.submitState) {
+      case SubmitState.done:
+        unawaited(
+          c.result?.status == 'rejected'
+              ? HapticsHelper.error()
+              : HapticsHelper.success(),
+        );
+      case SubmitState.queued ||
+          SubmitState.manualSaved ||
+          SubmitState.followed:
+        unawaited(HapticsHelper.success());
+      case SubmitState.failed:
+        unawaited(HapticsHelper.error());
+      default:
+        break;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _heading.requestFocus();
     });
@@ -114,21 +133,24 @@ class _FlowViewState extends State<_FlowView> with WidgetsBindingObserver {
           IconButton(
             tooltip: 'Ayuda para reportar',
             icon: const Icon(Icons.help_outline),
-            onPressed: () => showDialog<void>(
-              context: context,
-              builder: (context) => AlertDialog(
-                title: const Text('Tu reporte, paso a paso'),
-                content: const Text(
-                  'Confirma el lugar y elige una categoría. Luego toma una foto en el momento y revisa los datos antes de enviar.',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text(S.close),
+            onPressed: () {
+              FocusManager.instance.primaryFocus?.unfocus();
+              showDialog<void>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Tu reporte, paso a paso'),
+                  content: const Text(
+                    'Confirma el lugar y elige una categoría. Luego toma una foto en el momento y revisa los datos antes de enviar.',
                   ),
-                ],
-              ),
-            ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text(S.close),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
           if (Navigator.of(context).canPop())
             IconButton(
@@ -171,12 +193,15 @@ class _FlowViewState extends State<_FlowView> with WidgetsBindingObserver {
               ),
             ),
       body: SafeArea(
+        bottom: false,
         child: Align(
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 680),
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: const EdgeInsets.all(16)
+                  .copyWith(bottom: BottomPadding.of(context)),
               children: [
                 if (!result) ...[
                   _SummaryRow(controller: c),
@@ -261,11 +286,11 @@ class _SummaryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = controller;
-    final place =
-        c.placeLabel ??
-        (c.locationConfirmed
-            ? '${c.position.latitude.toStringAsFixed(5)}, ${c.position.longitude.toStringAsFixed(5)}'
-            : 'Elige el lugar del problema');
+    final place = c.placeLabel.isUsable
+        ? c.placeLabel!
+        : (c.locationConfirmed
+              ? '${c.position.latitude.toStringAsFixed(5)}, ${c.position.longitude.toStringAsFixed(5)}'
+              : 'Elige el lugar del problema');
     final category = c.categories
         .where((item) => item.id == c.categoryId)
         .firstOrNull;
@@ -537,7 +562,7 @@ class _LocationStepState extends State<_LocationStep> {
           ListTile(
             minTileHeight: 56,
             leading: const Icon(Icons.place_outlined),
-            title: Text(address.label),
+            title: Text(address.label.orPlaceholder()),
             onTap: () {
               c.setPosition(address.position, label: address.label);
               setState(() => _addresses = const []);
@@ -659,6 +684,7 @@ class _LocationStepState extends State<_LocationStep> {
             signed: true,
             decimal: true,
           ),
+          textInputAction: TextInputAction.next,
         ),
         TextField(
           controller: _lon,
@@ -667,6 +693,8 @@ class _LocationStepState extends State<_LocationStep> {
             signed: true,
             decimal: true,
           ),
+          textInputAction: TextInputAction.done,
+          onSubmitted: (_) => _apply(),
         ),
         if (_invalid) const _Notice(S.coordinatesInvalid),
         TextButton(onPressed: _apply, child: const Text(S.applyCoordinates)),
@@ -842,8 +870,9 @@ class _ReviewStep extends StatelessWidget {
           child: const Text('${S.edit}: ${S.stepPhoto}'),
         ),
         Text(
-          c.placeLabel ??
-              '${c.position.latitude.toStringAsFixed(5)}, ${c.position.longitude.toStringAsFixed(5)}',
+          c.placeLabel.isUsable
+              ? c.placeLabel!
+              : '${c.position.latitude.toStringAsFixed(5)}, ${c.position.longitude.toStringAsFixed(5)}',
         ),
         TextButton(
           onPressed: () => c.edit(FlowStep.location),

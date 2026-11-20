@@ -1,4 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+
+import '../services/haptics.dart';
+import 'spring_bottom_sheet.dart';
 
 /// The street base stays visible; the citizen can toggle the data overlay.
 class MapLayersButton extends StatelessWidget {
@@ -16,13 +21,12 @@ class MapLayersButton extends StatelessWidget {
   Widget build(BuildContext context) => IconButton(
     tooltip: 'Capas del mapa',
     icon: const Icon(Icons.layers_outlined),
-    onPressed: () => showModalBottomSheet<void>(
-      context: context,
-      sheetAnimationStyle: MediaQuery.disableAnimationsOf(context)
-          ? AnimationStyle.noAnimation
-          : null,
-      builder: (context) => SafeArea(
-        child: SingleChildScrollView(
+    onPressed: () {
+      FocusManager.instance.primaryFocus?.unfocus();
+      showSpringBottomSheet<void>(
+        context: context,
+        builder: (context) => SafeArea(
+          top: false,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -45,6 +49,7 @@ class MapLayersButton extends StatelessWidget {
                   title: Text(overlay),
                   value: visible,
                   onChanged: (value) {
+                    unawaited(HapticsHelper.light());
                     onChanged(value);
                     Navigator.pop(context);
                   },
@@ -53,7 +58,7 @@ class MapLayersButton extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    ),
+      );
+    },
   );
 }

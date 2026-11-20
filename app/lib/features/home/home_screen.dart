@@ -8,23 +8,29 @@ import 'package:provider/provider.dart';
 import '../../core/categories.dart';
 import '../../core/citizen_states.dart';
 import '../../core/config.dart';
+import '../../core/number_format.dart';
 import '../../core/strings.dart';
+import '../../core/text_x.dart';
 import '../../core/theme.dart';
 import '../../data/clusters_api.dart';
 import '../../data/report.dart';
 import '../../data/report_repository.dart';
+import '../../services/haptics.dart';
 import '../../services/location_service.dart';
+import '../changelog/changelog.dart';
 import '../citizen/citizen_screens.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/report_tile.dart';
 import '../../widgets/map_layers_button.dart';
 import '../../widgets/neutral_map_pin.dart';
+import '../../widgets/adaptive_sheet_route.dart';
 import '../../widgets/routes.dart';
 import '../detail/report_detail_screen.dart';
 import '../drafts/draft_record.dart';
 import '../drafts/draft_store.dart';
 import '../mine/my_reports_screen.dart';
 import '../report/report_flow_screen.dart';
+import 'bottom_navigation_reselect.dart';
 
 enum _Tab { home, notices, report, mine, profile }
 
@@ -36,7 +42,10 @@ final List<String> _filterStates = [
 
 /// Nearby reports as a map or a list, with filters and the report button.
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.changelog});
+
+  /// Pending "Novedades" to show once. Null in tests.
+  final ChangelogController? changelog;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -66,6 +75,9 @@ class _HomeScreenState extends State<HomeScreen> {
     _resolved = _loadResolved();
     unawaited(_loadDraft());
     unawaited(_observeMine());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(showChangelogIfNeeded(context, widget.changelog));
+    });
   }
 
   Future<int?> _loadResolved() async {
@@ -128,11 +140,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _editFilters() async {
-    final result = await showModalBottomSheet<(String?, String?)>(
-      context: context,
-      isScrollControlled: true,
-      sheetAnimationStyle: _sheetStyle(context),
-      builder: (_) => _FiltersSheet(state: _state, category: _category),
+    FocusManager.instance.primaryFocus?.unfocus();
+    final result = await Navigator.of(context).push<(String?, String?)>(
+      _FiltersSheet(
+        state: _state,
+        category: _category,
+      ).asAdaptiveSheetRoute<(String?, String?)>(
+        reduceMotion: MediaQuery.disableAnimationsOf(context),
+      ),
     );
     if (result == null) return;
     setState(() {
@@ -330,8 +345,21 @@ class _HomeScreenState extends State<HomeScreen> {
             : const Duration(milliseconds: 300),
         onDestinationSelected: (i) {
           final tab = _Tab.values[i];
+          unawaited(HapticsHelper.light());
           if (tab == _Tab.report) {
             unawaited(_startReport());
+            return;
+          }
+          if (tab == _tab) {
+            BottomNavigationReselect.scrollToTop(switch (tab) {
+              _Tab.home =>
+                _exploring
+                    ? BottomNavigationReselect.exploreListScrollController
+                    : BottomNavigationReselect.landingScrollController,
+              _Tab.notices => BottomNavigationReselect.noticesScrollController,
+              _Tab.mine => BottomNavigationReselect.mineScrollController,
+              _ => BottomNavigationReselect.profileScrollController,
+            }, reduceMotion: MediaQuery.disableAnimationsOf(context));
             return;
           }
           setState(() {
@@ -394,6 +422,7 @@ class _Landing extends StatelessWidget {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 680),
           child: ListView(
+            controller: BottomNavigationReselect.landingScrollController,
             shrinkWrap: true,
             padding: const EdgeInsets.all(AldiaSpace.xl),
             children: [
@@ -419,7 +448,7 @@ class _Landing extends StatelessWidget {
                 builder: (context, snapshot) => Column(
                   children: [
                     Text(
-                      snapshot.data?.toString() ?? '—',
+                      snapshot.data?.humanizedCount() ?? '—',
                       textAlign: TextAlign.center,
                       style: theme.textTheme.displayLarge?.copyWith(
                         color: onBar,
@@ -660,6 +689,8 @@ class _ReportList extends StatelessWidget {
         return RefreshIndicator(
           onRefresh: () async => onRetry(),
           child: ListView.separated(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            controller: BottomNavigationReselect.exploreListScrollController,
             padding: const EdgeInsets.fromLTRB(
               AldiaSpace.l,
               AldiaSpace.s,
@@ -726,6 +757,7 @@ class _MapViewState extends State<_MapView> {
     if (point != null) {
       _controller.move(point, 16);
     } else {
+      unawaited(HapticsHelper.error());
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text(S.locationUnavailable)));
     }
@@ -786,6 +818,7 @@ class _MapViewState extends State<_MapView> {
   }
 
   Future<void> _showSummary(Report report) {
+    FocusManager.instance.primaryFocus?.unfocus();
     return showModalBottomSheet<void>(
       context: context,
       sheetAnimationStyle: _sheetStyle(context),
@@ -802,7 +835,7 @@ class _MapViewState extends State<_MapView> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 ReportTile(report: report, onTap: openDetail),
-                if (report.publicNote?.isNotEmpty == true)
+                if (report.publicNote.isUsable)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Text(report.publicNote!),
@@ -829,6 +862,7 @@ class _MapViewState extends State<_MapView> {
         if (mounted) await _showSummary(report);
       } catch (_) {
         if (mounted) {
+          unawaited(HapticsHelper.error());
           ScaffoldMessenger.of(context)
               .showSnackBar(const SnackBar(content: Text(S.loadError)));
         }
@@ -1028,7 +1062,10 @@ class _ClusterPin extends StatelessWidget {
         child: NeutralMapPin(
           child: single
               ? const Icon(Icons.location_on)
-              : Text('${cluster.count}', textScaler: TextScaler.noScaling),
+              : Text(
+                  cluster.count.humanizedCompact(),
+                  textScaler: TextScaler.noScaling,
+                ),
         ),
       ),
     );

@@ -1,3 +1,5 @@
+import 'number_format.dart';
+
 /// All user-facing text, Spanish (Guatemala). Move to ARB files when a second
 /// language is needed.
 class S {
@@ -153,7 +155,7 @@ class S {
       'La foto y el punto del reporte serán públicos. Evita incluir personas o datos privados.';
   static String reference(String id) => 'Referencia: $id';
   static String uploadSize(int bytes) =>
-      'Tamaño estimado de envío: ${(bytes / 1024).ceil()} KB';
+      'Tamaño estimado de envío: ${(bytes / 1024).ceil().humanizedCount()} KB';
   static String age(DateTime created, DateTime now) {
     final d = now.difference(created);
     if (d.inDays > 0) return 'Hace ${d.inDays} días';
@@ -161,8 +163,9 @@ class S {
     return 'Hace ${d.inMinutes.clamp(0, 59)} min';
   }
 
-  static String accuracy(double value) => 'Precisión GPS: ${value.round()} m';
-  static String clusterCount(int count) => '$count reportes';
+  static String accuracy(double value) =>
+      'Precisión GPS: ${value.round().humanizedCount()} m';
+  static String clusterCount(int count) => '${count.humanizedCount()} reportes';
   static String stepProgress(int current, int total) =>
       'Paso $current de $total';
   static String photoLabel(String category, String state) =>

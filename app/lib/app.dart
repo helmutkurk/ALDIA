@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import 'core/strings.dart';
 import 'core/theme.dart';
+import 'features/changelog/changelog.dart';
 import 'data/clusters_api.dart';
 import 'data/report_repository.dart';
 import 'features/drafts/draft_store.dart';
@@ -18,6 +19,7 @@ import 'services/connectivity_service.dart';
 import 'services/location_service.dart';
 import 'services/geocoder_service.dart';
 import 'services/photo_service.dart';
+import 'widgets/always_scrollbar_behavior.dart';
 
 /// Root widget. Dependencies are injected so tests can replace them.
 /// Optional services are absent in tests that do not need them.
@@ -35,6 +37,7 @@ class AldiaApp extends StatefulWidget {
     this.tileProvider,
     this.showOnboarding = false,
     this.onOnboardingDone,
+    this.changelog,
   });
 
   final ReportRepository repository;
@@ -54,6 +57,9 @@ class AldiaApp extends StatefulWidget {
 
   /// Called once when the slides end or are skipped (to remember it).
   final VoidCallback? onOnboardingDone;
+
+  /// Shows "Novedades" on the first open after an update.
+  final ChangelogController? changelog;
 
   @override
   State<AldiaApp> createState() => _AldiaAppState();
@@ -118,6 +124,7 @@ class _AldiaAppState extends State<AldiaApp> with WidgetsBindingObserver {
         theme: buildTheme(),
         darkTheme: buildDarkTheme(),
         themeMode: ThemeMode.system,
+        scrollBehavior: const AlwaysScrollbarBehavior(),
         debugShowCheckedModeBanner: false,
         locale: const Locale('es', 'GT'),
         localizationsDelegates: const [
@@ -140,7 +147,7 @@ class _AldiaAppState extends State<AldiaApp> with WidgetsBindingObserver {
                         auth: repository.auth,
                         onTestAccount: repository.testAccount?.start,
                       )
-                    : const HomeScreen(),
+                    : HomeScreen(changelog: widget.changelog),
               ),
       ),
     );

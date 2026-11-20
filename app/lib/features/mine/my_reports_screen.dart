@@ -14,6 +14,7 @@ import '../../widgets/routes.dart';
 import '../detail/report_detail_screen.dart';
 import '../drafts/draft_record.dart';
 import '../drafts/draft_store.dart';
+import '../home/bottom_navigation_reselect.dart';
 import '../outbox/outbox_service.dart';
 import '../report/report_flow_screen.dart';
 
@@ -122,6 +123,9 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
                 return _EmptyState(onStart: _openFlow);
               }
               return ListView(
+                controller: widget.embedded
+                    ? BottomNavigationReselect.mineScrollController
+                    : null,
                 padding: const EdgeInsets.fromLTRB(
                   AldiaSpace.l,
                   0,
