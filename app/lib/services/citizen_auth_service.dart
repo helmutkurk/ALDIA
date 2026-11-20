@@ -83,7 +83,7 @@ class PhoneAuthService extends ChangeNotifier implements AuthService {
     try {
       final raw = await _store.read();
       if (raw != null) {
-        final saved = jsonDecode(raw) as Map<String, dynamic>;
+        final saved = jsonDecode(raw) as Map<String, Object?>;
         _device = saved['device_id'] as String?;
         _token = saved['token'] as String?;
         _expires = DateTime.tryParse(saved['expires_at'] as String? ?? '');
@@ -124,7 +124,7 @@ class PhoneAuthService extends ChangeNotifier implements AuthService {
 
   Future<http.Response> _post(
     String path, {
-    Map<String, dynamic>? body,
+    Map<String, Object?>? body,
     Map<String, String> headers = const {},
   }) async {
     try {
@@ -191,7 +191,7 @@ class PhoneAuthService extends ChangeNotifier implements AuthService {
       });
     }
     try {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final data = jsonDecode(response.body) as Map<String, Object?>;
       final token = data['token'] as String;
       final expires = DateTime.parse(data['expires_at'] as String);
       if (token.isEmpty || !_now().isBefore(expires)) {

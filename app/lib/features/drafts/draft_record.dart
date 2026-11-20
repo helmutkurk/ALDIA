@@ -18,7 +18,7 @@ class DraftRecord {
     this.nextAttemptAt,
   });
 
-  factory DraftRecord.fromJson(Map<String, dynamic> json) => DraftRecord(
+  factory DraftRecord.fromJson(Map<String, Object?> json) => DraftRecord(
     id: json['id'] as String,
     step: json['step'] as String? ?? 'photo',
     position: LatLng(
@@ -82,7 +82,7 @@ class DraftRecord {
     nextAttemptAt: clearRetry ? null : nextAttemptAt ?? this.nextAttemptAt,
   );
 
-  Map<String, dynamic> toJson() => {
+  Map<String, Object?> toJson() => {
     'id': id,
     'step': step,
     'latitude': position.latitude,

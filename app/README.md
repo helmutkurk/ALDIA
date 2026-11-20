@@ -70,6 +70,13 @@ Only search public street locations; do not send confidential information. Map t
 
 ## Run
 
+Run the app quality gates from the repository root with `make -C app lint test`.
+They use `mise exec -- flutter analyze --no-pub` and `flutter test --no-pub` with
+the existing dependency resolution. An already installed SDK can be selected with
+`FLUTTER=/path/to/flutter`. This Flutter area uses Dart analysis; Ruff and mypy
+are Python tools and are not substitutes for these checks. Widget tests need a
+runner that permits Flutter's local loopback test socket.
+
 ```bash
 mise exec -- flutter pub get
 mise exec -- flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8000/api  # Android

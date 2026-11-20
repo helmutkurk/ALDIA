@@ -62,17 +62,19 @@ class NominatimGeocoder implements GeocoderService {
         if (response.statusCode != 200) {
           throw http.ClientException('Geocoding unavailable');
         }
-        final rows = jsonDecode(utf8.decode(response.bodyBytes)) as List;
+        final rows =
+            jsonDecode(utf8.decode(response.bodyBytes)) as List<Object?>;
         final addresses = rows
-            .map(
-              (row) => AddressResult(
+            .map((item) {
+              final row = item as Map<String, Object?>;
+              return AddressResult(
                 label: row['display_name'] as String,
                 position: LatLng(
                   double.parse(row['lat'] as String),
                   double.parse(row['lon'] as String),
                 ),
-              ),
-            )
+              );
+            })
             .toList(growable: false);
         // Bounded in-memory cache; addresses are not written to disk.
         if (_cache.length >= 50) _cache.remove(_cache.keys.first);
