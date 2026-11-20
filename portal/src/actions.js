@@ -15,7 +15,7 @@ export function createStaffActions(
   root,
   { report, api, staff, onSaved = () => {}, duplicateOf = '' },
 ) {
-  if (!staff?.getToken()) return { destroy() {} };
+  if (!(staff?.getRole?.() || staff?.getToken())) return { destroy() {} };
   const controller = new AbortController();
   let alive = true;
   const form = element('form', 'transition-form');

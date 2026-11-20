@@ -165,26 +165,32 @@ describe('memory-only staff mode', () => {
     expect(persist).not.toHaveBeenCalled();
     expect(window.location.hash).toBe(originalHash);
   });
-  it('uses a password panel, rejects short tokens and removes the input value after activation', () => {
+  it('uses an explicitly enabled development panel, rejects short tokens and removes the input value after activation', async () => {
     const staff = createStaffSession();
     cleanups.push(() => staff.destroy());
     const root = mount();
-    const panel = createStaffPanel(root, staff);
+    const panel = createStaffPanel(root, staff, {
+      getAuthConfig: async () => ({ enabled: true, dev_tokens: true }),
+      getMe: async () => {
+        throw { status: 401 };
+      },
+    });
     cleanups.push(() => panel.destroy());
-    const input = root.querySelector('input');
+    await panel.ready;
+    const input = root.querySelector('#staff-token');
     expect(input.type).toBe('password');
     expect(input.autocomplete).toBe('off');
     input.value = 'too-short';
-    submit(root.querySelector('form'));
+    submit(root.querySelector('.dev-token-form'));
     expect(staff.getToken()).toBe('');
     expect(root.textContent).toContain(ui.tokenLength);
     input.value = token;
-    submit(root.querySelector('form'));
+    submit(root.querySelector('.dev-token-form'));
     expect(staff.getToken()).toBe(token);
     expect(input.value).toBe('');
     expect(root.querySelector('form').hidden).toBe(true);
     expect(root.textContent).not.toContain(token);
-    root.querySelector('button[type="button"]').click();
+    root.querySelector('.logout-button').click();
     expect(staff.getToken()).toBe('');
   });
   it('sends staff credentials only as a header and removes it from subsequent public fetches', async () => {

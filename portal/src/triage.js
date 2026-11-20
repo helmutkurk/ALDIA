@@ -71,7 +71,7 @@ export function createTriage(
       button.tabIndex = selected ? 0 : -1;
     });
     content.setAttribute('aria-labelledby', `queue-${tab}`);
-    if (!staff?.getToken()) {
+    if (!(staff?.getRole?.() || staff?.getToken())) {
       content.replaceChildren(element('p', '', ui.staffNeeded));
       return;
     }

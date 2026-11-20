@@ -87,18 +87,19 @@ export function previousState(report) {
     ?.from_state;
 }
 /** The API is authoritative for roles; the role here controls the offered UI only.
- * @param {object} report @param {'operator'|'supervisor'|null} role
+ * @param {object} report @param {'operator'|'supervisor'|'admin'|null} role
  */
 export function legalNextStates(report, role) {
-  if (!role) return [];
+  if (!['operator', 'supervisor', 'admin'].includes(role)) return [];
+  const supervisor = ['supervisor', 'admin'].includes(role);
   const state = reportState(report);
   if (state === 'oculto')
-    return role === 'supervisor' && STATES.includes(previousState(report))
+    return supervisor && STATES.includes(previousState(report))
       ? [previousState(report)]
       : [];
   return (TRANSITIONS[state] ?? []).filter(
     (next) =>
-      role === 'supervisor' ||
+      supervisor ||
       (next !== 'oculto' &&
         ![
           'rechazado_verificador',

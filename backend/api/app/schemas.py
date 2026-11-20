@@ -50,11 +50,12 @@ class Check(StrictModel):
     name: str
     passed: bool
     detail: str
+    code: str | None = None
 
 
 class Verification(StrictModel):
     passed: bool
-    mode: Literal["stub", "model"]
+    mode: Literal["stub", "heuristic", "model"]
     checks: list[Check]
 
 
@@ -64,7 +65,8 @@ class VerifierResult(Verification):
     @model_validator(mode="after")
     def consistent_checks(self) -> Self:
         names = [check.name for check in self.checks]
-        if set(names) != {"image", "place", "freshness", "category"} or len(names) != 4:
+        required = {"image", "place", "freshness", "category"}
+        if not required <= set(names) or len(names) != len(set(names)):
             raise ValueError("Verifier returned incomplete checks")
         if self.passed != all(check.passed for check in self.checks):
             raise ValueError("Verifier returned inconsistent checks")
@@ -73,7 +75,8 @@ class VerifierResult(Verification):
 
 class EventOut(StrictModel):
     at: AwareDatetime
-    actor_role: Literal["system", "operator", "supervisor"]
+    actor: str
+    actor_role: Literal["system", "operator", "supervisor", "admin"]
     from_state: State | None
     to_state: State
     public_note: str | None

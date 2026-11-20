@@ -154,15 +154,17 @@ def run(directory):
     )
     check(
         created["state"] == "nuevo" and created["status"] == "verified",
-        "Report was not verified",
+        "Report was not verified: "
+        + str([(c["name"], c["passed"], c.get("detail")) for c in (created.get("verification") or {}).get("checks", [])]),
     )
     verification = created["verification"]
     check(
-        verification["mode"] == "stub" and verification["passed"],
+        verification["mode"] in {"stub", "heuristic"} and verification["passed"],
         "Verifier result mismatch",
     )
     check(
-        len(verification["checks"]) == 5
+        {"image", "place", "freshness", "category"}
+        <= {c["name"] for c in verification["checks"]}
         and all(c["passed"] for c in verification["checks"]),
         "Verification checks did not all pass",
     )

@@ -181,7 +181,8 @@ start verifier "$ROOT/backend/verifier" uv run --frozen --no-env-file uvicorn \
   app.main:create_app --factory --host 127.0.0.1 --port 8001 --no-access-log
 wait_health verifier http://127.0.0.1:8001/health
 run_task migrate "$ROOT/backend/api" uv run --frozen --no-env-file alembic upgrade head
-STAFF_TOKEN="$staff_token" SUPERVISOR_TOKEN="$supervisor_token" \
+# Local stack only: the shared tokens work as a dev fallback next to real staff accounts.
+ENV=dev AUTH_DEV_TOKENS=true STAFF_TOKEN="$staff_token" SUPERVISOR_TOKEN="$supervisor_token" \
   start api "$ROOT/backend/api" uv run --frozen --no-env-file uvicorn \
     app.main:create_app --factory --host 127.0.0.1 --port 8000 --no-access-log
 wait_health api http://127.0.0.1:8000/api/health

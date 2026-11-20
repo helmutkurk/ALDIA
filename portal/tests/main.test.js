@@ -236,7 +236,7 @@ describe('site header', () => {
     panelElement.querySelector('.staff-panel').open = false;
     headerElement.querySelector('.staff-link').click();
     expect(panelElement.querySelector('.staff-panel').open).toBe(true);
-    expect(document.activeElement.id).toBe('staff-token');
+    expect(document.activeElement.id).toBe('staff-username');
   });
 
   it('toggles between list and map with a text label', () => {

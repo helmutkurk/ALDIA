@@ -58,7 +58,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/health")
     def health() -> dict[str, str]:
-        return {"status": "ok", "mode": config.verifier_mode}
+        return {"status": "ok", "mode": "heuristic"}
 
     @app.post("/verify", response_model=VerifyResult)
     async def verify_photo(request: Request) -> VerifyResult:
@@ -93,8 +93,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     data,
                     report,
                     classifier,
-                    config.verifier_mode,
-                    config.max_age_seconds,
+                    config,
                 )
             except ValueError as exc:
                 raise HTTPException(422) from exc

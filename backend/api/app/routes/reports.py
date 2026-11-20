@@ -243,7 +243,11 @@ def get_photo(
     response_model_exclude_unset=True,
 )
 def transition_report(
-    report_id: UUID, data: TransitionIn, session: SessionDep, role: StaffDep
+    report_id: UUID,
+    data: TransitionIn,
+    request: Request,
+    session: SessionDep,
+    role: StaffDep,
 ) -> ReportOut:
     report = find_report(report_id, session, staff=True, lock=True)
     try:
@@ -299,6 +303,7 @@ def transition_report(
         ReportEvent(
             report_id=report.id,
             actor_role=role,
+            actor=request.state.staff_username,
             from_state=previous,
             to_state=data.to,
             public_note=data.public_note,

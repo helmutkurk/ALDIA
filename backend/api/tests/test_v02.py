@@ -13,13 +13,15 @@ def enable_staff(client: TestClient) -> None:
     settings = client.app.state.services.settings
     settings.staff_token = "o" * 32
     settings.supervisor_token = "s" * 32
+    settings.env = "dev"
+    settings.auth_dev_tokens = True
 
 
 def test_staff_flow_and_hidden_visibility(client: TestClient) -> None:
     report = submit(client).json()
     path = f"/api/reports/{report['id']}"
     assert (
-        client.post(path + "/assign", json={"assignee": "Cuadrilla"}).status_code == 503
+        client.post(path + "/assign", json={"assignee": "Cuadrilla"}).status_code == 401
     )
     enable_staff(client)
     for headers in [{}, {"X-Staff-Token": "incorrect"}]:

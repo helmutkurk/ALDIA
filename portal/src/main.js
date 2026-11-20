@@ -47,7 +47,7 @@ export function createPortal({
     currentRoute;
   const side = element('section', 'selected-report');
   const staffRoot = element('div', 'staff-root');
-  const staffPanel = createStaffPanel(staffRoot, staff);
+  const staffPanel = createStaffPanel(staffRoot, staff, api);
   const query = () => ({ ...store.getState().filters, bbox: map.getBbox() });
   const syncHash = () => {
     if (pageElement && active && currentRoute === 'map' && !applyingRoute)

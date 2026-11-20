@@ -12,7 +12,8 @@ from app.config import Settings
 from app.db import Database
 from app.dependencies import Services
 from app.middleware import UniformCORSMiddleware, UploadLimitMiddleware
-from app.routes import exports, health, open311, reports, stats, triage
+from app.routes import auth, exports, health, open311, reports, stats, triage
+from app.security import CSRF_COOKIE, SESSION_COOKIE
 from app.services.storage import PhotoStorage
 from app.services.verifier_client import VerifierClient
 
@@ -46,8 +47,14 @@ def create_app(
     app.add_middleware(
         UniformCORSMiddleware,
         allow_origins=config.allowed_origins,
-        allow_methods=["GET", "POST"],
-        allow_headers=["Content-Type", "X-Staff-Token", "Idempotency-Key"],
+        allow_methods=["GET", "POST", "PATCH"],
+        allow_headers=[
+            "Content-Type",
+            "X-Staff-Token",
+            "X-CSRF-Token",
+            "Idempotency-Key",
+        ],
+        allow_credentials=True,
     )
 
     @app.exception_handler(RequestValidationError)
@@ -64,22 +71,50 @@ def create_app(
     @app.exception_handler(HTTPException)
     async def http_error(_request: Request, exc: HTTPException) -> JSONResponse:
         codes = {
-            401: ("unauthorized", "Se requiere un token válido."),
+            401: (
+                "unauthorized",
+                "Inicia sesión con un usuario y una contraseña válidos.",
+            ),
             403: ("forbidden", "Permisos insuficientes."),
             409: ("invalid_transition", "Cambio de estado no permitido."),
             503: ("staff_unavailable", "Acceso de personal no configurado."),
             404: ("not_found", "Recurso no encontrado."),
             413: ("upload_too_large", "La foto supera el tamaño permitido."),
             422: ("validation_error", "Solicitud inválida."),
+            423: (
+                "account_locked",
+                "Cuenta bloqueada durante 15 minutos por intentos fallidos.",
+            ),
+            429: (
+                "rate_limited",
+                "Demasiados intentos. Espera 15 minutos e inténtalo de nuevo.",
+            ),
         }
         code, message = codes.get(
             exc.status_code, ("request_error", "No se pudo procesar la solicitud.")
         )
-        return JSONResponse(
+        headers = dict(exc.headers or {})
+        if _request.url.path.startswith(("/api/auth/", "/api/admin/")):
+            headers["Cache-Control"] = "no-store"
+        response = JSONResponse(
             status_code=exc.status_code,
-            headers=exc.headers,
+            headers=headers,
             content={"error": {"code": code, "message": message}},
         )
+        if (
+            exc.status_code == 401
+            and SESSION_COOKIE in _request.cookies
+            and _request.url.path != "/api/auth/login"
+        ):
+            for name in (SESSION_COOKIE, CSRF_COOKIE):
+                response.delete_cookie(
+                    name,
+                    secure=config.env != "dev",
+                    httponly=name == SESSION_COOKIE,
+                    samesite="lax",
+                    path="/",
+                )
+        return response
 
     @app.exception_handler(Exception)
     async def internal_error(request: Request, _exc: Exception) -> JSONResponse:
@@ -93,6 +128,8 @@ def create_app(
                 headers["Access-Control-Allow-Origin"] = "*"
             elif origin in config.allowed_origins:
                 headers = {"Access-Control-Allow-Origin": origin, "Vary": "Origin"}
+            if "Access-Control-Allow-Origin" in headers:
+                headers["Access-Control-Allow-Credentials"] = "true"
         return JSONResponse(
             status_code=500,
             headers=headers,
@@ -104,6 +141,7 @@ def create_app(
             },
         )
 
+    app.include_router(auth.router)
     app.include_router(health.router)
     app.include_router(stats.router)
     app.include_router(exports.router)

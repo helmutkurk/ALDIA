@@ -26,13 +26,27 @@ people may be editing a folder at the same time, so rerun before concluding that
 
 API tests use temporary SQLite databases, synthetic images and a fake verifier: they need no network and no `.env`.
 
+Staff v0.4 checks (run after changes):
+
+```bash
+make -C backend/api lint test
+cd portal && npm run check
+```
+
+`test_auth.py`, `test_auth_security.py` and seed/migration tests cover generic login errors,
+Argon2 parameters, Secure/HttpOnly/SameSite flags, rotation/expiry/revocation, five-failure
+lockout, login limiting, double-submit CSRF, operator/supervisor/admin permissions, CLI
+password input and dev-only fallback/accounts. Portal auth tests cover form submission,
+logout/restoration, 401 invalidation, CSRF headers, Spanish errors and role gating.
+Live browser and PostgreSQL deployment validation remain separate from these SQLite/jsdom checks.
+
 ## 2. Run the full stack locally
 
 ### 2.1 With Docker (`make up`) (not executed)
 
 ```bash
 cp .env.example .env                       # local only, never committed
-# Edit .env: set POSTGRES_PASSWORD and STAFF_TOKEN (see 2.3). Do not paste real secrets anywhere else.
+# Edit .env: set POSTGRES_PASSWORD. Bootstrap staff accounts separately (2.3).
 make up                                    # db, verifier, api, portal
 make ps                                    # all four services "running"
 curl -s http://localhost:8000/api/health   # {"status":"ok"}
@@ -56,7 +70,7 @@ The managed local stack now starts with one command:
 make dev-all             # seeded verifier, migrated SQLite API and portal; Ctrl-C stops all
 make dev-status          # another terminal
 make dev-stop
-make dev-all SMOKE=1      # real curl assertions, including staff actions with inherited ephemeral tokens
+make dev-all SMOKE=1      # legacy smoke requires explicit ENV=dev + AUTH_DEV_TOKENS=true; see dev-setup
 ```
 
 See [dev-setup.md](dev-setup.md#without-docker) for `.local/` data/logs, token handling and the optional browser capture.
@@ -71,8 +85,9 @@ cd backend/verifier && uv sync --frozen && uv run uvicorn app.main:create_app --
 # Terminal 2: API with a disposable SQLite database
 cd backend/api && uv sync --frozen
 export DATABASE_URL=sqlite:///./aldia.db PHOTO_DIR=/tmp/aldia-api-photos VERIFIER_URL=http://127.0.0.1:8001
-export STAFF_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"   # see 2.3
+export ENV=dev             # local HTTP cookies; production requires HTTPS
 uv run alembic upgrade head
+uv run python -m app.cli create-admin --username admin    # hidden prompt, min 12 characters
 uv run uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000 --no-access-log
 
 # Terminal 3: portal dev server (proxies /api to localhost:8000)
@@ -83,21 +98,29 @@ cd portal && npm ci && npm run dev          # http://localhost:5173
 add `export CORS_ORIGINS=http://localhost:5173,http://localhost:8080` before starting the API.
 Check: `curl -s localhost:8000/api/health` and `curl -s localhost:8001/health` answer `ok`.
 
-### 2.3 STAFF_TOKEN
+### 2.3 Staff accounts and development fallback
 
-The staff endpoints answer `503` until `STAFF_TOKEN` (at least 32 characters) is set. Generate a random one locally:
+Staff login now uses named accounts, not a shared token. Run migration `0004` (`alembic upgrade head`)
+and bootstrap an admin with `uv run python -m app.cli create-admin --username admin` from `backend/api/`.
+The password is read without echo or from stdin, never argv, and must contain 12–1024 characters.
+Open **Modo personal**, enter username/password and log in. The role comes from the API:
+operator handles cases; supervisor can also override/reopen/moderate; admin also manages users through the API.
 
-```bash
-python3 -c 'import secrets; print(secrets.token_urlsafe(32))'     # 43 characters
-```
+Only exact `ENV=dev` permits non-Secure cookies on HTTP and creates demo accounts when seeding.
+The seed prints fresh random passwords once for `operador` and `supervisor`; run it in a private
+terminal, never a shared log. Existing passwords are preserved. See [demo-credentials.md](demo-credentials.md).
+Production needs HTTPS, defaults to Secure cookies and never creates demo users.
 
-- Docker: put it in your local `.env` as `STAFF_TOKEN=...`, then `make up` again (the file is git-ignored; never commit it).
-- Without Docker: `export STAFF_TOKEN=...` in the shell that starts the API (as in 2.2).
-- Optional `SUPERVISOR_TOKEN`, generated the same way and different from the first, enables supervisor-only actions
-  (override verifier rejections, reopen resolved or closed cases, hide and restore).
-- In the portal: open **Modo personal**, paste the token in **Token de personal**, choose **Operador** (or
-  **Supervisor** with the supervisor token), press **Activar**. The token stays in memory only and disappears on reload.
-- Never paste a token into chat, tickets or screenshots.
+`GET /api/auth/me` returns the account. Logout revokes the session. Every session-based write
+requires `X-CSRF-Token` matching `aldia_csrf` and the server session; the portal does this automatically.
+Expect 401 for missing/expired credentials, 403 for permissions or CSRF, 423 after five failures
+(15-minute lockout), and 429 after ten login requests per username + peer IP in 15 minutes.
+
+The optional token panel appears only when `/api/auth/config` reports `dev_tokens: true`, requiring
+both `ENV=dev` and `AUTH_DEV_TOKENS=true`. Legacy headers otherwise return 401, even if old
+STAFF_TOKEN/SUPERVISOR_TOKEN values exist. Fallback attempts log a warning without credentials.
+The unchanged root smoke script uses legacy headers and must explicitly enable this fallback;
+it does not test the new session flow. Use the automated auth tests below for that flow.
 
 ### 2.4 Demo data (seed)
 
@@ -108,7 +131,7 @@ make seed-reset     # remove the "[demo]" reports and create them again with fre
 
 `make seed` uses `DATABASE_URL` and `PHOTO_DIR` from your environment (defaults: `sqlite:///./aldia.db` and
 `/tmp/aldia-api-photos` inside `backend/api`) and runs the migrations first. Use the same values as the running API.
-The script refuses to run when `ALDIA_ENV`, `APP_ENV` or `ENVIRONMENT` is `production`. Seeded rows have a note starting
+The script refuses production flags, including `ENV=production`; `ENV=dev` also creates demo staff accounts. Seeded rows have a note starting
 with `[demo]`, so re-running does not duplicate them. Expected output: `Created 44, already present 0.` then a summary
 (rerun: `Created 0, already present 44.`).
 
@@ -125,11 +148,12 @@ docker compose exec -w /service api python /tmp/scripts/seed_demo.py
 
 ## 3. API with curl (verified)
 
-Set once (the token from 2.3; use the same shell session):
+Public API examples below require no login. Legacy staff curl examples are explicitly dev-only (2.3):
 
 ```bash
 API=http://localhost:8000/api
-export STAFF_TOKEN=...            # the token you started the API with
+# Only for legacy dev smoke: both ENV=dev and AUTH_DEV_TOKENS=true on the API.
+# Use an existing process-injected STAFF_TOKEN; never echo it or put it in shell history.
 ```
 
 **Create a report with an idempotency key.** `captured_at` must be within the last 10 minutes (verifier default).
@@ -160,8 +184,11 @@ curl -s "$API/stats?include_old=true"                                           
 curl -s "$API/open311/v2/requests.json" | head -c 400
 ```
 
-**Staff transition.** Without the header: `401`. With a wrong token: `401`. With the API started without
-`STAFF_TOKEN`: `503`. Illegal transition: `409`.
+**Staff transition (legacy development fallback only).** Without credentials: `401`. With a wrong token
+or disabled fallback: `401`. Illegal transition: `409`. The normal portal uses a session cookie and CSRF.
+For curl session testing, read a JSON login body from a secret-manager pipe into
+`curl --data-binary @- -H "Content-Type: application/json" -c /private/path/cookies "$API/auth/login"`,
+then use that private cookie jar with `-b` and its CSRF value in `X-CSRF-Token` on writes. Never publish the jar.
 
 ```bash
 curl -s -w '\nHTTP %{http_code}\n' -X POST $API/reports/$ID/transition -H 'Content-Type: application/json' \
@@ -201,10 +228,11 @@ Open http://localhost:5173 (or :8080 with Docker). Use a recent Chrome or Firefo
 2. **Filters.** Change **Categoría**, **Estado municipal** and the date range: the list **Reportes en esta zona** and the
    pins update together; **No hay reportes en esta zona con estos filtros.** appears when nothing matches. Date range
    wider than 30 days shows the older demo reports.
-3. **Public mode.** Without a token the page says **Vista pública de solo lectura**; no action buttons.
-4. **Staff mode.** Open **Modo personal**, paste the token (2.3), **Activar**. A token shorter than 32 characters shows
-   **El token debe tener al menos 32 caracteres.**; a wrong token shows **Token no válido o permisos insuficientes**
-   when you act. Reload: the token is gone.
+3. **Public mode.** Without a session the page says **Vista pública de solo lectura**; no action buttons.
+4. **Staff mode.** Open **Modo personal**, enter an account from 2.3, **Iniciar sesión**. Wrong credentials show
+   a clear Spanish error; five failures return 423 for 15 minutes. Reload preserves a valid cookie session.
+   **Cerrar sesión** removes the session and write controls. Operators cannot override/reopen/moderate;
+   supervisor and admin can. Dev-token form must be absent unless config explicitly enables it.
 5. **Triage.** In staff mode open **Bandeja de revisión**: tabs for new unassigned cases and for verifier rejections, oldest
    first with age. Assign a case to a crew; it leaves the review tab.
 6. **State transition.** Open a `nuevo` report, move it to `en_revision`, then `programado`, `en_proceso`, `resuelto`,
@@ -309,7 +337,7 @@ presented as such to the government.
 ## 5. End-to-end scenario
 
 Goal: one citizen report travels through the whole system. Needs the stack (2.2 or 2.1), seeded data (2.4) and a
-`STAFF_TOKEN`.
+staff account.
 
 1. **Citizen (app).** In the app, send a new `pothole` report from Guatemala City with a fresh photo. Note the
    **Referencia** id on the result screen. Expected: **Reporte verificado**.
@@ -331,8 +359,10 @@ Goal: one citizen report travels through the whole system. Needs the stack (2.2 
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | Portal shows an error and the browser console says CORS | origin not in `CORS_ORIGINS` (default only `http://localhost:5173`) | export `CORS_ORIGINS=http://localhost:5173,http://localhost:8080` and restart the API. Check: a request with `Origin: http://localhost:5173` returns `access-control-allow-origin`; other origins get none |
-| Staff action returns `503` `staff_unavailable` ("Acceso de personal no configurado.") | API started without `STAFF_TOKEN` | generate a token (2.3), set it, restart the API (Docker: edit local `.env`, `make up`) |
-| Staff action returns `401` | missing, wrong or too short token; wrong role token | paste the same token the API started with; supervisor-only actions need `SUPERVISOR_TOKEN` |
+| Login cookie is not sent on local HTTP | ENV defaults to production, so cookies are Secure | use exact `ENV=dev` locally; keep HTTPS in production |
+| Staff action returns `401` | missing/expired/revoked session, or disabled dev fallback | log in again; old headers require both dev flags (2.3) |
+| Staff action returns `403` | insufficient role or missing/mismatched CSRF | verify role; writes echo aldia_csrf as X-CSRF-Token |
+| Login returns `423` / `429` | lockout / per-process rate limit | wait 15 minutes; an admin password reset clears account lockout |
 | Staff action returns `409` | illegal transition or missing note | check the transition table in the API contract; add a `public_note` or `internal_note` |
 | `make up` fails with `set POSTGRES_PASSWORD in .env` | `.env` missing or empty | `cp .env.example .env` and set it |
 | App cannot reach the API on a real release build: "cleartext not permitted" | Android release builds block plain HTTP (only the debug manifest allows it) | use an HTTPS URL for release; for tests use a debug build |
@@ -358,8 +388,8 @@ Prepare the day before; run the whole list again one hour before.
 - [ ] Fresh database; `make seed-reset` run on the demo environment (never on production data). Demo reports say
       `[demo]` and use synthetic photos; no real people, plates or private places.
 - [ ] Stack on a stable machine (not a laptop on guest Wi-Fi); `curl $API/health` is `ok`; verifier `ok`.
-- [ ] `STAFF_TOKEN` generated for the demo, stored in a password manager, not on slides or screens; different from any
-      other environment. Supervisor token ready if overrides will be shown.
+- [ ] Demo staff accounts ready; random initial passwords stored privately, never on slides/screens.
+      Supervisor account available for overrides; legacy fallback disabled for the account demo.
 - [ ] Portal opens on the map with data (not empty), date filter covers the whole demo period, dashboard shows numbers.
 - [ ] Browser zoom 100 %, notifications off, bookmarks and tabs clean, no `.env` or token visible.
 
@@ -381,7 +411,8 @@ Prepare the day before; run the whole list again one hour before.
 
 - [ ] The verifier runs in `stub` mode: it checks image, place, freshness and duplicates, but does **not** classify the
       category yet. Say so; never call it AI verification.
-- [ ] Staff login is a shared token (stopgap) to be replaced by phone-code login; the PoC is not secured for production.
+- [ ] Staff uses password accounts and revocable sessions. Distributed limiting, MFA, recovery and live deployment
+      validation remain provisional; citizen phone login is separate.
 - [ ] Photos and points are public; payouts, rewards and taxes are not part of the MVP (open topics, decided with the
       first government).
 - [ ] Map tiles come from public OpenStreetMap servers (light use); a tile provider is needed for real traffic.
@@ -389,5 +420,5 @@ Prepare the day before; run the whole list again one hour before.
 
 **After the demo**
 
-- [ ] Stop the stack (`make down`), remove the demo data if the machine is shared, rotate the demo token.
+- [ ] Stop the stack (`make down`), remove the demo data if the machine is shared, log out and disable/reset demo accounts if the environment will be reused.
 - [ ] Note questions and feature requests in `docs/` or the team workspace, not in this public repo if they include strategy.

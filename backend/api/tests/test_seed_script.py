@@ -11,8 +11,10 @@ from fastapi.testclient import TestClient
 from PIL import Image
 from sqlalchemy import func, select
 
+from app.config import Settings
 from app.db import Base, Database
-from app.models import Report, ReportEvent
+from app.models import Report, ReportEvent, StaffUser
+from app.security import PASSWORD_HASHER
 from app.services.storage import PhotoStorage
 
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "seed_demo.py"
@@ -157,3 +159,33 @@ def test_refuses_production(
     with pytest.raises(seed_module.ProductionRefused):
         seed_module.refuse_production({"APP_ENV": "prod"})
     seed_module.refuse_production({"APP_ENV": "development"})
+
+
+def test_demo_users_are_dev_only_random_and_idempotent(
+    seed_module: ModuleType,
+    env: tuple[Database, PhotoStorage],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    database, _ = env
+    with database.sessions() as session:
+        for environment in ("production", "development", "test"):
+            seed_module.seed_users(session, Settings(env=environment))
+        assert list(session.scalars(select(StaffUser))) == []
+        assert capsys.readouterr().out == ""
+        seed_module.seed_users(session, Settings(env="dev"))
+        lines = capsys.readouterr().out.splitlines()
+        users = list(session.scalars(select(StaffUser).order_by(StaffUser.username)))
+        assert [user.username for user in users] == ["operador", "supervisor"]
+        assert [user.role for user in users] == ["operator", "supervisor"]
+        passwords = [line.split("initial password: ")[1] for line in lines]
+        assert passwords[0] != passwords[1]
+        assert all(len(password) >= 12 for password in passwords)
+        assert all(
+            PASSWORD_HASHER.verify(user.password_hash, password)
+            for user, password in zip(users, passwords, strict=True)
+        )
+        seed_module.seed_users(session, Settings(env="dev"))
+        assert capsys.readouterr().out == ""
+        assert len(list(session.scalars(select(StaffUser)))) == 2
+    with pytest.raises(seed_module.ProductionRefused):
+        seed_module.refuse_production({"ENV": "production"})

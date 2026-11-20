@@ -15,7 +15,9 @@ uv sync --frozen
 export DATABASE_URL=sqlite:///./aldia.db
 export PHOTO_DIR=/tmp/aldia-api-photos
 export VERIFIER_URL=http://127.0.0.1:8001
+export ENV=dev       # local HTTP cookies only; production requires HTTPS
 uv run alembic upgrade head
+uv run python -m app.cli create-admin --username admin  # hidden password prompt, min 12 characters
 uv run uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8000 --no-access-log
 ```
 
@@ -32,8 +34,10 @@ Do not edit the lockfile manually. No environment file is loaded automatically.
 | `VERIFIER_URL` | `http://verifier:8001` | Internal verifier base URL. |
 | `MAX_UPLOAD_BYTES` | `8388608` | Maximum original photo bytes (8 MiB). |
 | `CORS_ORIGINS` | `http://localhost:5173` | Comma-separated allowed origins. An empty value permits none. |
-| `STAFF_TOKEN` | unset | Shared operator credential, at least 32 characters; inject from the secret manager. Unset disables staff endpoints with HTTP 503. |
-| `SUPERVISOR_TOKEN` | unset | Optional separate supervisor credential, at least 32 characters, for overrides, closed-case reopening and moderation. |
+| `ENV` | `production` | Only exact `dev` disables Secure cookies and permits demo accounts. |
+| `AUTH_DEV_TOKENS` | `false` | Legacy header fallback requires both this flag and `ENV=dev`; every attempt logs a credential-free warning. |
+| `STAFF_TOKEN` | unset | Legacy dev-only operator credential, at least 32 characters. Never needed for account login. |
+| `SUPERVISOR_TOKEN` | unset | Legacy dev-only supervisor credential, at least 32 characters. |
 
 Override the contract's demonstration database credentials for deployment using
 an external secret manager. Keep the verifier and database on a private network.
@@ -90,13 +94,32 @@ answer even for rejections. A verifier outage leaves one event and no answer dat
 `acknowledged`, `fixed`, or the new `closed`). The pure policy table in
 `app/state_machine.py` governs every transition, including reason requirements.
 
-Send `X-Staff-Token` on staff requests. Comparisons use `hmac.compare_digest`;
-credentials are excluded from settings representations and validation messages.
-Missing/wrong credentials return 401 when staff access is configured. Operators
-can transition and assign; supervisors can also override verifier rejections,
-reopen resolved/closed cases and hide/restore cases. Hiding preserves the previous
-state and its resolution/closure clock for restoration. Both credentials are
-allowed by CORS and must be supplied by the integrator; compose is unchanged.
+Staff accounts replace the v0.2 shared token; see the [v0.4 decision](../../documentation/decisions/staff-auth.md).
+Log in through the portal's **Modo personal** with username/password. The API returns
+the real username and role, sets an HttpOnly session cookie and a readable CSRF cookie,
+and stores a revocable 12-hour session in SQL. Staff writes send `X-CSRF-Token` matching
+the cookie and session. No credentials go in browser storage. Missing/expired sessions
+return 401, insufficient role or CSRF 403, and locked accounts 423.
+Operators transition and assign; supervisors also override, reopen and moderate;
+admin inherits those rights and alone manages `/api/admin/users` (GET/POST/PATCH).
+User changes revoke all target sessions; password resets also clear lockout.
+Report events retain `actor_role` and add `actor`; auth/user changes have a separate audit table.
+Hiding preserves the previous state and resolution/closure clock for restoration.
+
+Passwords use pinned argon2-cffi with explicit Argon2id v19 parameters (64 MiB, 3 passes,
+4 lanes, 16-byte salt, 32-byte hash). Five failures lock the SQL account for 15 minutes;
+unknown/disabled users receive generic errors and still perform password verification.
+An in-memory limiter allows 10 login requests per normalized username + direct peer IP
+per 15 minutes, retaining at most 10,000 keys. Limits reset on restart, are not shared
+across workers, and old keys may be evicted under churn. Use a shared edge limiter before
+multi-worker deployment; forwarded IP headers are not trusted by application code.
+SQLite login serialization is per process; production PostgreSQL uses row locks.
+
+Serve the portal and API under the same origin through `/api` so JavaScript can read
+the CSRF cookie; use HTTPS outside `ENV=dev`. CORS allows explicit origins, credentials,
+PATCH and `X-CSRF-Token`. Login validates supplied Origin. For a non-interactive admin
+bootstrap, pipe the password from a secret manager to `uv run python -m app.cli create-admin`.
+Never pass it in argv. The CLI rejects duplicates and passwords shorter than 12 characters.
 
 - `POST /api/reports/{id}/transition`: `to`, optional `public_note` (280),
   `internal_note` (500), and `duplicate_of` for duplicates. Creates an immutable
@@ -172,10 +195,14 @@ If moderation has hidden it, replay returns 404 and still creates nothing.
 `scripts/seed_demo.py` creates 44 synthetic reports around Guatemala City (all categories and all 11 states, events
 spread over 60 days, a few duplicates, generated 800x600 JPEGs). It writes through the SQLAlchemy models and
 `PhotoStorage`, marks every row with a note starting `[demo]`, and uses deterministic ids, so repeated runs create
-nothing new. It refuses to run when `ALDIA_ENV`, `APP_ENV` or `ENVIRONMENT` is `production`.
+nothing new. It refuses production flags including `ENV=production`.
+Only `ENV=dev` creates `operador`/`supervisor` accounts with random initial passwords
+printed once when each account is created. No fixed credentials exist. Reruns preserve
+passwords; `--reset`/`--purge` affect reports only. Capture initial output privately and
+avoid seed log capture in shared environments. See [demo credentials](../../documentation/demo-credentials.md).
 
 ```sh
-export DATABASE_URL=sqlite:///./aldia.db PHOTO_DIR=/tmp/aldia-api-photos   # same values as the running API
+export ENV=dev DATABASE_URL=sqlite:///./aldia.db PHOTO_DIR=/tmp/aldia-api-photos
 uv run alembic upgrade head
 uv run python scripts/seed_demo.py            # create what is missing
 uv run python scripts/seed_demo.py --reset    # delete "[demo]" rows, then create again
@@ -209,6 +236,9 @@ uses `created_at` as an approximation and records this in a system event's
 internal note. Downgrade removes v0.2 history and maps `closed` resolution to
 `open` to restore the v0.1 constraint. Migration round trips and schema drift are
 tested on SQLite; live Postgres migration execution is a deployment check.
+Migration `0004` adds staff users/sessions/auth audit and report event actors. Existing
+non-system events become `legacy:<role>`; no historical identity is invented. Downgrade
+removes accounts, sessions, auth audit and actor attribution; back up before using it.
 
 ## Verify
 
@@ -244,5 +274,5 @@ docker run --rm --network aldia -p 8000:8000 --env DATABASE_URL --env VERIFIER_U
 
 The multi-stage image uses a frozen production-only uv environment, runs as
 UID/GID 10001, and checks `/api/health`. Health is a liveness check, not a promise
-of database or verifier availability. The shared staff-token scheme is a v0.2 stopgap; use only synthetic or
-explicitly consented photos for this PoC.
+of database or verifier availability. Use HTTPS and real staff accounts for deployments;
+keep the legacy fallback disabled. The verifier remains a stub; demo photos are synthetic.

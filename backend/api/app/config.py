@@ -14,9 +14,15 @@ class Settings(BaseSettings):
     verifier_url: str = "http://verifier:8001"
     max_upload_bytes: int = Field(default=8388608, gt=0)
     cors_origins: str = "http://localhost:5173"
+    env: str = "production"
+    auth_dev_tokens: bool = False
 
     staff_token: str | None = Field(default=None, repr=False, exclude=True)
     supervisor_token: str | None = Field(default=None, repr=False, exclude=True)
+
+    @property
+    def dev_tokens_enabled(self) -> bool:
+        return self.env == "dev" and self.auth_dev_tokens
 
     @field_validator("staff_token", "supervisor_token")
     @classmethod

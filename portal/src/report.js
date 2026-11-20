@@ -122,11 +122,11 @@ export function createReportPage(
           element(
             'p',
             '',
-            `${formatDate(event.at)} · ${ui.actors[event.actor_role] ?? event.actor_role} · ${event.from_state ? stateLabel(event.from_state) + ' → ' : ''}${stateLabel(event.to_state)}`,
+            `${formatDate(event.at)} · ${event.actor ?? ui.actors[event.actor_role] ?? event.actor_role} · ${event.from_state ? stateLabel(event.from_state) + ' → ' : ''}${stateLabel(event.to_state)}`,
           ),
         );
         if (event.public_note) item.append(element('p', '', event.public_note));
-        if (staff?.getToken() && event.internal_note)
+        if ((staff?.getRole?.() || staff?.getToken()) && event.internal_note)
           item.append(
             element('p', '', `${ui.internalNote}: ${event.internal_note}`),
           );
@@ -208,7 +208,7 @@ export function createReportPage(
                   thumbnail: true,
                 }),
               );
-              if (staff?.getToken()) {
+              if (staff?.getRole?.() || staff?.getToken()) {
                 const mark = element('button', '', ui.markDuplicate);
                 mark.type = 'button';
                 mark.disabled = reportState(report) !== 'en_revision';

@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import os
 import random
+import secrets
 import sys
 from collections import Counter
 from dataclasses import dataclass
@@ -41,13 +42,14 @@ from sqlalchemy.orm import Session  # noqa: E402
 from app.categories import CATEGORIES  # noqa: E402
 from app.config import Settings  # noqa: E402
 from app.db import Database  # noqa: E402
-from app.models import IdempotencyRecord, Report, ReportEvent  # noqa: E402
+from app.models import AuthEvent, IdempotencyRecord, Report, ReportEvent, StaffUser  # noqa: E402
+from app.security import hash_password  # noqa: E402
 from app.services.storage import PhotoStorage  # noqa: E402
 from app.state_machine import STATE_GROUPS, resolution_for  # noqa: E402
 
 PREFIX = "[demo]"
 NAMESPACE = UUID("6f1d3c2e-5a4b-4c7d-9e8f-0a1b2c3d4e5f")
-PRODUCTION_FLAGS = ("ALDIA_ENV", "APP_ENV", "ENVIRONMENT")
+PRODUCTION_FLAGS = ("ALDIA_ENV", "APP_ENV", "ENVIRONMENT", "ENV")
 PRODUCTION_VALUES = {"production", "prod"}
 
 # (lat, lon) anchors around Guatemala City; reports are jittered by roughly 100-400 m.
@@ -526,6 +528,10 @@ def seed(
                 storage.save(rid, make_photo(spec))
             continue
         report, events, photo = build_rows(spec, by_index, now)
+        for event in events:
+            event.actor = {"operator": "operador", "supervisor": "supervisor"}.get(
+                event.actor_role, "system"
+            )
         session.add(report)
         session.flush()
         session.add_all(events)
@@ -533,6 +539,31 @@ def seed(
         created += 1
     session.commit()
     return {"created": created, "skipped": skipped}
+
+
+def seed_users(session: Session, settings: Settings) -> None:
+    """Print a random initial password once, only on explicit local development."""
+    if settings.env != "dev":
+        return
+    for username, role in (("operador", "operator"), ("supervisor", "supervisor")):
+        if session.scalar(select(StaffUser.id).where(StaffUser.username == username)):
+            continue
+        password = secrets.token_urlsafe(24)
+        session.add(
+            StaffUser(
+                username=username, role=role, password_hash=hash_password(password)
+            )
+        )
+        session.add(
+            AuthEvent(
+                actor="system",
+                actor_role="system",
+                action="demo_user_created",
+                target=username,
+            )
+        )
+        session.commit()
+        print(f"Development account {username}; initial password: {password}")
 
 
 def summarize(session: Session) -> str:
@@ -576,6 +607,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"Removed {purge(session, storage)} demo reports.")
             if not args.purge:
                 counters = seed(session, storage)
+                seed_users(session, settings)
                 print(
                     f"Created {counters['created']}, "
                     f"already present {counters['skipped']}."

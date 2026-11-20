@@ -156,7 +156,10 @@ function isReport(value) {
           (e) =>
             e &&
             isTimestamp(e.at) &&
-            ['system', 'operator', 'supervisor'].includes(e.actor_role) &&
+            ['system', 'operator', 'supervisor', 'admin'].includes(
+              e.actor_role,
+            ) &&
+            (e.actor === undefined || typeof e.actor === 'string') &&
             (e.from_state === null || STATES.includes(e.from_state)) &&
             STATES.includes(e.to_state) &&
             (e.public_note === null || typeof e.public_note === 'string') &&
@@ -192,7 +195,7 @@ function isReport(value) {
 }
 
 /**
- * @param {{baseUrl?: string, fetchImpl?: typeof fetch, timeoutMs?: number, staff?: {getToken: () => string}|null}} [options]
+ * @param {{baseUrl?: string, fetchImpl?: typeof fetch, timeoutMs?: number, staff?: object|null}} [options]
  */
 export function createApiClient({
   baseUrl = API_BASE_URL,
@@ -201,6 +204,17 @@ export function createApiClient({
   staff = null,
 } = {}) {
   const base = apiBase(baseUrl);
+  const isUserEnvelope = (body) =>
+    body &&
+    typeof body.user?.username === 'string' &&
+    ['operator', 'supervisor', 'admin'].includes(body.user.role);
+  const csrfToken = () => {
+    const value = globalThis.document?.cookie
+      .split(';')
+      .map((cookie) => cookie.trim())
+      .find((cookie) => cookie.startsWith('aldia_csrf='));
+    return value ? decodeURIComponent(value.slice('aldia_csrf='.length)) : '';
+  };
   /** @param {string} path @param {ReportQuery} query */
   function filteredUrl(path, query) {
     const url = new URL(path, base);
@@ -219,6 +233,7 @@ export function createApiClient({
     validate,
     { signal, method = 'GET', body: payload, responseType = 'json' } = {},
   ) {
+    const identity = staff?.getUser?.() ?? staff?.getToken?.();
     const controller = new AbortController();
     const abort = () => controller.abort(signal.reason);
     if (signal?.aborted) throw signal.reason;
@@ -229,6 +244,11 @@ export function createApiClient({
       controller.abort();
     }, timeoutMs);
     try {
+      const csrf =
+        !['GET', 'HEAD'].includes(method) &&
+        !url.pathname.endsWith('/auth/login')
+          ? csrfToken()
+          : '';
       const response = await fetchImpl(url.href, {
         signal: controller.signal,
         method,
@@ -241,10 +261,11 @@ export function createApiClient({
                 : 'application/json',
           ...(payload ? { 'Content-Type': 'application/json' } : {}),
           ...(staff?.getToken() ? { 'X-Staff-Token': staff.getToken() } : {}),
+          ...(csrf ? { 'X-CSRF-Token': csrf } : {}),
         },
         ...(payload ? { body: JSON.stringify(payload) } : {}),
         cache: 'no-store',
-        credentials: 'omit',
+        credentials: 'include',
         referrerPolicy: 'strict-origin-when-cross-origin',
         redirect: 'error',
       });
@@ -282,7 +303,18 @@ export function createApiClient({
       if (signal?.aborted) throw signal.reason;
       if (timedOut)
         throw new ApiError({ code: 'timeout', message: t.timeoutError });
-      if (error instanceof ApiError) throw error;
+      if (error instanceof ApiError) {
+        if (
+          error.status === 401 &&
+          identity &&
+          !url.pathname.endsWith('/auth/login') &&
+          identity === (staff?.getUser?.() ?? staff?.getToken?.())
+        )
+          staff?.clear?.(error);
+        // Clearing identity synchronously cancels the old private view. Preserve
+        // this HTTP error even when that subscriber aborts the request signal.
+        throw error;
+      }
       throw new ApiError({ code: 'network_error', message: t.networkError });
     } finally {
       clearTimeout(timer);
@@ -290,6 +322,30 @@ export function createApiClient({
     }
   }
   return {
+    getAuthConfig(options) {
+      return request(
+        new URL('auth/config', base),
+        (body) =>
+          body &&
+          typeof body.enabled === 'boolean' &&
+          typeof body.dev_tokens === 'boolean',
+        options,
+      );
+    },
+    getMe(options) {
+      return request(new URL('auth/me', base), isUserEnvelope, options);
+    },
+    login(username, password) {
+      return request(new URL('auth/login', base), isUserEnvelope, {
+        method: 'POST',
+        body: { username, password },
+      });
+    },
+    logout() {
+      return request(new URL('auth/logout', base), (body) => body === null, {
+        method: 'POST',
+      });
+    },
     /** @param {ReportQuery} query @param {{signal?: AbortSignal}} [options] @returns {Promise<ReportPage>} */
     getReports(query, options) {
       const url = filteredUrl('reports', query);
@@ -402,7 +458,7 @@ export function createApiClient({
     getStats(query, options) {
       return request(filteredUrl('stats', query), isStats, options);
     },
-    hasStaff: () => Boolean(staff?.getToken()),
+    hasStaff: () => Boolean(staff?.getRole?.() || staff?.getToken()),
     /** @param {string} value @param {object} [options] */
     getPhotoBlob(value, options) {
       const url = safePhotoUrl(value, baseUrl);

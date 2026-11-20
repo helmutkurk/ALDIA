@@ -237,6 +237,20 @@ export const ui = Object.freeze({
     hidden: 'O',
   },
   staff: 'Modo personal',
+  username: 'Usuario',
+  password: 'Contraseña',
+  login: 'Iniciar sesión',
+  logout: 'Cerrar sesión',
+  loginHelp: 'Accede con tu cuenta de personal. La sesión dura hasta 12 horas.',
+  authLoading: 'Comprobando sesión…',
+  devTokens: 'Acceso de desarrollo con token',
+  signedIn: (user) => `${user.username} · ${ui[user.role]}`,
+  forbidden:
+    'No tienes permisos para esta acción. Si acabas de iniciar sesión, recarga la página y vuelve a intentarlo.',
+  locked:
+    'Cuenta bloqueada durante 15 minutos por intentos fallidos. Espera antes de volver a intentar.',
+  rateLimited:
+    'Demasiados intentos de acceso. Espera 15 minutos y vuelve a intentarlo.',
   token: 'Token de personal',
   enable: 'Activar',
   disable: 'Salir del modo personal',
@@ -245,6 +259,7 @@ export const ui = Object.freeze({
   role: 'Permisos solicitados',
   operator: 'Operador',
   supervisor: 'Supervisor',
+  admin: 'Administrador',
   roleHelp:
     'Seleccionar supervisor no concede permisos: requiere el token de supervisor.',
   publicMode: 'Vista pública de solo lectura',
@@ -312,7 +327,7 @@ export const ui = Object.freeze({
   conflict:
     'El reporte cambió o la transición no está permitida. Recarga el reporte y revisa el estado actual.',
   unauthorized:
-    'Token no válido o permisos insuficientes. Revisa el modo personal.',
+    'La sesión caducó o las credenciales no son válidas. Inicia sesión de nuevo.',
   unavailable:
     'El modo personal no está disponible en el servidor. Contacta con la administración.',
   timeline: 'Historial de estados',
@@ -321,7 +336,12 @@ export const ui = Object.freeze({
   verified: 'Verificado',
   changed: 'Estado actualizado',
   coordinates: 'Coordenadas',
-  actors: { system: 'Sistema', operator: 'Operador', supervisor: 'Supervisor' },
+  actors: {
+    system: 'Sistema',
+    operator: 'Operador',
+    supervisor: 'Supervisor',
+    admin: 'Administrador',
+  },
   zoomPhoto: 'Ampliar foto',
   closePhoto: 'Cerrar foto ampliada',
   nearby: 'Posibles duplicados cercanos',
@@ -335,7 +355,7 @@ export const ui = Object.freeze({
   rejected: 'Rechazadas por verificador',
   age: (hours) => `${Math.floor(hours)} h desde la verificación`,
   queueError: 'No se pudo cargar la bandeja.',
-  staffNeeded: 'Activa el modo personal para gestionar la bandeja.',
+  staffNeeded: 'Inicia sesión en Modo personal para gestionar la bandeja.',
   override: 'Anular rechazo',
   refresh: 'Recargar reporte',
 });
@@ -345,7 +365,9 @@ export function staffError(error) {
   return (
     {
       401: ui.unauthorized,
-      403: ui.unauthorized,
+      403: ui.forbidden,
+      423: ui.locked,
+      429: ui.rateLimited,
       409: ui.conflict,
       503: ui.unavailable,
     }[error.status] ??
