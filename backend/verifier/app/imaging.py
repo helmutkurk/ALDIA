@@ -1,38 +1,9 @@
 import warnings
-from dataclasses import dataclass
 from io import BytesIO
-from typing import Any
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
-# Malformed present metadata is a failed check, never silently treated as absent.
-EXIF_ERRORS = (
-    ValueError,
-    TypeError,
-    KeyError,
-    IndexError,
-    OSError,
-    OverflowError,
-    ZeroDivisionError,
-    AttributeError,
-    SyntaxError,
-)
-
-
-@dataclass(frozen=True)
-class Metadata:
-    time: dict[int, Any] | None
-    gps: dict[int, Any] | None
-
-
-def read_ifd(exif: Image.Exif, tag: int) -> dict[int, Any] | None:
-    if tag not in exif:
-        return {}
-    try:
-        # Resolve nested offsets while the source image is still open.
-        return dict(exif.get_ifd(tag))
-    except EXIF_ERRORS:
-        return None
+from app.metadata import Metadata, capture_time, gps_coordinates, read_ifd
 
 
 def decode_image(data: bytes) -> tuple[Image.Image, Metadata]:
@@ -44,7 +15,10 @@ def decode_image(data: bytes) -> tuple[Image.Image, Metadata]:
                     raise ValueError("Only JPEG and PNG images are supported")
                 image.load()
                 exif = image.getexif()
-                metadata = Metadata(read_ifd(exif, 34665), read_ifd(exif, 34853))
+                metadata = Metadata(
+                    capture_time(read_ifd(exif, 34665)),
+                    gps_coordinates(read_ifd(exif, 34853)),
+                )
                 return ImageOps.exif_transpose(image).convert("RGB"), metadata
     except (
         UnidentifiedImageError,

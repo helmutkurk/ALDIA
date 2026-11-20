@@ -4,7 +4,7 @@ from datetime import datetime
 from PIL import Image
 
 from app.config import Settings
-from app.imaging import Metadata
+from app.metadata import Metadata
 from app.schemas import VerifyInput
 
 

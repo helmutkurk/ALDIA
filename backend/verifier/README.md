@@ -14,7 +14,7 @@ uv run uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8001 --no-a
 ```
 
 `make install` and `make dev` are available; development enables reload.
-`GET /health` returns `{"status":"ok","mode":"stub"}`.
+`GET /health` returns `{"status":"ok","mode":"heuristic"}`.
 `POST /verify` accepts multipart fields `photo`, `category`, `latitude`,
 `longitude`, `captured_at`. All other or repeated fields are rejected. Coordinates
 must be finite and in range, and the capture time must include a timezone.
@@ -27,8 +27,13 @@ allows the API to send an image re-encoded from an upload of up to 8 MiB.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `VERIFIER_MODE` | `stub` | `stub` or `model`; model mode fails clearly until a trained classifier is integrated. |
-| `MAX_AGE_SECONDS` | `600` | Largest allowed age, inclusive; timestamps up to 60 seconds ahead are accepted. |
+| `VERIFIER_MODE` | `heuristic` | `heuristic`, legacy alias `stub`, or `model`; model mode fails clearly until a trained classifier is integrated. |
+| `MAX_AGE_SECONDS` | `600` | Largest submitted/EXIF age, inclusive; timestamps up to 60 seconds ahead are accepted. |
+| `SHARPNESS_MIN` | `80` | Minimum signed Laplacian variance on the 320-pixel grayscale thumbnail. |
+| `EXPOSURE_MIN_MEAN` | `12` | Minimum mean grayscale luminance. |
+| `EXPOSURE_MAX_MEAN` | `243` | Maximum mean grayscale luminance. |
+| `EXPOSURE_MAX_CLIPPED_RATIO` | `0.95` | Maximum fraction of pixels <= 5 or >= 250. |
+| `SCREEN_MIN_CORRELATION` | `0.85` | Minimum local periodic correlation peak for a soft screen-photo hint. |
 
 Settings come from the process environment. No environment files are loaded.
 `.env.example` lists names only; do not load its empty values as configuration.
@@ -38,7 +43,7 @@ Settings come from the process environment. No environment files are loaded.
 - `image`: decode JPEG/PNG by content, reject unsafe decompression/truncation,
   apply EXIF orientation, and require width >= 640 and height >= 480.
 - `place`: a coordinate must fall inside one of the inclusive bounding boxes in
-  `app/checks.py`. Values are `(west, south, east, north)`: GT
+  `app/checks/place.py`. Values are `(west, south, east, north)`: GT
   `(-92.3, 13.7, -88.2, 17.9)`, CO `(-81.8, -4.3, -66.8, 13.6)`, MX
   `(-118.5, 14.5, -86.7, 32.8)`. These are broad MVP envelopes, not geographic
   country boundaries; they include some offshore/neighboring areas and do not
@@ -46,31 +51,49 @@ Settings come from the process environment. No environment files are loaded.
 - `freshness`: capture time is between 60 seconds in the future and
   `MAX_AGE_SECONDS` in the past, inclusive. This checks submitted metadata,
   not trusted camera attestation.
+- `sharpness` and `exposure`: assess usability on an aspect-preserving grayscale
+  thumbnail with a maximum side of 320 pixels.
+- `exif_time`: checks DateTimeOriginal age and agreement within 120 seconds of
+  submitted time. Honors OffsetTimeOriginal; absent offset explicitly assumes UTC.
+- `exif_gps`: valid DMS coordinates must be within 150 m of the submitted point.
+  Missing time/GPS passes with `exif_missing` and detail `sin EXIF`; malformed
+  present metadata fails. EXIF is neither trusted attestation nor proof of place.
+- `screen_photo`: periodic-pattern hint on an independent 128-pixel grayscale
+  thumbnail. Always passes; a suspected screen produces `possible_screen`.
 - `category`: `StubClassifier` accepts supported categories and always returns
-  `detail: "stub: not classified"`. A stub result is never evidence that a model
-  recognized a street problem.
+  `detail: "no clasificado (sin modelo)"`, `code: "category_stub"`.
+  A stub result is never evidence that a model recognized a street problem.
 
 `app/phash.py` computes a deterministic 64-bit difference hash: grayscale,
 9x8 LANCZOS resize, compare each pixel with its right neighbor (`left > right`),
 row-major bits, most significant bit first, exactly 16 lowercase hex digits.
 The API handles duplicate comparison and appends its own check.
+`app/checks/registry.py` orchestrates the checks using `CheckContext`. The image
+is decoded/oriented once, and EXIF is normalized into frozen models with explicit
+missing/invalid states in `app/metadata.py`. The 320-pixel, 128-pixel and hash
+resizes are independent; thumbnails are never resized from each other.
+All results retain stable names, codes and order.
 Images are processed in memory and never persisted by this service. Application
 logs contain no coordinates, filenames or image contents. Supplied commands
 disable access logs; configure deployment proxies with the same privacy policy.
 
 ## Plug in Lorenz's trained model
 
-`app/checks.py` defines `Classifier.classify(image, category) -> Check`. Inputs
-are decoded, oriented RGB Pillow images and stable category IDs. Implement this
+`app/checks/category.py` defines `Classifier.classify(image, category) -> Check`.
+The protocol and verifier entry points are exported from `app/checks/__init__.py`.
+Inputs are decoded, oriented RGB Pillow images and stable category IDs. Implement this
 Protocol in a new module under `app/`, returning `name="category"`, a Boolean
-`passed`, and a concise explanation in `detail`. Do not use the stub's success
-value as a model prediction. Set and document any trained confidence thresholds.
+`passed`, a machine-readable `code`, and a concise explanation in `detail`.
+Do not use the stub's success value as a model prediction. Set and document any
+trained confidence thresholds.
 
 In `app/main.py`, replace the explicit `NotImplementedError` branch for
 `VERIFIER_MODE=model` with model initialization and assign that instance to the
 `Classifier` variable. Load weights once at startup, fail startup if unavailable,
-and preserve `mode="model"` in responses and health. Keep `StubClassifier` for
-stub mode and add deterministic tests for model preprocessing and decisions.
+and update `app/checks/registry.py` to support model verification and emit
+`mode="model"` in responses and health. Keep `StubClassifier` for heuristic mode
+(including the `stub` configuration alias), and add deterministic tests for model
+preprocessing and decisions.
 Any required model runtime dependencies need the team's approval and exact uv
 pins. Never silently fall back to the stub when model mode was requested.
 

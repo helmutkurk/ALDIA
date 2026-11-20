@@ -1,27 +1,8 @@
-from math import asin, cos, isfinite, radians, sin, sqrt
-from typing import Any
+from math import asin, cos, radians, sin, sqrt
 
 from app.checks.context import CheckContext
-from app.imaging import EXIF_ERRORS
+from app.metadata import ExifState
 from app.schemas import Check
-
-
-def coordinate(value: Any, ref: Any, positive: str, negative: str, limit: int) -> float:
-    if not isinstance(value, tuple | list) or len(value) != 3:
-        raise ValueError("Invalid EXIF DMS")
-    degrees, minutes, seconds = (float(part) for part in value)
-    if (
-        not all(isfinite(part) for part in (degrees, minutes, seconds))
-        or not 0 <= degrees <= limit
-        or not 0 <= minutes < 60
-        or not 0 <= seconds < 60
-        or ref not in (positive, negative)
-    ):
-        raise ValueError("Invalid EXIF coordinate")
-    result = degrees + minutes / 60 + seconds / 3600
-    if result > limit:
-        raise ValueError("EXIF coordinate out of range")
-    return result if ref == positive else -result
 
 
 def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -35,25 +16,17 @@ def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 def run(context: CheckContext) -> Check:
     gps = context.metadata.gps
-    if gps == {}:
-        return Check(
-            name="exif_gps", passed=True, detail="sin EXIF", code="exif_missing"
-        )
-    try:
-        if gps is None:
-            raise ValueError("Invalid GPS IFD")
-        latitude = coordinate(gps[2], gps[1], "N", "S", 90)
-        longitude = coordinate(gps[4], gps[3], "E", "W", 180)
-        distance = haversine(
-            latitude, longitude, context.report.latitude, context.report.longitude
-        )
-    except EXIF_ERRORS:
+    if isinstance(gps, ExifState):
+        missing = gps is ExifState.MISSING
         return Check(
             name="exif_gps",
-            passed=False,
-            detail="GPS EXIF inválido",
-            code="exif_gps_invalid",
+            passed=missing,
+            detail="sin EXIF" if missing else "GPS EXIF inválido",
+            code="exif_missing" if missing else "exif_gps_invalid",
         )
+    distance = haversine(
+        gps.latitude, gps.longitude, context.report.latitude, context.report.longitude
+    )
     passed = distance <= 150
     return Check(
         name="exif_gps",
