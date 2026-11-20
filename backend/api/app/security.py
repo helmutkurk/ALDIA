@@ -7,9 +7,12 @@ import secrets
 import time
 from collections import OrderedDict, deque
 from threading import Lock
+from typing import Literal
 
 from argon2 import PasswordHasher, Type
 from argon2.exceptions import VerificationError
+
+StaffRole = Literal["operator", "supervisor", "admin"]
 
 PASSWORD_HASHER = PasswordHasher(
     time_cost=3,

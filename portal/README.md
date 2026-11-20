@@ -203,6 +203,7 @@ prefetch. Review provider capacity before scaling.
 
 ```sh
 npm run check           # ESLint, Prettier, all Vitest tests, production build
+make lint test          # Existing JS checks; tests skip environment-file loading
 npm run test:watch
 npm run dev
 ```
@@ -210,6 +211,12 @@ npm run dev
 Tests use fake timers and mocked fetch; no live API, geocoder or photos are
 required. `tests/staff-auth.test.js` covers login/logout, session restoration,
 API-controlled dev fallback, admin gating, Spanish 401/403/423 and CSRF headers.
+This JavaScript portal uses ESLint, Prettier and runtime payload validation;
+Ruff and mypy do not apply. Shared JSDoc models live in `src/api-types.js`.
+`src/api-request.js` owns HTTP policy, `src/workspace-load.js` owns list/cluster
+loading, and `src/csv-export.js` owns the dashboard download lifecycle.
+The quality audit and verification record are in
+`../documentation/log/quality-portal.md`.
 `tests/browser-review.sh` prints the desktop/mobile review checklist
 and starts Vite. Run browser review outside the Codex sandbox, with the API
 running separately, or use an external connected browser.

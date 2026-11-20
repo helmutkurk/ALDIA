@@ -22,7 +22,7 @@ class PhotoStorage:
         return self.root / f"{validated}.jpg"
 
     def thumbnail_path(self, report_id: UUID | str) -> Path:
-        return self.path(report_id).with_name(f"{self.path(report_id).stem}.thumb.jpg")
+        return self.path(report_id).with_suffix(".thumb.jpg")
 
     def thumbnail(self, report_id: UUID | str) -> Path | None:
         """Return the cached JPEG thumbnail, generating it atomically on first use."""
@@ -45,17 +45,7 @@ class PhotoStorage:
         clean.paste(small)
         output = BytesIO()
         clean.save(output, format="JPEG", quality=72, optimize=True)
-        temporary: str | None = None
-        try:
-            with tempfile.NamedTemporaryFile(dir=self.root, delete=False) as file:
-                temporary = file.name
-                file.write(output.getvalue())
-                file.flush()
-                os.fsync(file.fileno())
-            os.replace(temporary, target)
-        finally:
-            if temporary is not None:
-                Path(temporary).unlink(missing_ok=True)
+        self._write_atomic(target, output.getvalue())
         return target
 
     def ensure_private(self) -> None:
@@ -95,6 +85,9 @@ class PhotoStorage:
     def save(self, report_id: UUID, data: bytes) -> None:
         target = self.path(report_id)
         self.ensure_private()
+        self._write_atomic(target, data)
+
+    def _write_atomic(self, target: Path, data: bytes) -> None:
         temporary: str | None = None
         try:
             with tempfile.NamedTemporaryFile(dir=self.root, delete=False) as file:

@@ -1,14 +1,8 @@
-import { element } from './dom.js';
+import { element, svgElement } from './dom.js';
 import { t } from './i18n.js';
 import { number, quantity } from './dashboard-metrics.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
-const svgNode = (name, attrs = {}) => {
-  const node = document.createElementNS(SVG, name);
-  for (const [key, value] of Object.entries(attrs))
-    node.setAttribute(key, String(value));
-  return node;
-};
 /** Cumulative running total of one weekly series. @param {Array<object>} weeks @param {string} key */
 const cumulative = (weeks, key) => {
   let sum = 0;
@@ -37,7 +31,7 @@ export function allTimeSection(stats) {
       ? (left + right) / 2
       : left + (i * (right - left)) / (weeks.length - 1);
   const y = (value) => bottom - ((bottom - top) * value) / max;
-  const svg = svgNode('svg', {
+  const svg = svgElement('svg', {
     viewBox: '0 0 640 236',
     role: 'img',
     class: 'all-time-chart',
@@ -46,7 +40,7 @@ export function allTimeSection(stats) {
   for (const fraction of [0, 0.5, 1]) {
     const value = max * fraction;
     svg.append(
-      svgNode('line', {
+      svgElement('line', {
         x1: left,
         x2: right,
         y1: y(value),
@@ -54,7 +48,7 @@ export function allTimeSection(stats) {
         class: 'chart-grid',
       }),
     );
-    const label = svgNode('text', {
+    const label = svgElement('text', {
       x: left - 8,
       y: y(value) + 4,
       'text-anchor': 'end',
@@ -68,7 +62,7 @@ export function allTimeSection(stats) {
     Math.floor((weeks.length - 1) / 2),
     weeks.length - 1,
   ])) {
-    const label = svgNode('text', {
+    const label = svgElement('text', {
       x: x(index),
       y: 226,
       'text-anchor':
@@ -84,7 +78,7 @@ export function allTimeSection(stats) {
   }
   let previousLabelY;
   for (const key of ['recibidos', 'resueltos']) {
-    const line = svgNode('polyline', {
+    const line = svgElement('polyline', {
       points: series[key].map((value, i) => `${x(i)},${y(value)}`).join(' '),
       class: `weekly-line weekly-line--${key}`,
       fill: 'none',
@@ -97,13 +91,13 @@ export function allTimeSection(stats) {
     // Different end markers keep the two series apart without relying on colour.
     svg.append(
       key === 'recibidos'
-        ? svgNode('circle', {
+        ? svgElement('circle', {
             cx: x(weeks.length - 1),
             cy: y(end),
             r: 5,
             class: 'weekly-dot weekly-dot--recibidos',
           })
-        : svgNode('rect', {
+        : svgElement('rect', {
             x: x(weeks.length - 1) - 4.5,
             y: y(end) - 4.5,
             width: 9,
@@ -115,7 +109,7 @@ export function allTimeSection(stats) {
     if (previousLabelY !== undefined && Math.abs(labelY - previousLabelY) < 22)
       labelY = previousLabelY + 22;
     previousLabelY = labelY;
-    const directLabel = svgNode('text', {
+    const directLabel = svgElement('text', {
       x: x(weeks.length - 1) + 12,
       y: labelY,
       class: 'chart-tick',
@@ -197,7 +191,7 @@ export function lastWeekSection(weeks, options = {}) {
       recent.length === 1 ? 60 : 6 + (i * 108) / (recent.length - 1),
       34 - (28 * value) / max,
     ];
-    const spark = svgNode('svg', {
+    const spark = svgElement('svg', {
       viewBox: '0 0 120 40',
       class: `spark spark--${key}`,
       role: 'img',
@@ -208,7 +202,7 @@ export function lastWeekSection(weeks, options = {}) {
     );
     if (recent.length > 1)
       spark.append(
-        svgNode('path', {
+        svgElement('path', {
           d: values
             .map((value, i) => `${i ? 'L' : 'M'}${point(value, i).join(' ')}`)
             .join(' '),
@@ -219,8 +213,8 @@ export function lastWeekSection(weeks, options = {}) {
     const [cx, cy] = point(values.at(-1), values.length - 1);
     spark.append(
       key === 'recibidos'
-        ? svgNode('circle', { cx, cy, r: 4, class: 'spark-dot' })
-        : svgNode('rect', {
+        ? svgElement('circle', { cx, cy, r: 4, class: 'spark-dot' })
+        : svgElement('rect', {
             x: cx - 3.5,
             y: cy - 3.5,
             width: 7,

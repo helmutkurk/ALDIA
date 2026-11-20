@@ -3,7 +3,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from threading import Lock
-from typing import Annotated, Literal, cast
+from typing import Annotated, cast
 
 from fastapi import Depends, Header, HTTPException, Request
 from sqlalchemy import select
@@ -17,6 +17,7 @@ from app.security import (
     CSRF_COOKIE,
     SESSION_COOKIE,
     LoginLimiter,
+    StaffRole,
     constant_equal,
     digest,
     signature,
@@ -67,9 +68,6 @@ def get_session(services: ServicesDep) -> Iterator[Session]:
 
 
 SessionDep = Annotated[Session, Depends(get_session)]
-
-
-StaffRole = Literal["operator", "supervisor", "admin"]
 
 
 def session_record(request: Request, session: Session) -> StaffSession:
