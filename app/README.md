@@ -13,9 +13,14 @@ No reference assets, copy or code are included.
   it does not claim to be an all-time total.
 - **Explorar mi ciudad** opens a full-screen map with floating controls: back, a **Mapa | Lista** switch and a
   filter button with the number of active filters. The map adds zoom, my location, layers, a state legend and
-  loading/empty/error messages; pins show the category icon on the state color with the state word below. Clusters
-  fall back to individual reports. **Filtros** opens a sheet with search plus category and state-group chips
-  (`state_group`); the list uses the same header.
+  loading/empty/error messages; pins show the category icon on the state color with the state word below. One
+  `ExploreQuery` (`features/home/explore_query.dart`, see `app/GLOSSARY.md`) decides what both modes show: Mapa and
+  Lista always show the same reports for the visible area. Without filters the map shows clusters (requested 3 zoom
+  levels out, so they sit about 128 px apart); tapping one lists every report in its grid cell, and a one-report
+  cluster is drawn as its state pin when its report is among the newest 100 of the area. Clusters fall back to
+  individual reports. **Filtros** opens a sheet with search plus category and state-group chips (`state_group`);
+  any filter or search switches the map to pins, and search is matched in the app on the loaded reports. Results
+  come 100 at a time: the map says when more exist, and Lista has **Ver más**.
 - Wizard: **Ubicación → Categoría → Foto → Detalles → Revisar y enviar** (the nearby-duplicates step was removed). Every step has a summary of
   the chosen place/category. Location supports explicit address search, GPS, map pin and accessible coordinate inputs;
   **CONFIRMAR UBICACIÓN** remains at the bottom. Categories and groups come from `GET /api/categories`, with offline
