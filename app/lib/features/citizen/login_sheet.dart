@@ -136,7 +136,7 @@ class _CitizenLoginSheetState extends State<CitizenLoginSheet> {
           ),
           const SizedBox(height: 12),
           const Text(
-            'Tu número no será público. El acceso dura 90 días en este dispositivo. Los avisos se consultan en Aldia; las notificaciones push aún no están disponibles.',
+            'Tu número no será público. El acceso dura 90 días en este dispositivo. Los avisos se consultan en AlDía; las notificaciones push aún no están disponibles.',
           ),
           const SizedBox(height: 16),
           TextField(

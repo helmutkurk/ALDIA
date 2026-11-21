@@ -15,7 +15,7 @@ class ShareService {
     final url = Uri.parse(_portalUrl)
         .replace(fragment: '/reports/$id')
         .toString();
-    final text = 'Mira este reporte en Aldia: $url';
+    final text = 'Mira este reporte en AlDía: $url';
     try {
       if (!kIsWeb &&
           (defaultTargetPlatform == TargetPlatform.android ||
