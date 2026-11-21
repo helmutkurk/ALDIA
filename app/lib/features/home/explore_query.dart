@@ -198,56 +198,44 @@ class ExploreQuery extends ChangeNotifier {
         category: _filters.category,
       );
 
+  /// Loads clusters and the area's newest reports in parallel, then replaces
+  /// the whole view at once. Until then the previous view stays on screen, so
+  /// a one-report cluster never shows as a plain pin before its state pin.
   Future<void> _load() async {
     final area = _area;
     if (area == null || _disposed) return;
     final token = ++_token;
-    final clustersApi = _clustersApi;
-    _showsClusters = clustersApi != null && !_filtered;
-    _clustersUnavailable = false;
-    _clusters = const [];
-    _fetched = const [];
-    _fetchedReports = false;
-    _total = 0;
+    final clustersApi = _filtered ? null : _clustersApi;
+    final zoom = clusterRequestZoom(area.zoom);
     _loadingMore = false;
     _loading = true;
     _failed = false;
     _publish();
-    if (clustersApi != null && _showsClusters) {
-      try {
-        final zoom = clusterRequestZoom(area.zoom);
-        final clusters = await clustersApi.clusters(
+
+    final clustersRequest = clustersApi
+        ?.clusters(
           southWest: area.southWest,
           northEast: area.northEast,
           zoom: zoom.toDouble(),
+        )
+        .then<List<ReportCluster>?>(
+          (clusters) => clusters,
+          onError: (_) => null,
         );
-        if (_stale(token)) return;
-        _clusterZoom = zoom;
-        _clusters = clusters;
-      } catch (_) {
-        if (_stale(token)) return;
-        _showsClusters = false;
-        _clustersUnavailable = true;
-      }
-    }
-    await _loadReports(token);
-  }
+    final pageRequest = _nearby(area)
+        .then<ReportPage?>((page) => page, onError: (_) => null);
+    final clusters = await clustersRequest;
+    final page = await pageRequest;
+    if (_stale(token)) return;
 
-  Future<void> _loadReports(int token) async {
-    final area = _area!;
-    _loading = true;
-    _failed = false;
-    _publish();
-    try {
-      final page = await _nearby(area);
-      if (_stale(token)) return;
-      _fetched = page.items;
-      _total = page.total;
-      _fetchedReports = true;
-    } catch (_) {
-      if (_stale(token)) return;
-      _failed = true;
-    }
+    _showsClusters = clusters != null;
+    _clustersUnavailable = clustersApi != null && clusters == null;
+    _clusters = clusters ?? const [];
+    _clusterZoom = zoom;
+    _fetched = page?.items ?? const [];
+    _total = page?.total ?? 0;
+    _fetchedReports = page != null;
+    _failed = page == null;
     _loading = false;
     _publish();
   }

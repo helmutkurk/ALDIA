@@ -393,4 +393,36 @@ void main() {
     expect(q.state.failed, isTrue, reason: 'Lista offers retry');
     expect(q.state.loading, isFalse);
   });
+
+  test('a new area replaces clusters and pins in one step', () async {
+    final gated = _gated();
+    final single = ReportCluster(
+      position: const LatLng(14.62, -90.52),
+      count: 1,
+      ids: [_id(2)],
+    );
+    final q = ExploreQuery(
+      repository: gated.repository,
+      clusters: FakeClusters([_cluster, single]),
+      debounce: const Duration(milliseconds: 5),
+    )..setArea(_area);
+    await _settle();
+    gated.pending.single.complete(_page([_report(2)]));
+    await _settle();
+    expect(q.state.pins.map((r) => r.id), [_id(2)]);
+
+    q.setArea(_moved);
+    await _settle();
+    // Clusters for the new area are back, the list is not: keep the old view.
+    expect(gated.pending, hasLength(2));
+    expect(q.state.loading, isTrue);
+    expect(q.state.clusters, [_cluster]);
+    expect(q.state.pins.map((r) => r.id), [_id(2)]);
+
+    gated.pending.last.complete(_page([_report(2)]));
+    await _settle();
+    expect(q.state.loading, isFalse);
+    expect(q.state.clusters, [_cluster]);
+    expect(q.state.pins.map((r) => r.id), [_id(2)]);
+  });
 }
