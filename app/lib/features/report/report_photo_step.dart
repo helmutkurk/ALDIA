@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/strings.dart';
 import 'report_flow_widgets.dart';
+import '../../widgets/aldia_banner.dart';
 import 'report_flow_controller.dart';
 
 class PhotoStep extends StatelessWidget {
@@ -12,8 +13,10 @@ class PhotoStep extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       const Text(S.photoRequired),
-      if (controller.missingPhoto) const FlowNotice(S.missingPhoto),
-      if (controller.photoError) const FlowNotice(S.photoError),
+      if (controller.missingPhoto)
+        const FlowNotice(S.missingPhoto, kind: BannerKind.warning),
+      if (controller.photoError)
+        const FlowNotice(S.photoError, kind: BannerKind.error),
       if (controller.photo != null) ...[
         const SizedBox(height: 12),
         Image.memory(

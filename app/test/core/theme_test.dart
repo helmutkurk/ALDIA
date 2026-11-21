@@ -101,6 +101,13 @@ void main() {
           AldiaColors.barOfBrightness(theme.brightness),
         ),
         'text on coral': (AldiaColors.onAccent, AldiaColors.accent),
+        'warning banner text': (
+          s.onSurface,
+          theme.brightness == Brightness.dark
+              ? AldiaColors.darkWarningContainer
+              : AldiaColors.warningContainer,
+        ),
+        'error banner text': (s.onSurface, s.errorContainer),
         'text on dark coral': (AldiaColors.onAccent, AldiaColors.darkAccent),
         'fab': (
           theme.floatingActionButtonTheme.foregroundColor!,
@@ -139,6 +146,30 @@ void main() {
         );
       }
     });
+  }
+
+  for (final theme in [buildTheme(), buildDarkTheme()]) {
+    test(
+      '${theme.brightness.name} banner icons are visible (3:1 non-text)',
+      () {
+        final s = theme.colorScheme;
+        final dark = theme.brightness == Brightness.dark;
+        final pairs = {
+          'info': (s.onPrimaryContainer, s.primaryContainer),
+          'warning': (
+            dark ? AldiaColors.darkOpen : AldiaColors.open,
+            dark
+                ? AldiaColors.darkWarningContainer
+                : AldiaColors.warningContainer,
+          ),
+          'error': (s.error, s.errorContainer),
+        };
+        for (final MapEntry(:key, value: (icon, background)) in pairs.entries) {
+          final ratio = _contrast(icon, background);
+          expect(ratio, greaterThanOrEqualTo(3), reason: '$key $ratio');
+        }
+      },
+    );
   }
 
   for (final theme in [buildTheme(), buildDarkTheme()]) {

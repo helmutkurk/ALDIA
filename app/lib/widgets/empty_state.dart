@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
 
-/// Icon, one sentence, optional help and one action. Scrolls at large text.
+/// Icon in a light-sky circle, a bold sentence, optional help and one
+/// action. Scrolls at large text.
 class EmptyState extends StatelessWidget {
   const EmptyState({
     super.key,
@@ -30,12 +31,29 @@ class EmptyState extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 56, color: theme.colorScheme.primary),
+              ExcludeSemantics(
+                child: Container(
+                  width: 88,
+                  height: 88,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerLow,
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(
+                    icon,
+                    size: 40,
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                ),
+              ),
               const SizedBox(height: AldiaSpace.l),
               Text(
                 title,
                 textAlign: TextAlign.center,
-                style: theme.textTheme.titleMedium,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               if (help != null) ...[
                 const SizedBox(height: AldiaSpace.s),

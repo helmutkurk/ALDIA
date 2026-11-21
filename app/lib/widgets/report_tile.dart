@@ -41,8 +41,8 @@ class ReportTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  SizedBox(
-                    height: 190,
+                  AspectRatio(
+                    aspectRatio: 16 / 9,
                     child: Semantics(
                       image: true,
                       label: S.photoLabel(category.label, state.label),
@@ -70,27 +70,20 @@ class ReportTile extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Wrap(
-                          alignment: WrapAlignment.spaceBetween,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          spacing: AldiaSpace.s,
-                          runSpacing: AldiaSpace.xs,
-                          children: [
-                            Text(
-                              S.age(report.createdAt, DateTime.now()),
-                              style: theme.textTheme.labelMedium?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                            StatusLabel(state: report.citizenState),
-                          ],
+                        StatusLabel(state: report.citizenState),
+                        const SizedBox(height: AldiaSpace.s),
+                        Text(
+                          category.label,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                        const SizedBox(height: 8),
-                        Text(category.label, style: theme.textTheme.titleLarge),
                         const SizedBox(height: AldiaSpace.xs),
                         Text(
                           'Punto: ${report.position.latitude.toStringAsFixed(5)}, ${report.position.longitude.toStringAsFixed(5)}',
-                          style: theme.textTheme.bodySmall,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
                         if (report.note.isUsable)
                           Padding(
@@ -100,11 +93,15 @@ class ReportTile extends StatelessWidget {
                         const SizedBox(height: 8),
                         Text(
                           '${report.createdAt.formattedDate()} · ${S.age(report.createdAt, DateTime.now())}',
-                          style: theme.textTheme.bodySmall,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
                         Text(
                           S.reference(report.id),
-                          style: theme.textTheme.bodySmall,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),

@@ -10,6 +10,7 @@ import '../../widgets/map_layers_button.dart';
 import '../../widgets/neutral_map_pin.dart';
 import 'address_search.dart';
 import 'report_flow_widgets.dart';
+import '../../widgets/aldia_banner.dart';
 import 'report_flow_controller.dart';
 
 class LocationStep extends StatefulWidget {
@@ -179,14 +180,15 @@ class _LocationStepState extends State<LocationStep> {
           style: TextStyle(fontSize: 12),
         ),
         if (c.locating) const FlowNotice(S.locating),
-        if (issue != null) FlowNotice(issue),
+        if (issue != null) FlowNotice(issue, kind: BannerKind.warning),
         if (c.locationIssue == LocationIssue.deniedForever)
           OutlinedButton(
             onPressed: c.openLocationSettings,
             child: const Text(S.openSettings),
           ),
         if (c.accuracy != null) Text(S.accuracy(c.accuracy!)),
-        if ((c.accuracy ?? 0) > 50) const FlowNotice(S.poorAccuracy),
+        if ((c.accuracy ?? 0) > 50)
+          const FlowNotice(S.poorAccuracy, kind: BannerKind.warning),
         TextButton.icon(
           onPressed: c.locating ? null : c.useMyLocation,
           icon: const Icon(Icons.my_location),
@@ -212,7 +214,8 @@ class _LocationStepState extends State<LocationStep> {
           textInputAction: TextInputAction.done,
           onSubmitted: (_) => _apply(),
         ),
-        if (_invalid) const FlowNotice(S.coordinatesInvalid),
+        if (_invalid)
+          const FlowNotice(S.coordinatesInvalid, kind: BannerKind.error),
         TextButton(onPressed: _apply, child: const Text(S.applyCoordinates)),
       ],
     );

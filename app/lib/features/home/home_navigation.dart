@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/strings.dart';
+import '../../core/theme.dart';
 
 enum HomeTab { home, notices, report, mine, profile }
 
@@ -31,10 +32,7 @@ class HomeNavigationBar extends StatelessWidget {
         selectedIcon: Icon(Icons.notifications),
         label: 'Avisos',
       ),
-      NavigationDestination(
-        icon: Icon(Icons.add_circle_outline, size: 36),
-        label: S.newReport,
-      ),
+      NavigationDestination(icon: _ReportPill(), label: S.newReport),
       NavigationDestination(
         icon: Icon(Icons.assignment_outlined),
         selectedIcon: Icon(Icons.assignment),
@@ -47,4 +45,24 @@ class HomeNavigationBar extends StatelessWidget {
       ),
     ],
   );
+}
+
+/// The key call to action of the bar: a coral pill with a plus.
+class _ReportPill extends StatelessWidget {
+  const _ReportPill();
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      width: 56,
+      height: 36,
+      decoration: ShapeDecoration(
+        color: dark ? AldiaColors.darkAccent : AldiaColors.accent,
+        shape: const StadiumBorder(),
+      ),
+      alignment: Alignment.center,
+      child: const Icon(Icons.add, color: AldiaColors.onAccent, size: 26),
+    );
+  }
 }
