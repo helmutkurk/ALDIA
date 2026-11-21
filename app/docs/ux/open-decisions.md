@@ -3,7 +3,7 @@
 Phase 1 UX spec, 2026-11-21. Each item is something undefined, inconsistent or contradictory between the code and the docs.
 "Proposed owner" is a suggestion from the roles in `AGENTS.md`, not an assignment. ★ = blocks the Phase 2 wireframes.
 
-**Update 2026-11-21:** the ★ items 1, 2, 7, 13, 20, 21, 22 and 23 are decided in
+**Update 2026-11-21:** the ★ items 1, 2, 7, 13, 20, 21, 22 and 23, and item 24, are decided in
 [`documentation/decisions/ux-2026-11-21.md`](../../../documentation/decisions/ux-2026-11-21.md) (marked ✅ below).
 Item 26: the app stays Flutter. Item 27: specs stay in `app/docs/ux/` for now. All other items remain open.
 
@@ -83,7 +83,7 @@ Item 26: the app stays Flutter. Item 27: specs stay in `app/docs/ux/` for now. A
 22. ✅ *Decided: new status set.* **Status colors collide with the new brand.** Open = orange `#E8731A` is close to the coral accent; resolved = blue
     `#2D8CD0` is close to the sky-blue primary. Re-map status colors, or keep them and pick quetzal green as the accent?
 23. ✅ *Decided: coral.* **Coral or quetzal green** as the accent?
-24. **Dark top bar:** the current Inicio and Explorar use a dark graphite `bar`. The new direction asks for white
+24. ✅ *Decided: no dark bar (light surfaces, full-screen map in Explorar).* **Dark top bar:** the current Inicio and Explorar use a dark graphite `bar`. The new direction asks for white
     backgrounds and light cards. Do we drop the dark bar?
 25. **Inicio content:** the new references (category grid, metric cards with a chart) suggest a richer home than today's
     counter + two buttons. Which of these does the citizen home get? **Assumption:** metric cards with charts belong
