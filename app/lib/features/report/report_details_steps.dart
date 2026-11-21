@@ -57,11 +57,7 @@ class ReviewStep extends StatelessWidget {
           onPressed: () => c.edit(FlowStep.photo),
           child: const Text('${S.edit}: ${S.stepPhoto}'),
         ),
-        Text(
-          c.placeLabel.isUsable
-              ? c.placeLabel!
-              : '${c.position.latitude.toStringAsFixed(5)}, ${c.position.longitude.toStringAsFixed(5)}',
-        ),
+        Text(c.placeLabel.isUsable ? c.placeLabel! : S.pointOnMap),
         TextButton(
           onPressed: () => c.edit(FlowStep.location),
           child: const Text('${S.edit}: ${S.stepLocation}'),

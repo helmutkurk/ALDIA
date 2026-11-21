@@ -113,13 +113,20 @@ class S {
   static const manualReview = 'Enviar para revisión manual';
   static const manualSaved =
       'Reporte guardado en este dispositivo. La revisión manual aún no está disponible.';
-  static const waitingNetwork = 'Esperando red';
+  static const waitingNetwork = 'Esperando conexión';
   static const waitingNetworkHelp =
       'Reporte guardado. Se enviará automáticamente cuando vuelva la conexión. Si se retrasa, el servidor comprobará la fecha original de la foto.';
   static const draft = 'Borrador';
   static const continueDraft = 'Continuar borrador';
-  static const savedDrafts = 'Borradores';
-  static const outbox = 'Por enviar';
+  static const draftMissingPhoto = 'Borrador · falta la foto';
+  static const continueShort = 'Continuar';
+  static const unsent = 'Sin enviar';
+  static const verifiedPhoto = 'Foto verificada';
+
+  /// Replaces raw coordinates wherever no address is known.
+  static const pointOnMap = 'Punto marcado en el mapa';
+  static String sentAgo(DateTime created, DateTime now) =>
+      'Enviado ${age(created, now).replaceFirst('Hace', 'hace')}';
   static const missingPhoto =
       'La foto guardada ya no está. Toma otra foto; los demás datos se conservan.';
   static const photoError =

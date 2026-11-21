@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/strings.dart';
 import '../../core/text_x.dart';
 import '../../core/theme.dart';
 import '../../widgets/aldia_banner.dart';
@@ -14,9 +15,7 @@ class SummaryRow extends StatelessWidget {
     final c = controller;
     final place = c.placeLabel.isUsable
         ? c.placeLabel!
-        : (c.locationConfirmed
-              ? '${c.position.latitude.toStringAsFixed(5)}, ${c.position.longitude.toStringAsFixed(5)}'
-              : 'Elige el lugar del problema');
+        : (c.locationConfirmed ? S.pointOnMap : 'Elige el lugar del problema');
     final category = c.categories
         .where((item) => item.id == c.categoryId)
         .firstOrNull;
