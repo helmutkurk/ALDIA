@@ -1,25 +1,15 @@
 /** Accessible v0.3 category charts. All numeric values come from GET /api/stats. */
 import { chartPatterns } from './chart-patterns.js';
-import { CATEGORIES } from './categories.js';
+import { categoryLabel } from './categories.js';
+import { number } from './dashboard-metrics.js';
 import { t } from './i18n.js';
-import { element } from './dom.js';
+import { element, svgElement } from './dom.js';
 
-const SVG = 'http://www.w3.org/2000/svg';
-const number = new Intl.NumberFormat('es-GT', { maximumFractionDigits: 1 });
 const hours = (value) =>
   value === null
     ? t.dash.unavailable
     : `${number.format(value)} ${t.dash.hours}`;
-const labelFor = (id) =>
-  CATEGORIES.find((category) => category.id === id)?.label ?? id;
 let tooltipId = 0;
-
-function svgNode(tag, attributes) {
-  const node = document.createElementNS(SVG, tag);
-  for (const [key, value] of Object.entries(attributes))
-    node.setAttribute(key, String(value));
-  return node;
-}
 
 function dataTable(title, headings, rows) {
   const disclosure = element('details', 'chart-data');
@@ -62,7 +52,7 @@ function chartRow(label, description, segments) {
     element('strong', '', label),
     element('p', 'category-chart-values', description),
   );
-  const svg = svgNode('svg', {
+  const svg = svgElement('svg', {
     viewBox: '0 0 640 32',
     preserveAspectRatio: 'none',
     class: 'category-chart-svg',
@@ -74,18 +64,22 @@ function chartRow(label, description, segments) {
     abiertos: patterns.diagonal,
     cerrados: patterns.outline,
   };
-  const target = svgNode('g', {
+  const target = svgElement('g', {
     tabindex: 0,
     role: 'img',
     'aria-label': description,
   });
   target.append(
-    svgNode('rect', { width: 640, height: 32, class: 'category-chart-track' }),
+    svgElement('rect', {
+      width: 640,
+      height: 32,
+      class: 'category-chart-track',
+    }),
   );
   let x = 0;
   for (const [width, kind] of segments) {
     target.append(
-      svgNode('rect', {
+      svgElement('rect', {
         x,
         width,
         height: 32,
@@ -152,13 +146,13 @@ export function categoryCharts(rows) {
     );
     for (const row of active) {
       const description = t.dash.repairDescription(
-        labelFor(row.category),
+        categoryLabel(row.category),
         hours(row.mediana_reparacion_horas),
         hours(row.p90_reparacion_horas),
         row.n_resueltos,
       );
       repairs.append(
-        chartRow(labelFor(row.category), description, [
+        chartRow(categoryLabel(row.category), description, [
           [(640 * (row.mediana_reparacion_horas ?? 0)) / maxHours, 'repair'],
         ]),
       );
@@ -174,7 +168,7 @@ export function categoryCharts(rows) {
         t.dash.categoryRepair,
         [t.category, t.dash.median, t.dash.p90, t.dash.repairSamples],
         active.map((row) => [
-          labelFor(row.category),
+          categoryLabel(row.category),
           hours(row.mediana_reparacion_horas),
           hours(row.p90_reparacion_horas),
           row.n_resueltos,
@@ -197,12 +191,12 @@ export function categoryCharts(rows) {
     }
     for (const row of ordered) {
       const description = t.dash.frequencyDescription(
-        labelFor(row.category),
+        categoryLabel(row.category),
         row,
       );
       counts.append(
         chartRow(
-          labelFor(row.category),
+          categoryLabel(row.category),
           description,
           ['resueltos', 'abiertos', 'cerrados'].map((key) => [
             (640 * row[key]) / maxCount,
@@ -229,7 +223,7 @@ export function categoryCharts(rows) {
           ),
         ],
         ordered.map((row) => [
-          labelFor(row.category),
+          categoryLabel(row.category),
           row.total,
           row.resueltos,
           row.abiertos,

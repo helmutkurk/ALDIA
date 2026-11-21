@@ -7,7 +7,7 @@ class VerificationCheck {
     required this.detail,
   });
 
-  factory VerificationCheck.fromJson(Map<String, dynamic> json) =>
+  factory VerificationCheck.fromJson(Map<String, Object?> json) =>
       VerificationCheck(
         name: json['name'] as String,
         passed: json['passed'] as bool,
@@ -26,11 +26,11 @@ class Verification {
     required this.checks,
   });
 
-  factory Verification.fromJson(Map<String, dynamic> json) => Verification(
+  factory Verification.fromJson(Map<String, Object?> json) => Verification(
     passed: json['passed'] as bool,
     mode: json['mode'] as String,
-    checks: (json['checks'] as List<dynamic>)
-        .map((c) => VerificationCheck.fromJson(c as Map<String, dynamic>))
+    checks: (json['checks'] as List<Object?>)
+        .map((c) => VerificationCheck.fromJson(c as Map<String, Object?>))
         .toList(growable: false),
   );
 
@@ -67,7 +67,7 @@ class Report {
     this.events = const [],
   });
 
-  factory Report.fromJson(Map<String, dynamic> json) => Report(
+  factory Report.fromJson(Map<String, Object?> json) => Report(
     state: json['state'] as String?,
     stateGroup: json['state_group'] as String?,
     stateChangedAt: _date(json['state_changed_at']),
@@ -79,8 +79,10 @@ class Report {
     publicNote: json['public_note'] as String?,
     thumbnailUrl: json['thumbnail_url'] as String?,
     events: List.unmodifiable(
-      (json['events'] as List? ?? []).map(
-        (e) => ReportEvent.fromJson(Map<String, dynamic>.from(e as Map)),
+      (json['events'] as List<Object?>? ?? []).map(
+        (e) => ReportEvent.fromJson(
+          Map<String, Object?>.from(e as Map<Object?, Object?>),
+        ),
       ),
     ),
     id: json['id'] as String,
@@ -97,7 +99,7 @@ class Report {
     photoUrl: json['photo_url'] as String,
     verification: json['verification'] == null
         ? null
-        : Verification.fromJson(json['verification'] as Map<String, dynamic>),
+        : Verification.fromJson(json['verification'] as Map<String, Object?>),
   );
 
   final String id;
@@ -140,7 +142,7 @@ class Report {
       };
 }
 
-DateTime? _date(dynamic value) =>
+DateTime? _date(Object? value) =>
     value is String ? DateTime.tryParse(value) : null;
 
 /// Only public fields are retained, even if a server accidentally includes staff data.
@@ -152,7 +154,7 @@ class ReportEvent {
     this.toState,
     this.publicNote,
   });
-  factory ReportEvent.fromJson(Map<String, dynamic> json) => ReportEvent(
+  factory ReportEvent.fromJson(Map<String, Object?> json) => ReportEvent(
     at: _date(json['at']),
     actorRole: json['actor_role'] as String?,
     fromState: json['from_state'] as String?,
@@ -172,13 +174,15 @@ class ReportCluster {
     required this.count,
     this.ids = const [],
   });
-  factory ReportCluster.fromJson(Map<String, dynamic> json) => ReportCluster(
+  factory ReportCluster.fromJson(Map<String, Object?> json) => ReportCluster(
     position: LatLng(
       (json['lat'] as num).toDouble(),
       (json['lon'] as num).toDouble(),
     ),
     count: json['count'] as int,
-    ids: List.unmodifiable((json['ids'] as List? ?? []).cast<String>()),
+    ids: List.unmodifiable(
+      (json['ids'] as List<Object?>? ?? []).cast<String>(),
+    ),
   );
   final LatLng position;
   final int count;

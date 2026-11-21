@@ -4,6 +4,11 @@ import { createStaffActions } from './actions.js';
 import { filtersHash } from './filters.js';
 import { ui, staffError, t } from './i18n.js';
 
+/** @typedef {{report: import('./api-types.js').Report, id: string}|{error: unknown}} ClusterDetailResult */
+
+/** @param {HTMLElement} side
+ * @param {{api: ReturnType<import('./api.js').createApiClient>, staff: import('./api-types.js').StaffIdentity|null, getScope: () => import('./api-types.js').ReportQuery, onSaved: () => void}} options
+ */
 export function createSelection(side, { api, staff, getScope, onSaved }) {
   let controller, actions, returnFocus;
   const rememberFocus = () => {
@@ -63,6 +68,7 @@ export function createSelection(side, { api, staff, getScope, onSaved }) {
       }
     }
   }
+  /** @param {import('./api-types.js').Cluster} cluster */
   async function showCluster(cluster) {
     rememberFocus();
     controller?.abort();
@@ -77,9 +83,26 @@ export function createSelection(side, { api, staff, getScope, onSaved }) {
     if (cluster.count > (cluster.ids?.length ?? 0))
       side.append(element('p', '', ui.clusterLimited));
     try {
-      for (const id of cluster.ids ?? []) {
-        const report = await api.getReport(id, { signal: own.signal });
+      // Observe every rejection immediately, then render the successful prefix in
+      // server order. Later failures never bypass an earlier pending report.
+      const pending = (cluster.ids ?? []).map(
+        /** @returns {Promise<ClusterDetailResult>} */
+        async (id) => {
+          try {
+            return {
+              report: await api.getReport(id, { signal: own.signal }),
+              id,
+            };
+          } catch (error) {
+            return { error };
+          }
+        },
+      );
+      for (const request of pending) {
+        const result = await request;
         if (own.signal.aborted) return;
+        if ('error' in result) throw result.error;
+        const { report, id } = result;
         const details = createReportDetails(report, {
           api,
           signal: own.signal,

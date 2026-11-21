@@ -17,13 +17,13 @@ class CitizenNotice {
   final String state;
   final DateTime at;
 
-  Map<String, dynamic> toJson() => {
+  Map<String, Object?> toJson() => {
     'id': reportId,
     'category': category,
     'state': state,
     'at': at.toIso8601String(),
   };
-  factory CitizenNotice.fromJson(Map<String, dynamic> json) => CitizenNotice(
+  factory CitizenNotice.fromJson(Map<String, Object?> json) => CitizenNotice(
     reportId: json['id'] as String,
     category: json['category'] as String,
     state: json['state'] as String,
@@ -39,12 +39,16 @@ class LocalCitizenStore extends ChangeNotifier {
     final raw = preferences?.getString(_key);
     if (raw != null) {
       try {
-        final json = jsonDecode(raw) as Map<String, dynamic>;
-        _followed.addAll((json['followed'] as List).cast<String>());
-        _states.addAll((json['states'] as Map).cast<String, String>());
+        final json = jsonDecode(raw) as Map<String, Object?>;
+        _followed.addAll((json['followed'] as List<Object?>).cast<String>());
+        _states.addAll(
+          (json['states'] as Map<String, Object?>).cast<String, String>(),
+        );
         _notices.addAll(
-          (json['notices'] as List).map(
-            (e) => CitizenNotice.fromJson(Map<String, dynamic>.from(e as Map)),
+          (json['notices'] as List<Object?>).map(
+            (e) => CitizenNotice.fromJson(
+              Map<String, Object?>.from(e as Map<Object?, Object?>),
+            ),
           ),
         );
         showName = json['show_name'] as bool? ?? false;

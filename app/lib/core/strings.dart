@@ -5,7 +5,7 @@ import 'number_format.dart';
 class S {
   const S._();
 
-  static const appName = 'Aldia';
+  static const appName = 'AlDía';
   static const tagline =
       'Reporta problemas de tu calle con una foto verificada';
 

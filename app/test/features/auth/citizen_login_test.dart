@@ -115,7 +115,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.byType(CitizenLoginScreen), findsOneWidget);
-      expect(find.text('Entra a Aldia'), findsOneWidget);
+      expect(find.text('Entra a AlDía'), findsOneWidget);
       expect(find.text('Cerrar'), findsNothing);
       expect(find.text(S.newReport), findsNothing);
 

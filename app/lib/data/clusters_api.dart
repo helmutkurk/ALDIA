@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../core/config.dart';
 import 'report.dart';
+import 'cluster_query.dart';
 
 /// Map pins for the visible viewport (`GET /api/reports/clusters`).
 abstract interface class ClustersApi {
@@ -34,20 +35,23 @@ class HttpClustersApi implements ClustersApi {
     required double zoom,
   }) async {
     final uri = Uri.parse('$_baseUrl/reports/clusters').replace(
-      queryParameters: {
-        'bbox':
-            '${southWest.longitude},${southWest.latitude},${northEast.longitude},${northEast.latitude}',
-        'zoom': '${zoom.round().clamp(0, 20)}',
-      },
+      queryParameters: clusterQueryParameters(
+        southWest: southWest,
+        northEast: northEast,
+        zoom: zoom,
+      ),
     );
     final response = await _client.get(uri).timeout(AppConfig.requestTimeout);
     if (response.statusCode != 200) {
       throw http.ClientException('HTTP ${response.statusCode}', uri);
     }
-    final body = jsonDecode(utf8.decode(response.bodyBytes)) as Map;
+    final body =
+        jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, Object?>;
     return [
-      for (final item in body['clusters'] as List)
-        ReportCluster.fromJson(Map<String, dynamic>.from(item as Map)),
+      for (final item in body['clusters'] as List<Object?>)
+        ReportCluster.fromJson(
+          Map<String, Object?>.from(item as Map<Object?, Object?>),
+        ),
     ];
   }
 }

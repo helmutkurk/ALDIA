@@ -57,7 +57,7 @@ class _NoticesScreenState extends State<NoticesScreen> {
             padding: const EdgeInsets.all(AldiaSpace.l),
             children: [
               const Text(
-                'Aquí aparecen los cambios de estado que Aldia detecta al actualizar tus reportes en este dispositivo. Los avisos push todavía no están disponibles.',
+                'Aquí aparecen los cambios de estado que AlDía detecta al actualizar tus reportes en este dispositivo. Los avisos push todavía no están disponibles.',
               ),
               const SizedBox(height: 16),
               OutlinedButton.icon(
@@ -233,7 +233,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Semantics(
                 header: true,
                 child: Text(
-                  'Tu perfil en Aldia',
+                  'Tu perfil en AlDía',
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
               ),
@@ -284,7 +284,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.info_outline),
-                title: Text('Versión de Aldia'),
+                title: Text('Versión de AlDía'),
                 subtitle: VersionIndicator(),
               ),
               const Divider(height: 32),

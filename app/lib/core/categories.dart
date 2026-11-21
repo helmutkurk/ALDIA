@@ -10,7 +10,7 @@ class ReportCategory {
     this.group = 'espacio_publico',
   });
 
-  factory ReportCategory.fromJson(Map<String, dynamic> json) => ReportCategory(
+  factory ReportCategory.fromJson(Map<String, Object?> json) => ReportCategory(
     json['id'] as String,
     json['label'] as String,
     categoryById(json['id'] as String).icon,

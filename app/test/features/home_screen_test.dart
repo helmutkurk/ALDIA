@@ -3,6 +3,7 @@ import 'package:aldia_app/core/theme.dart';
 import 'package:aldia_app/data/report.dart';
 import 'package:aldia_app/features/drafts/draft_record.dart';
 import 'package:aldia_app/features/home/home_screen.dart';
+import 'package:aldia_app/features/home/report_map_view.dart';
 import 'package:aldia_app/widgets/neutral_map_pin.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,6 +15,28 @@ import '../widgets/harness.dart';
 const _cluster = ReportCluster(position: LatLng(14.63, -90.5), count: 7);
 
 void main() {
+  testWidgets('extracted map keeps its state across shell destinations', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      harness(
+        home: const HomeScreen(),
+        repository: repositoryWith(),
+        clusters: FakeClusters([_cluster]),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Explorar mi ciudad'));
+    await tester.pumpAndSettle();
+    final map = tester.state(find.byType(MapView));
+    await tester.tap(find.text('Perfil'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Inicio'));
+    await tester.pumpAndSettle();
+    expect(tester.state(find.byType(MapView)), same(map));
+    expect(find.text('MAPA'), findsOneWidget);
+  });
+
   testWidgets('map shows clusters from the clusters endpoint', (tester) async {
     final clusters = FakeClusters([_cluster]);
     await tester.pumpWidget(

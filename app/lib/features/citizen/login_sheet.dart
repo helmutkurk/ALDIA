@@ -161,7 +161,7 @@ class _CitizenLoginSheetState extends State<CitizenLoginSheet> {
           header: true,
           child: Text(
             widget.standalone
-                ? 'Entra a Aldia'
+                ? 'Entra a AlDía'
                 : 'Para recibir avisos de tu reporte, verifica tu número.',
             style: Theme.of(context).textTheme.titleLarge,
           ),
@@ -170,7 +170,7 @@ class _CitizenLoginSheetState extends State<CitizenLoginSheet> {
         Text(
           widget.standalone
               ? 'Ingresa tu número de teléfono y te enviaremos un código de 6 dígitos. Tu número nunca será público.'
-              : 'Tu número no será público. El acceso dura 90 días en este dispositivo. Los avisos se consultan en Aldia; las notificaciones push aún no están disponibles.',
+              : 'Tu número no será público. El acceso dura 90 días en este dispositivo. Los avisos se consultan en AlDía; las notificaciones push aún no están disponibles.',
         ),
         const SizedBox(height: 16),
         TextField(

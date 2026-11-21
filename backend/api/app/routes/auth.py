@@ -3,14 +3,21 @@
 import secrets
 from contextlib import suppress
 from datetime import UTC, datetime, timedelta
-from typing import Annotated, Literal
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from pydantic import Field, SecretStr
 from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 
+from app.auth_schemas import (
+    CreateUserIn,
+    IdentityOut,
+    LoginIn,
+    UpdateUserIn,
+    UserListOut,
+    UserOut,
+)
 from app.dependencies import (
     ServicesDep,
     SessionDep,
@@ -19,13 +26,11 @@ from app.dependencies import (
     session_record,
 )
 from app.models import AuthEvent, StaffSession, StaffUser
-from app.schemas import StrictModel
 from app.security import (
     CSRF_COOKIE,
     PASSWORD_HASHER,
     SESSION_COOKIE,
     SESSION_SECONDS,
-    USERNAME_PATTERN,
     digest,
     hash_password,
     signature,
@@ -34,38 +39,15 @@ from app.security import (
 from app.serialization import utc
 
 router = APIRouter(prefix="/api")
-Role = Literal["operator", "supervisor", "admin"]
-Username = Annotated[str, Field(pattern=f"^{USERNAME_PATTERN}$")]
 
 
-class LoginIn(StrictModel):
-    username: Annotated[str, Field(min_length=1, max_length=64)]
-    password: Annotated[SecretStr, Field(min_length=1, max_length=1024)]
-
-
-class CreateUserIn(StrictModel):
-    username: Username
-    password: Annotated[SecretStr, Field(min_length=12, max_length=1024)]
-    role: Role
-
-
-class UpdateUserIn(StrictModel):
-    disabled: bool | None = None
-    password: Annotated[SecretStr | None, Field(min_length=12, max_length=1024)] = None
-    role: Role | None = None
-
-
-def user_out(user: StaffUser) -> dict[str, object]:
+def user_out(user: StaffUser) -> UserOut:
     return {
         "id": str(user.id),
         "username": user.username,
         "role": user.role,
         "disabled": user.disabled,
     }
-
-
-def no_store(response: Response) -> None:
-    response.headers["Cache-Control"] = "no-store"
 
 
 def check_login_origin(request: Request, services: ServicesDep) -> None:
@@ -88,19 +70,19 @@ AdminDep = Annotated[None, Depends(require_admin)]
 
 @router.get("/auth/config")
 def config(services: ServicesDep, response: Response) -> dict[str, bool]:
-    no_store(response)
+    response.headers["Cache-Control"] = "no-store"
     return {"enabled": True, "dev_tokens": services.settings.dev_tokens_enabled}
 
 
-@router.post("/auth/login")
+@router.post("/auth/login", response_model=dict[str, object])
 def login(
     data: LoginIn,
     request: Request,
     response: Response,
     services: ServicesDep,
     session: SessionDep,
-) -> dict[str, object]:
-    no_store(response)
+) -> IdentityOut:
+    response.headers["Cache-Control"] = "no-store"
     check_login_origin(request, services)
     username = data.username.lower()
     ip = request.client.host if request.client else "unknown"
@@ -185,9 +167,9 @@ def login(
         return {"user": {"username": user.username, "role": user.role}}
 
 
-@router.get("/auth/me")
-def me(request: Request, response: Response, session: SessionDep) -> dict[str, object]:
-    no_store(response)
+@router.get("/auth/me", response_model=dict[str, object])
+def me(request: Request, response: Response, session: SessionDep) -> IdentityOut:
+    response.headers["Cache-Control"] = "no-store"
     user = session_identity(request, session)
     return {"user": {"username": user.username, "role": user.role}}
 
@@ -209,7 +191,7 @@ def logout(
         )
     )
     session.commit()
-    no_store(response)
+    response.headers["Cache-Control"] = "no-store"
     for name in (SESSION_COOKIE, CSRF_COOKIE):
         response.delete_cookie(
             name,
@@ -220,11 +202,9 @@ def logout(
         )
 
 
-@router.get("/admin/users")
-def list_users(
-    response: Response, session: SessionDep, admin: AdminDep
-) -> dict[str, object]:
-    no_store(response)
+@router.get("/admin/users", response_model=dict[str, object])
+def list_users(response: Response, session: SessionDep, admin: AdminDep) -> UserListOut:
+    response.headers["Cache-Control"] = "no-store"
     return {
         "items": [
             user_out(user)
@@ -233,15 +213,15 @@ def list_users(
     }
 
 
-@router.post("/admin/users", status_code=201)
+@router.post("/admin/users", status_code=201, response_model=dict[str, object])
 def create_user(
     data: CreateUserIn,
     request: Request,
     response: Response,
     session: SessionDep,
     admin: AdminDep,
-) -> dict[str, object]:
-    no_store(response)
+) -> UserOut:
+    response.headers["Cache-Control"] = "no-store"
     if session.scalar(select(StaffUser.id).where(StaffUser.username == data.username)):
         raise HTTPException(409)
     user = StaffUser(
@@ -266,7 +246,7 @@ def create_user(
     return user_out(user)
 
 
-@router.patch("/admin/users/{user_id}")
+@router.patch("/admin/users/{user_id}", response_model=dict[str, object])
 def update_user(
     user_id: UUID,
     data: UpdateUserIn,
@@ -274,8 +254,8 @@ def update_user(
     response: Response,
     session: SessionDep,
     admin: AdminDep,
-) -> dict[str, object]:
-    no_store(response)
+) -> UserOut:
+    response.headers["Cache-Control"] = "no-store"
     if not data.model_fields_set or any(
         getattr(data, name) is None for name in data.model_fields_set
     ):

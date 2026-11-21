@@ -7,6 +7,7 @@ import 'package:latlong2/latlong.dart';
 import '../core/config.dart';
 import '../core/categories.dart';
 import 'report.dart';
+import 'cluster_query.dart';
 import '../services/identity_services.dart';
 
 class ApiException implements Exception {
@@ -44,19 +45,22 @@ class ApiClient {
   Future<int?> resolvedCount() async {
     final json = jsonDecode(
       await _send(() => _client.get(Uri.parse('$_baseUrl/stats'))),
-    ) as Map<String, dynamic>;
+    ) as Map<String, Object?>;
     final value =
-        json['resueltos'] ?? (json['by_resolution'] as Map?)?['fixed'];
+        json['resueltos'] ??
+        (json['by_resolution'] as Map<String, Object?>?)?['fixed'];
     return value is num ? value.toInt() : null;
   }
 
   Future<List<ReportCategory>> categories() async {
     final decoded = jsonDecode(
       await _send(() => _client.get(Uri.parse('$_baseUrl/categories'))),
-    ) as List;
+    ) as List<Object?>;
     return decoded
         .map(
-          (e) => ReportCategory.fromJson(Map<String, dynamic>.from(e as Map)),
+          (e) => ReportCategory.fromJson(
+            Map<String, Object?>.from(e as Map<Object?, Object?>),
+          ),
         )
         .toList();
   }
@@ -80,9 +84,9 @@ class ApiClient {
     final uri = Uri.parse('$_baseUrl/reports').replace(queryParameters: query);
     final body = await _send(() => _client.get(uri));
     final items =
-        (jsonDecode(body) as Map<String, dynamic>)['items'] as List<dynamic>;
+        (jsonDecode(body) as Map<String, Object?>)['items'] as List<Object?>;
     return items
-        .map((e) => Report.fromJson(e as Map<String, dynamic>))
+        .map((e) => Report.fromJson(e as Map<String, Object?>))
         .toList();
   }
 
@@ -98,12 +102,16 @@ class ApiClient {
         'radius_m': '150',
       },
     );
-    final decoded = jsonDecode(await _send(() => _client.get(uri)));
-    final items = decoded is List
+    final Object? decoded = jsonDecode(await _send(() => _client.get(uri)));
+    final items = decoded is List<Object?>
         ? decoded
-        : (decoded as Map<String, dynamic>)['items'] as List;
+        : (decoded as Map<String, Object?>)['items'] as List<Object?>;
     return items
-        .map((e) => Report.fromJson(Map<String, dynamic>.from(e as Map)))
+        .map(
+          (e) => Report.fromJson(
+            Map<String, Object?>.from(e as Map<Object?, Object?>),
+          ),
+        )
         .toList();
   }
 
@@ -113,16 +121,20 @@ class ApiClient {
     required double zoom,
   }) async {
     final uri = Uri.parse('$_baseUrl/reports/clusters').replace(
-      queryParameters: {
-        'bbox':
-            '${southWest.longitude},${southWest.latitude},${northEast.longitude},${northEast.latitude}',
-        'zoom': '${zoom.round().clamp(0, 20)}',
-      },
+      queryParameters: clusterQueryParameters(
+        southWest: southWest,
+        northEast: northEast,
+        zoom: zoom,
+      ),
     );
     final body =
-        jsonDecode(await _send(() => _client.get(uri))) as Map<String, dynamic>;
-    return (body['clusters'] as List)
-        .map((e) => ReportCluster.fromJson(Map<String, dynamic>.from(e as Map)))
+        jsonDecode(await _send(() => _client.get(uri))) as Map<String, Object?>;
+    return (body['clusters'] as List<Object?>)
+        .map(
+          (e) => ReportCluster.fromJson(
+            Map<String, Object?>.from(e as Map<Object?, Object?>),
+          ),
+        )
         .toList();
   }
 
@@ -130,7 +142,7 @@ class ApiClient {
     final body = await _send(
       () => _client.get(Uri.parse('$_baseUrl/reports/$id')),
     );
-    return Report.fromJson(jsonDecode(body) as Map<String, dynamic>);
+    return Report.fromJson(jsonDecode(body) as Map<String, Object?>);
   }
 
   Future<List<Report>> citizenReports() async {
@@ -143,9 +155,13 @@ class ApiClient {
       final body = await _send(
         () => _client.get(uri, headers: auth.authorizationHeaders),
       );
-      final data = jsonDecode(body) as Map<String, dynamic>;
-      final items = (data['items'] as List)
-          .map((e) => Report.fromJson(Map<String, dynamic>.from(e as Map)))
+      final data = jsonDecode(body) as Map<String, Object?>;
+      final items = (data['items'] as List<Object?>)
+          .map(
+            (e) => Report.fromJson(
+              Map<String, Object?>.from(e as Map<Object?, Object?>),
+            ),
+          )
           .toList();
       reports.addAll(items);
       offset += items.length;
@@ -187,7 +203,7 @@ class ApiClient {
       final streamed = await _client.send(request);
       return http.Response.fromStream(streamed);
     });
-    return Report.fromJson(jsonDecode(body) as Map<String, dynamic>);
+    return Report.fromJson(jsonDecode(body) as Map<String, Object?>);
   }
 
   Future<String> _send(Future<http.Response> Function() call) async {
@@ -216,8 +232,8 @@ class ApiClient {
   String _errorMessage(http.Response response) {
     try {
       final data =
-          jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
-      final error = data['error'] as Map<String, dynamic>;
+          jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, Object?>;
+      final error = data['error'] as Map<String, Object?>;
       return error['message'] as String;
     } catch (_) {
       return 'HTTP ${response.statusCode}';

@@ -1,5 +1,5 @@
 import { CATEGORIES } from './categories.js';
-import { RESOLUTIONS, STATUSES, t, staffError } from './i18n.js';
+import { RESOLUTIONS, STATUSES, t } from './i18n.js';
 import { element } from './dom.js';
 import { filtersHash } from './filters.js';
 import { metricCards } from './dashboard-metrics.js';
@@ -7,6 +7,7 @@ import { allTimeSection, lastWeekSection } from './dashboard-trends.js';
 import { categoryTable } from './dashboard-distribution.js';
 import { recentActivity } from './dashboard-recent.js';
 import { categoryCharts } from './category-charts.js';
+import { createCsvExport } from './csv-export.js';
 
 const groups = Object.keys(t.dash.groups);
 /** Filtered municipal statistics. Calculations stay on the API, never on a list page.
@@ -23,14 +24,7 @@ export function createDashboard(root, { api, filters }) {
   };
   let controller;
   let generation = 0;
-  let delimiter = 'comma';
-  let csvObjectUrl;
-  const revokeCsv = () => {
-    if (csvObjectUrl) {
-      URL.revokeObjectURL(csvObjectUrl);
-      csvObjectUrl = null;
-    }
-  };
+  const csvExport = createCsvExport({ api, filters });
   const visibleGroups = filters.state_group ? [filters.state_group] : groups;
   root.classList.add('page--dashboard');
   const back = element('a', 'back-link', t.backToMap);
@@ -92,64 +86,10 @@ export function createDashboard(root, { api, filters }) {
     try {
       const stats = await api.getStats(filters, { signal: controller.signal });
       if (current !== generation) return;
-      const csv = element('a', 'csv-link', t.downloadCsv);
-      const updateCsv = () => {
-        csv.href = api.getCsvUrl({ ...filters, delimiter });
-      };
-      updateCsv();
-      csv.download = 'reportes.csv';
-      const csvStatus = element('p');
-      csvStatus.setAttribute('role', 'status');
-      if (api.getCsvBlob)
-        csv.addEventListener('click', async (event) => {
-          event.preventDefault();
-          if (csv.getAttribute('aria-disabled') === 'true') return;
-          csv.setAttribute('aria-disabled', 'true');
-          csvStatus.textContent = t.dash.csvLoading;
-          try {
-            const blob = await api.getCsvBlob(
-              { ...filters, delimiter },
-              { signal: controller.signal },
-            );
-            if (current !== generation) return;
-            revokeCsv();
-            csvObjectUrl = URL.createObjectURL(blob);
-            const download = element('a');
-            download.href = csvObjectUrl;
-            download.download = 'reportes.csv';
-            root.append(download);
-            download.click();
-            download.remove();
-            csvStatus.textContent = '';
-          } catch (error) {
-            if (current === generation && error.name !== 'AbortError')
-              csvStatus.textContent = staffError(error);
-          } finally {
-            if (current === generation)
-              csv.setAttribute('aria-disabled', 'false');
-          }
-        });
-      const delimiterLabel = element('label', '', t.dash.delimiter);
-      const delimiterSelect = document.createElement('select');
-      delimiterSelect.setAttribute('aria-label', t.dash.delimiter);
-      for (const id of ['comma', 'semicolon']) {
-        const option = element('option', '', t.dash[id]);
-        option.value = id;
-        delimiterSelect.append(option);
-      }
-      delimiterSelect.value = delimiter;
-      delimiterSelect.addEventListener('change', () => {
-        delimiter = delimiterSelect.value;
-        updateCsv();
+      const exportBox = csvExport.render({
+        signal: controller.signal,
+        isCurrent: () => current === generation,
       });
-      delimiterLabel.append(delimiterSelect);
-      const exportBox = element('section', 'export-box dash-block');
-      exportBox.append(
-        element('h2', '', t.dash.exportData),
-        delimiterLabel,
-        csv,
-        csvStatus,
-      );
       body.replaceChildren(
         element('p', 'dashboard-total', t.totalReports(stats.total)),
       );
@@ -325,7 +265,7 @@ export function createDashboard(root, { api, filters }) {
     destroy() {
       generation++;
       controller?.abort();
-      revokeCsv();
+      csvExport.destroy();
       root.replaceChildren();
       root.classList.remove('page--dashboard');
       root.removeAttribute('aria-busy');

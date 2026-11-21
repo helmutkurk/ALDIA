@@ -1,7 +1,7 @@
 import 'leaflet/dist/leaflet.css';
 import './styles/tokens.css';
 import './styles/app.css';
-import { ApiError, createApiClient } from './api.js';
+import { createApiClient } from './api.js';
 import { createReportMap } from './map.js';
 import { createDashboard } from './dashboard.js';
 import { createPlaceSearch } from './geocoder.js';
@@ -19,6 +19,7 @@ import { createSiteHeader } from './header.js';
 import { mountPortal } from './mount.js';
 import { createTriage } from './triage.js';
 import { ui, t } from './i18n.js';
+import { loadWorkspace } from './workspace-load.js';
 
 /** Compose the retained workspace and cancellable pages. Factories avoid tiles in tests.
  * @param {object} options
@@ -77,98 +78,19 @@ export function createPortal({
     timer = setTimeout(async () => {
       controller = new AbortController();
       const own = controller;
-      const filters = query();
-      // Attach the error handler immediately so a failed cluster fetch cannot leak a rejection.
-      const clusterResult = api
-        .getClusters?.(
-          {
-            ...filters,
-            zoom: (map.getZoom?.() ?? 13) >= 15 ? 17 : (map.getZoom?.() ?? 13),
-          },
-          { signal: own.signal },
-        )
-        .then(
-          (body) => ({ body }),
-          (error) => ({ error }),
-        );
-      try {
-        const result = await api.getReports(
-          {
-            ...filters,
-            ...(store.getState().offset
-              ? { offset: store.getState().offset }
-              : {}),
-          },
-          { signal: own.signal },
-        );
-        if (destroyed || current !== generation) return;
-        if (
-          store.getState().offset > 0 &&
-          store.getState().offset >= result.total
-        ) {
-          store.setOffset(
-            Math.max(0, Math.floor((result.total - 1) / 25) * 25),
-          );
-          scheduleLoad();
-          return;
-        }
-        store.setReports(result);
-        needsLoad = false;
-        if (clusterResult) {
-          try {
-            const cluster = await clusterResult;
-            if (destroyed || current !== generation) return;
-            if (cluster.error) {
-              side.replaceChildren(element('p', '', ui.clusterError));
-              map.renderClusters?.([]);
-              return;
-            }
-            // The cluster payload has no state. Hydrate singletons with bounded parallel reads.
-            const reports = [];
-            const ids = [
-              ...new Set(
-                cluster.body.clusters
-                  .filter((c) => c.count === 1)
-                  .flatMap((c) => c.ids ?? []),
-              ),
-            ];
-            let index = 0;
-            await Promise.all(
-              Array.from({ length: Math.min(6, ids.length) }, async () => {
-                while (index < ids.length) {
-                  const id = ids[index++];
-                  const cached = result.items.find(
-                    (item) => item.id.toLowerCase() === id.toLowerCase(),
-                  );
-                  reports.push(
-                    cached ?? (await api.getReport(id, { signal: own.signal })),
-                  );
-                }
-              }),
-            );
-            if (!destroyed && current === generation)
-              map.renderClusters?.(cluster.body.clusters, reports);
-          } catch (error) {
-            if (
-              !destroyed &&
-              current === generation &&
-              error.name !== 'AbortError'
-            ) {
-              side.replaceChildren(element('p', '', ui.clusterError));
-              map.renderClusters?.([]);
-            }
-          }
-        }
-      } catch (error) {
-        if (destroyed || current !== generation || error.name === 'AbortError')
-          return;
-        map.renderClusters?.([]);
-        store.setError(
-          error instanceof ApiError
-            ? error.error
-            : { code: 'network_error', message: t.networkError },
-        );
-      }
+      await loadWorkspace({
+        api,
+        map,
+        store,
+        side,
+        filters: query(),
+        signal: own.signal,
+        isCurrent: () => !destroyed && current === generation,
+        onLoaded: () => {
+          needsLoad = false;
+        },
+        reload: scheduleLoad,
+      });
     }, 300);
   }
   const map = mapFactory(mapElement, {

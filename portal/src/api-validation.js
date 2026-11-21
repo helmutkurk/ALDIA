@@ -1,6 +1,10 @@
 import { STATES, STATE_GROUPS, GROUPS } from './states.js';
 import { CATEGORIES } from './categories.js';
 import { RESOLUTIONS, STATUSES } from './i18n.js';
+
+/** @typedef {import('./api-types.js').Report} Report */
+/** @typedef {import('./api-types.js').ReportPage} ReportPage */
+/** @typedef {import('./api-types.js').Stats} Stats */
 export const UUID =
   '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 export const uuidPattern = new RegExp(`^${UUID}$`, 'i');
@@ -93,7 +97,6 @@ export function isReport(value) {
   );
 }
 
-/** @typedef {{total: number, by_category: Object<string, number>, by_status: Object<string, number>, by_resolution: Object<string, number>}} Stats */
 /** @param {unknown} body @returns {body is Stats} */
 export function isStats(body) {
   if (!body || !Number.isSafeInteger(body.total) || body.total < 0)
@@ -165,5 +168,59 @@ function isMunicipalStats(body) {
         count(item.recibidos) &&
         count(item.resueltos),
     )
+  );
+}
+
+/** Queue pages allow duplicate IDs, as before; list pages additionally require uniqueness.
+ * @param {unknown} body @returns {body is ReportPage}
+ */
+export function isQueuePage(body) {
+  return Boolean(
+    body &&
+    Array.isArray(body.items) &&
+    body.items.length <= 25 &&
+    body.items.every(isReport) &&
+    Number.isSafeInteger(body.total) &&
+    body.total >= body.items.length,
+  );
+}
+
+/** @param {unknown} body @returns {body is ReportPage} */
+export function isReportPage(body) {
+  return (
+    isQueuePage(body) &&
+    new Set(body.items.map(({ id }) => id)).size === body.items.length
+  );
+}
+
+/** @param {unknown} body @returns {body is import('./api-types.js').ClusterPage} */
+export function isClusterPage(body) {
+  return Boolean(
+    body &&
+    Number.isSafeInteger(body.total) &&
+    body.total >= 0 &&
+    Array.isArray(body.clusters) &&
+    body.clusters.length <= 500 &&
+    body.clusters.every(
+      (c) =>
+        c &&
+        Number.isFinite(c.lat) &&
+        Math.abs(c.lat) <= 90 &&
+        Number.isFinite(c.lon) &&
+        Math.abs(c.lon) <= 180 &&
+        Number.isSafeInteger(c.count) &&
+        c.count > 0 &&
+        (c.ids === undefined ||
+          (Array.isArray(c.ids) && c.ids.every((id) => uuidPattern.test(id)))),
+    ),
+  );
+}
+
+/** @param {unknown} body @returns {body is import('./api-types.js').UserEnvelope} */
+export function isUserEnvelope(body) {
+  return Boolean(
+    body &&
+    typeof body.user?.username === 'string' &&
+    ['operator', 'supervisor', 'admin'].includes(body.user.role),
   );
 }
