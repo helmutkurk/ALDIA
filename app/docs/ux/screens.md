@@ -44,6 +44,27 @@ Phase 1 UX spec, 2026-11-21. One row per screen or sheet in `app/lib/` today. Fl
 7. **Avisos:** unread vs read; count badge on the tab (needs a decision, see open-decisions).
 8. **Perfil sign-out:** progress indicator.
 
+## Target design (Phase 2 wireframes, 2026-11-21)
+
+The approved low-fi wireframes are in the Figma file "Aldia - prueba MCP", page "Wireframes low-fi", as a clickable
+prototype with three flows (1 · Primer uso y reporte, 2 · Explorar, 3 · Seguimiento). They follow
+[`documentation/decisions/ux-2026-11-21.md`](../../../documentation/decisions/ux-2026-11-21.md). Frame names map to
+the screens above:
+
+| Frames | Screen | What changes vs. today |
+|---|---|---|
+| A1 | S1 Onboarding | Ends on Inicio; no login screen after it |
+| A2, A2b | S4 Inicio | Light surface, metric card with period and sparkline; separate loading/unavailable state |
+| A3, A4, A5, A5b | S5 Explorar · Mapa | Full-screen map with floating controls, category-icon pins, legend; new loading, empty and error states |
+| A3b | S7 Filtros | Bottom sheet over the map: search, category chips, state chips, Aplicar / Quitar filtros |
+| A6, A7, A7b, A7c | S6 Explorar · Lista | Same header as the map (back, Mapa/Lista, filters); skeleton loading |
+| A8 | S13 Detalle | Same content; technical-verification note |
+| B1–B6b | S8–S12 Wizard | Category icon grid; conditional "¿Es este tu reporte?" step; sending state |
+| B7, B8, B8b | S2 (sheet) | Phone sign-in moves to the send step, as a sheet over the review |
+| B9, B10, B11 | S14 Resultado | Same outcomes, clearer layout; technical-verification note |
+| C1–C4 | S15, S16 | Unread dot on notices (proposal, #16) |
+| C5, C6, C7 | S17, S17a | New "sin cuenta" variant, since sign-in is no longer required at start |
+
 ## Screens that do not exist yet
 
 | Screen | Source | Status |
