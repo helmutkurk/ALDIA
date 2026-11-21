@@ -79,7 +79,7 @@ class StateChip extends StatelessWidget {
       decoration: BoxDecoration(
         color: scheme.surface,
         border: Border.all(color: foreground),
-        borderRadius: BorderRadius.circular(AldiaSpace.xl),
+        borderRadius: BorderRadius.circular(AldiaSpace.s),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(
@@ -89,7 +89,7 @@ class StateChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(info.icon, size: 16, color: foreground),
+            Icon(info.icon, size: 18, color: foreground),
             const SizedBox(width: AldiaSpace.xs),
             Flexible(
               child: Text(
@@ -118,10 +118,17 @@ class CitizenStateChip extends StatelessWidget {
     return Chip(
       backgroundColor: theme.colorScheme.surface,
       side: BorderSide(color: foreground),
-      avatar: Icon(info.icon, size: 20, color: foreground),
-      label: Text(info.label),
-      labelStyle: TextStyle(color: theme.colorScheme.onSurface),
-      materialTapTargetSize: MaterialTapTargetSize.padded,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      avatar: Icon(info.icon, size: 18, color: foreground),
+      label: Text(
+        info.label,
+        style: theme.textTheme.labelMedium?.copyWith(
+          color: theme.colorScheme.onSurface,
+        ),
+      ),
+      labelPadding: const EdgeInsets.only(left: 4),
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
   }
 }
@@ -141,17 +148,25 @@ class StatusChips extends StatelessWidget {
         Chip(
           backgroundColor: theme.colorScheme.surface,
           side: BorderSide(color: foreground),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           avatar: Icon(
             report.status == 'verified'
                 ? Icons.verified_outlined
                 : report.status == 'rejected'
                 ? Icons.info_outline
                 : Icons.hourglass_empty,
-            size: 20,
+            size: 18,
             color: foreground,
           ),
-          label: Text(reportStatusLabel(report)),
-          labelStyle: TextStyle(color: theme.colorScheme.onSurface),
+          label: Text(
+            reportStatusLabel(report),
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurface,
+            ),
+          ),
+          labelPadding: const EdgeInsets.only(left: 4),
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
       ],
     );
@@ -172,13 +187,16 @@ class ChecksList extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (verification.isStub)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: Text(S.stubNotice),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              S.stubNotice,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
           ),
         for (final check in checks)
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.symmetric(vertical: AldiaSpace.m),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -192,8 +210,9 @@ class ChecksList extends StatelessWidget {
                           Theme.of(context).brightness,
                         )
                       : Theme.of(context).colorScheme.error,
+                  size: 24,
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: AldiaSpace.m),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -202,8 +221,21 @@ class ChecksList extends StatelessWidget {
                         feedbackFor(check, category).title,
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
-                      Text(feedbackFor(check, category).reason),
-                      if (!check.passed) Text(feedbackFor(check, category).fix),
+                      const SizedBox(height: AldiaSpace.xs),
+                      Text(
+                        feedbackFor(check, category).reason,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      if (!check.passed) ...[
+                        const SizedBox(height: AldiaSpace.xs),
+                        Text(
+                          feedbackFor(check, category).fix,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                      ],
                     ],
                   ),
                 ),

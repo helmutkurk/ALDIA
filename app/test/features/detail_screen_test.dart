@@ -1,8 +1,17 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:aldia_app/data/api_client.dart';
+import 'package:aldia_app/data/my_reports_store.dart';
+import 'package:aldia_app/data/report_repository.dart';
 import 'package:aldia_app/core/strings.dart';
 import 'package:aldia_app/data/report.dart';
 import 'package:aldia_app/features/detail/report_detail_screen.dart';
-import 'package:flutter/widgets.dart';
+import 'package:aldia_app/widgets/report_photo.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 import '../support/fakes.dart';
 import '../widgets/harness.dart';
@@ -30,6 +39,34 @@ Map<String, dynamic> _detailJson() => stateJson(
 );
 
 Report _stub() => Report.fromJson(stateJson('en_revision'));
+
+ReportRepository _refreshRepository(Completer<http.Response> successfulRetry) {
+  var detailRequests = 0;
+  final client = MockClient((request) async {
+    if (request.url.path.endsWith('/reports/nearby')) {
+      return http.Response(jsonEncode({'items': []}), 200);
+    }
+    if (request.url.path.endsWith('/reports/$detailId')) {
+      detailRequests++;
+      if (detailRequests == 1) return http.Response('{}', 503);
+      if (detailRequests == 2) return successfulRetry.future;
+      return http.Response(jsonEncode(stateJson('en_revision')), 200);
+    }
+    return http.Response('{}', 200);
+  });
+  return ReportRepository(
+    api: ApiClient(client: client, baseUrl: 'http://api.test/api'),
+    store: _EmptyReportStore(),
+  );
+}
+
+class _EmptyReportStore implements MyReportsStore {
+  @override
+  Future<void> add(String id) async {}
+
+  @override
+  Future<List<String>> ids() async => const [];
+}
 
 void _tall(WidgetTester tester) {
   tester.view.physicalSize = const Size(800, 3000);
@@ -108,5 +145,38 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Recibido'), findsWidgets);
+  });
+
+  testWidgets('detail remains readable after load failure and retry', (
+    tester,
+  ) async {
+    _tall(tester);
+    final successfulRetry = Completer<http.Response>();
+    await tester.pumpWidget(
+      harness(
+        home: ReportDetailScreen(report: _stub()),
+        repository: _refreshRepository(successfulRetry),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(ReportPhoto), findsOneWidget);
+    expect(find.text(S.timeline), findsOneWidget);
+    expect(
+      find.text(
+        'No se pudo actualizar el reporte. Se muestran los últimos datos disponibles.',
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text(S.retry));
+    await tester.pump();
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+    expect(find.text(S.timeline), findsOneWidget);
+    successfulRetry.complete(
+      http.Response(jsonEncode(stateJson('resuelto')), 200),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text(S.timeline), findsOneWidget);
+    expect(find.textContaining('No se pudo actualizar'), findsNothing);
   });
 }

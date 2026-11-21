@@ -39,6 +39,13 @@ class MyReportsScreen extends StatefulWidget {
 class _MyReportsScreenState extends State<MyReportsScreen> {
   late Future<List<Report>> _sent;
   List<DraftRecord> _drafts = const [];
+  bool _draftsLoading = true;
+  bool _draftsFailed = false;
+  int _draftLoadGeneration = 0;
+
+  /// Ids with a delete in progress; their buttons are disabled meanwhile.
+  final Set<String> _pendingOperations = {};
+  bool _queueRetrying = false;
 
   @override
   void initState() {
@@ -57,8 +64,26 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
   }
 
   Future<void> _loadDrafts() async {
-    final drafts = await context.read<DraftStore?>()?.loadAll();
-    if (mounted) setState(() => _drafts = drafts ?? const []);
+    final generation = ++_draftLoadGeneration;
+    final store = context.read<DraftStore?>();
+    setState(() {
+      _draftsLoading = true;
+      _draftsFailed = false;
+    });
+    try {
+      final drafts = await store?.loadAll() ?? const <DraftRecord>[];
+      if (!mounted || generation != _draftLoadGeneration) return;
+      setState(() {
+        _drafts = drafts;
+        _draftsLoading = false;
+      });
+    } catch (_) {
+      if (!mounted || generation != _draftLoadGeneration) return;
+      setState(() {
+        _draftsFailed = true;
+        _draftsLoading = false;
+      });
+    }
   }
 
   void _reloadSent() {
@@ -74,34 +99,93 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
     unawaited(_loadDrafts());
   }
 
-  Future<bool> _confirmDelete(String question) async =>
-      await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          content: Text(question),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text(S.cancel),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text(S.delete),
-            ),
-          ],
-        ),
-      ) ??
-      false;
+  Future<bool> _confirmDelete(String question) async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    final scheme = Theme.of(context).colorScheme;
+    return await showDialog<bool>(
+          context: context,
+          animationStyle: MediaQuery.disableAnimationsOf(context)
+              ? AnimationStyle.noAnimation
+              : const AnimationStyle(
+                  duration: Duration(milliseconds: 180),
+                  reverseDuration: Duration(milliseconds: 120),
+                ),
+          builder: (context) => AlertDialog(
+            content: Text(question),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text(S.cancel),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(AldiaSpace.target, AldiaSpace.target),
+                  backgroundColor: scheme.error,
+                  foregroundColor: scheme.onError,
+                ),
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text(S.delete),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
 
   Future<void> _deleteDraft(DraftRecord draft) async {
-    if (!await _confirmDelete(S.deleteDraftQuestion) || !mounted) return;
-    await context.read<DraftStore?>()?.delete(draft.id);
-    await _loadDrafts();
+    if (_pendingOperations.contains(draft.id)) return;
+    final store = context.read<DraftStore?>();
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _pendingOperations.add(draft.id));
+    try {
+      final confirmed = await _confirmDelete(S.deleteDraftQuestion);
+      if (!mounted || !confirmed) return;
+      await store?.delete(draft.id);
+      if (!mounted) return;
+      setState(
+        () => _drafts = _drafts.where((item) => item.id != draft.id).toList(),
+      );
+      await _loadDrafts();
+    } catch (_) {
+      if (mounted) {
+        messenger.showSnackBar(const SnackBar(content: Text(S.storageError)));
+      }
+    } finally {
+      if (mounted) setState(() => _pendingOperations.remove(draft.id));
+    }
   }
 
   Future<void> _deleteQueued(OutboxService outbox, OutboxEntry entry) async {
-    if (!await _confirmDelete(S.deleteOutboxQuestion)) return;
-    await outbox.remove(entry.draft.id);
+    final id = entry.draft.id;
+    if (_pendingOperations.contains(id)) return;
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _pendingOperations.add(id));
+    try {
+      final confirmed = await _confirmDelete(S.deleteOutboxQuestion);
+      if (!mounted || !confirmed) return;
+      await outbox.remove(id);
+    } catch (_) {
+      if (mounted) {
+        messenger.showSnackBar(const SnackBar(content: Text(S.storageError)));
+      }
+    } finally {
+      if (mounted) setState(() => _pendingOperations.remove(id));
+    }
+  }
+
+  Future<void> _retryQueue(OutboxService outbox) async {
+    if (_queueRetrying) return;
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _queueRetrying = true);
+    try {
+      await outbox.retry();
+    } catch (_) {
+      if (mounted) {
+        messenger.showSnackBar(const SnackBar(content: Text(S.storageError)));
+      }
+    } finally {
+      if (mounted) setState(() => _queueRetrying = false);
+    }
   }
 
   @override
@@ -119,7 +203,12 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
               final loading = snapshot.connectionState != ConnectionState.done;
               final sent = snapshot.data ?? const <Report>[];
               final empty = queued.isEmpty && _drafts.isEmpty && sent.isEmpty;
-              if (!loading && !snapshot.hasError && empty) {
+              if (!loading &&
+                  !snapshot.hasError &&
+                  !_draftsLoading &&
+                  !_draftsFailed &&
+                  outbox?.persistenceError == null &&
+                  empty) {
                 return _EmptyState(onStart: _openFlow);
               }
               return ListView(
@@ -151,12 +240,16 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
                         if (!entry.missingPhoto)
                           _CardAction(
                             label: S.retryNow,
-                            onPressed: () => unawaited(outbox!.retry()),
+                            onPressed: _queueRetrying
+                                ? null
+                                : () => _retryQueue(outbox!),
                           ),
                         _CardAction(
                           label: S.delete,
                           destructive: true,
-                          onPressed: () => _deleteQueued(outbox!, entry),
+                          onPressed: _pendingOperations.contains(entry.draft.id)
+                              ? null
+                              : () => _deleteQueued(outbox!, entry),
                         ),
                       ],
                     ),
@@ -177,9 +270,28 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
                         _CardAction(
                           label: S.delete,
                           destructive: true,
-                          onPressed: () => _deleteDraft(draft),
+                          onPressed: _pendingOperations.contains(draft.id)
+                              ? null
+                              : () => _deleteDraft(draft),
                         ),
                       ],
+                    ),
+                  if (outbox?.persistenceError != null)
+                    _RetryNotice(
+                      text: S.storageError,
+                      onRetry: _queueRetrying
+                          ? null
+                          : () => _retryQueue(outbox!),
+                    ),
+                  if (_draftsLoading && _drafts.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(AldiaSpace.l),
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                  if (_draftsFailed)
+                    _RetryNotice(
+                      text: S.draftsLoadError,
+                      onRetry: () => unawaited(_loadDrafts()),
                     ),
                   if (queued.isNotEmpty || _drafts.isNotEmpty)
                     const _SectionHeader(S.sentReports),
@@ -266,7 +378,7 @@ class _CardAction {
     this.destructive = false,
   });
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final bool destructive;
 }
 
@@ -449,6 +561,28 @@ class _DashedBorderPainter extends CustomPainter {
   @override
   bool shouldRepaint(_DashedBorderPainter old) =>
       old.color != color || old.radius != radius;
+}
+
+/// A failure the person can retry; announced to screen readers.
+class _RetryNotice extends StatelessWidget {
+  const _RetryNotice({required this.text, required this.onRetry});
+  final String text;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    liveRegion: true,
+    child: Padding(
+      padding: const EdgeInsets.only(bottom: AldiaSpace.m),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(text),
+          TextButton(onPressed: onRetry, child: const Text(S.retry)),
+        ],
+      ),
+    ),
+  );
 }
 
 class _EmptyState extends StatelessWidget {

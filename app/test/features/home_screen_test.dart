@@ -7,6 +7,8 @@ import 'package:aldia_app/features/home/report_map_view.dart';
 import 'package:aldia_app/widgets/neutral_map_pin.dart';
 import 'package:aldia_app/widgets/report_tile.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -114,7 +116,7 @@ void main() {
   });
 
   testWidgets(
-    'falls back to pins with icon and state text, tap opens summary',
+    'falls back to pins with icon and state text, keyboard opens summary',
     (tester) async {
       await tester.pumpWidget(
         harness(
@@ -154,7 +156,30 @@ void main() {
       }
       expect(fills, [AldiaColors.open, AldiaColors.resolved]);
 
-      await tester.tap(find.text('En revisión'));
+      final semanticPin = find.bySemanticsLabel('Bache. En revisión');
+      expect(semanticPin, findsOneWidget);
+      final pinButton = find.descendant(
+        of: semanticPin,
+        matching: find.byType(TextButton),
+      );
+      expect(pinButton, findsOneWidget);
+      expect(tester.getRect(pinButton).width, greaterThanOrEqualTo(48));
+      expect(tester.getRect(pinButton).height, greaterThanOrEqualTo(48));
+      expect(tester.widget<TextButton>(pinButton).onPressed, isNotNull);
+      expect(
+        tester
+            .getSemantics(semanticPin)
+            .getSemanticsData()
+            .hasAction(SemanticsAction.tap),
+        isTrue,
+      );
+      final pinContent = find.descendant(
+        of: pinButton,
+        matching: find.byType(Column),
+      );
+      Focus.of(tester.element(pinContent), scopeOk: true).requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pumpAndSettle();
       expect(find.text(S.viewDetail), findsOneWidget);
       expect(find.text('Bache'), findsOneWidget);

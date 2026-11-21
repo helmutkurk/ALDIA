@@ -93,4 +93,76 @@ void main() {
       },
     );
   }
+
+  testWidgets('related report failure can be retried successfully', (
+    tester,
+  ) async {
+    const suggestedId = '22222222-2222-4222-8222-222222222222';
+    var nearbyCalls = 0;
+    final client = MockClient((request) async {
+      if (request.url.path.endsWith('/reports/nearby')) {
+        nearbyCalls++;
+        if (nearbyCalls == 1) return http.Response('{}', 500);
+        return http.Response(
+          jsonEncode({
+            'items': [reportJson(id: suggestedId)],
+          }),
+          200,
+        );
+      }
+      return http.Response(jsonEncode(reportJson()), 200);
+    });
+    addTearDown(client.close);
+    final repository = ReportRepository(
+      api: ApiClient(client: client, baseUrl: 'http://api.test/api'),
+      store: MemoryStore(),
+    );
+    addTearDown(repository.local.dispose);
+    final controller =
+        ReportFlowController(
+            repository: repository,
+            location: FakeLocation(null),
+            photos: FakePhotos(),
+          )
+          ..categoryId = 'pothole'
+          ..position = const LatLng(14, -90)
+          ..submitState = SubmitState.done
+          ..result = Report.fromJson({
+            ...reportJson(
+              status: 'rejected',
+              checks: [
+                {'name': 'duplicate', 'passed': false, 'detail': 'duplicate'},
+              ],
+            ),
+          });
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      Provider<ReportRepository>.value(
+        value: repository,
+        child: MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: ResultView(controller: controller),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text('No se pudieron cargar los reportes relacionados.'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Reintentar'));
+    await tester.pumpAndSettle();
+    expect(nearbyCalls, 2);
+    expect(
+      find.text('No se pudieron cargar los reportes relacionados.'),
+      findsNothing,
+    );
+    expect(
+      find.text('No hay reportes relacionados disponibles.'),
+      findsNothing,
+    );
+  });
 }

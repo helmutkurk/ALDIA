@@ -110,10 +110,10 @@ class S {
       'No hay señal de ubicación. Elige el punto en el mapa.';
   static const poorAccuracy =
       'La precisión supera 50 m. Reintenta el GPS o ajusta el punto en el mapa.';
-  static const confirmLocation = 'CONFIRMAR UBICACIÓN';
+  static const confirmLocation = 'Confirmar ubicación';
   static const locating = 'Buscando ubicación…';
   static const edit = 'Editar';
-  static const manualReview = 'Enviar para revisión manual';
+  static const manualReview = 'Guardar para revisión manual';
   static const manualSaved =
       'Reporte guardado en este dispositivo. La revisión manual aún no está disponible.';
   static const waitingNetwork = 'Esperando conexión';
@@ -124,6 +124,7 @@ class S {
   static const draftMissingPhoto = 'Borrador · falta la foto';
   static const continueShort = 'Continuar';
   static const unsent = 'Sin enviar';
+  static const draftsLoadError = 'No se pudieron cargar los borradores.';
   static const verifiedPhoto = 'Foto verificada';
 
   /// Replaces raw coordinates wherever no address is known.

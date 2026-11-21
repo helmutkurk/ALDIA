@@ -83,9 +83,21 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  int _draftLoadToken = 0;
+
   Future<void> _loadDraft() async {
-    final drafts = await context.read<DraftStore?>()?.loadAll();
-    if (mounted) setState(() => _draft = drafts?.firstOrNull);
+    final token = ++_draftLoadToken;
+    try {
+      final drafts = await context.read<DraftStore?>()?.loadAll();
+      if (mounted && token == _draftLoadToken) {
+        setState(() => _draft = drafts?.firstOrNull);
+      }
+    } catch (_) {
+      if (mounted && token == _draftLoadToken) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text(S.storageError)));
+      }
+    }
   }
 
   void _reload() {

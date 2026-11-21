@@ -60,37 +60,40 @@ class StatePin extends StatelessWidget {
       label: '$category. ${state.label}',
       excludeSemantics: true,
       onTap: onTap,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            StatusMapPin(
-              state: report.citizenState,
-              icon: categoryById(report.category).icon,
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(
-                  color: Theme.of(context).colorScheme.outline,
+      // A real button: focusable and Enter/Space open it (Helmut, PR #20).
+      child: SizedBox.expand(
+        child: TextButton(
+          style: _markerButtonStyle(context),
+          onPressed: onTap,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              StatusMapPin(
+                state: report.citizenState,
+                icon: categoryById(report.category).icon,
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+                ),
+                child: Text(
+                  state.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textScaler: TextScaler.noScaling,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
                 ),
               ),
-              child: Text(
-                state.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textScaler: TextScaler.noScaling,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -112,20 +115,43 @@ class ClusterPin extends StatelessWidget {
           : '${S.clusterCount(cluster.count)}. ${S.openCluster}',
       excludeSemantics: true,
       onTap: onTap,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: NeutralMapPin(
-          child: single
-              ? const Icon(Icons.location_on)
-              : Text(
-                  cluster.count.humanizedCompact(),
-                  textScaler: TextScaler.noScaling,
-                ),
+      child: SizedBox.expand(
+        child: TextButton(
+          style: _markerButtonStyle(context),
+          onPressed: onTap,
+          child: NeutralMapPin(
+            child: single
+                ? const Icon(Icons.location_on)
+                : Text(
+                    cluster.count.humanizedCompact(),
+                    textScaler: TextScaler.noScaling,
+                  ),
+          ),
         ),
       ),
     );
   }
+}
+
+/// Transparent 48 dp marker button with a visible focus ring.
+ButtonStyle _markerButtonStyle(BuildContext context) {
+  final scheme = Theme.of(context).colorScheme;
+  return TextButton.styleFrom(
+    minimumSize: const Size(AldiaSpace.target, AldiaSpace.target),
+    padding: EdgeInsets.zero,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  ).copyWith(
+    backgroundColor: WidgetStateProperty.resolveWith(
+      (states) => states.contains(WidgetState.focused)
+          ? scheme.surface
+          : Colors.transparent,
+    ),
+    side: WidgetStateProperty.resolveWith(
+      (states) => states.contains(WidgetState.focused)
+          ? BorderSide(color: scheme.primary, width: 2)
+          : BorderSide.none,
+    ),
+  );
 }
 
 /// Bottom sheet with every report grouped in a cluster, newest first, with

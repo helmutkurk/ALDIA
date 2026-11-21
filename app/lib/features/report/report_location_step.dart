@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/config.dart';
@@ -22,11 +23,23 @@ class LocationStep extends StatefulWidget {
 class _LocationStepState extends State<LocationStep> {
   final _map = MapController();
   bool _showAccuracy = true;
+  bool _mapReady = false;
+  late LatLng _lastSyncedPosition;
+
+  @override
+  void initState() {
+    super.initState();
+    _lastSyncedPosition = widget.controller.position;
+  }
 
   @override
   void didUpdateWidget(covariant LocationStep oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _map.move(widget.controller.position, _map.camera.zoom);
+    final position = widget.controller.position;
+    if (position != _lastSyncedPosition) {
+      _lastSyncedPosition = position;
+      if (_mapReady) _map.move(position, _map.camera.zoom);
+    }
   }
 
   @override
@@ -52,98 +65,120 @@ class _LocationStepState extends State<LocationStep> {
           onSelected: (address) =>
               c.setPosition(address.position, label: address.label),
         ),
-        const Text(S.locationHint),
-        const SizedBox(height: 8),
-        SizedBox(
-          height: 260,
-          child: Semantics(
-            label: S.pinAlternative,
-            child: FlutterMap(
-              mapController: _map,
-              options: MapOptions(
-                initialCenter: c.position,
-                initialZoom: 16,
-                onTap: (_, point) => c.setPosition(point),
-              ),
-              children: [
-                TileLayer(
-                  urlTemplate: AppConfig.tileUrl,
-                  tileProvider: context.read<TileProvider>(),
-                  userAgentPackageName: AppConfig.userAgentPackage,
+        const SizedBox(height: 12),
+        Text(
+          S.locationHint,
+          style: Theme.of(context).textTheme.bodyMedium
+              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant,
+            ),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: SizedBox(
+            height: 260,
+            child: Semantics(
+              label: S.pinAlternative,
+              child: FlutterMap(
+                mapController: _map,
+                options: MapOptions(
+                  initialCenter: c.position,
+                  initialZoom: 16,
+                  onMapReady: () => _mapReady = true,
+                  onTap: (_, point) => c.setPosition(point),
                 ),
-                if (_showAccuracy &&
-                    c.accuracy != null &&
-                    c.gpsPosition != null)
-                  CircleLayer(
-                    circles: [
-                      CircleMarker(
-                        point: c.gpsPosition!,
-                        radius: c.accuracy!,
-                        useRadiusInMeter: true,
-                        color: Theme.of(context).colorScheme.primary
-                            .withValues(alpha: .15),
-                        borderColor: Theme.of(context).colorScheme.primary,
-                        borderStrokeWidth: 2,
-                      ),
-                    ],
+                children: [
+                  TileLayer(
+                    urlTemplate: AppConfig.tileUrl,
+                    tileProvider: context.read<TileProvider>(),
+                    userAgentPackageName: AppConfig.userAgentPackage,
                   ),
-                MarkerLayer(
-                  markers: [
-                    Marker(
-                      point: c.position,
-                      width: 48,
-                      height: 48,
-                      child: const NeutralMapPin(
-                        size: 48,
-                        child: Icon(Icons.location_on_outlined),
-                      ),
-                    ),
-                  ],
-                ),
-                Align(
-                  alignment: Alignment.topRight,
-                  child: Card(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        MapLayersButton(
-                          overlay: 'Precisión del GPS',
-                          visible: _showAccuracy,
-                          onChanged: (value) =>
-                              setState(() => _showAccuracy = value),
-                        ),
-                        IconButton(
-                          tooltip: 'Acercar mapa',
-                          onPressed: () => _map.move(
-                            _map.camera.center,
-                            (_map.camera.zoom + 1).clamp(3, 19),
-                          ),
-                          icon: const Icon(Icons.add),
-                        ),
-                        IconButton(
-                          tooltip: 'Alejar mapa',
-                          onPressed: () => _map.move(
-                            _map.camera.center,
-                            (_map.camera.zoom - 1).clamp(3, 19),
-                          ),
-                          icon: const Icon(Icons.remove),
-                        ),
-                        IconButton(
-                          tooltip: S.useMyLocation,
-                          onPressed: c.locating ? null : c.useMyLocation,
-                          icon: const Icon(Icons.my_location),
+                  if (_showAccuracy &&
+                      c.accuracy != null &&
+                      c.gpsPosition != null)
+                    CircleLayer(
+                      circles: [
+                        CircleMarker(
+                          point: c.gpsPosition!,
+                          radius: c.accuracy!,
+                          useRadiusInMeter: true,
+                          color: Theme.of(context).colorScheme.primary
+                              .withValues(alpha: .15),
+                          borderColor: Theme.of(context).colorScheme.primary,
+                          borderStrokeWidth: 2,
                         ),
                       ],
                     ),
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: c.position,
+                        width: 48,
+                        height: 48,
+                        child: const NeutralMapPin(
+                          size: 48,
+                          child: Icon(Icons.location_on_outlined),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
+                  Align(
+                    alignment: Alignment.topRight,
+                    child: Card(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          MapLayersButton(
+                            overlay: 'Precisión del GPS',
+                            visible: _showAccuracy,
+                            onChanged: (value) =>
+                                setState(() => _showAccuracy = value),
+                          ),
+                          IconButton(
+                            tooltip: 'Acercar mapa',
+                            onPressed: !_mapReady
+                                ? null
+                                : () => _map.move(
+                                    _map.camera.center,
+                                    (_map.camera.zoom + 1).clamp(3, 19),
+                                  ),
+                            icon: const Icon(Icons.add),
+                          ),
+                          IconButton(
+                            tooltip: 'Alejar mapa',
+                            onPressed: !_mapReady
+                                ? null
+                                : () => _map.move(
+                                    _map.camera.center,
+                                    (_map.camera.zoom - 1).clamp(3, 19),
+                                  ),
+                            icon: const Icon(Icons.remove),
+                          ),
+                          IconButton(
+                            tooltip: S.useMyLocation,
+                            onPressed: c.locating ? null : c.useMyLocation,
+                            icon: const Icon(Icons.my_location),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-        const Text(
+        const SizedBox(height: 8),
+        Text(
           '© OpenStreetMap contributors · búsqueda y mapa',
-          style: TextStyle(fontSize: 12),
+          style: Theme.of(context).textTheme.bodySmall
+              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
         if (c.locating) const FlowNotice(S.locating),
         if (issue != null) FlowNotice(issue, kind: BannerKind.warning),

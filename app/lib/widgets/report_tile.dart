@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:image_fade/image_fade.dart';
 import 'package:provider/provider.dart';
 
 import '../core/categories.dart';
@@ -10,6 +9,7 @@ import '../core/strings.dart';
 import '../core/text_x.dart';
 import '../core/theme.dart';
 import 'place_text.dart';
+import 'report_photo.dart';
 import 'status_chips.dart';
 import '../data/report.dart';
 import '../data/report_repository.dart';
@@ -53,27 +53,13 @@ class ReportTile extends StatelessWidget {
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
-                            Semantics(
-                              image: true,
-                              label: S.photoLabel(category.label, state.label),
-                              child: ExcludeSemantics(
-                                child: ImageFade(
-                                  image: NetworkImage(
-                                    repository.photoUrl(report),
-                                  ),
-                                  fit: BoxFit.cover,
-                                  placeholder: ColoredBox(
-                                    color: scheme.surfaceContainerHighest,
-                                  ),
-                                  errorBuilder: (context, exception) =>
-                                      ColoredBox(
-                                        color: scheme.surfaceContainerHighest,
-                                        child: Icon(
-                                          category.icon,
-                                          size: 56,
-                                          color: scheme.onSurfaceVariant,
-                                        ),
-                                      ),
+                            ExcludeSemantics(
+                              child: ReportPhoto(
+                                url: repository.thumbnailUrl(report),
+                                fit: BoxFit.cover,
+                                semanticLabel: S.photoLabel(
+                                  category.label,
+                                  state.label,
                                 ),
                               ),
                             ),
@@ -130,6 +116,8 @@ class ReportTile extends StatelessWidget {
                                 child: Text(
                                   report.note!,
                                   style: theme.textTheme.bodyLarge,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             const SizedBox(height: AldiaSpace.s),
@@ -157,18 +145,30 @@ class ReportTile extends StatelessWidget {
                       tooltip: 'Compartir reporte',
                       icon: const Icon(Icons.share_outlined),
                       onPressed: () async {
-                        final shared = await ShareService.shareReport(
-                          report.id,
-                        );
-                        if (!shared && context.mounted) {
-                          unawaited(HapticsHelper.success());
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Enlace copiado. Pégalo en WhatsApp o donde quieras compartirlo.',
-                              ),
-                            ),
+                        try {
+                          final shared = await ShareService.shareReport(
+                            report.id,
                           );
+                          if (!shared && context.mounted) {
+                            unawaited(HapticsHelper.success());
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Enlace copiado. Pégalo en WhatsApp o donde quieras compartirlo.',
+                                ),
+                              ),
+                            );
+                          }
+                        } catch (_) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'No se pudo compartir el reporte. Inténtalo de nuevo.',
+                                ),
+                              ),
+                            );
+                          }
                         }
                       },
                     ),
