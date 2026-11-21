@@ -17,7 +17,7 @@ Each row says where it lives today and whether the two sides already match.
 | `latitude`, `longitude` | Point of the problem | Cards show coordinates | Map + report page | ✅ (no address field on either side) |
 | `captured_at`, `created_at` | Photo time, server time (UTC) | `formattedDate()` es-GT | relative "hace 3 días" + exact Guatemala time in `title` | ⚠️ app uses absolute dates, portal relative |
 | `status` | Verifier verdict `pending/verified/rejected` | Status chips | Verifier filter, pins | ✅ |
-| `state`, `state_group` | Municipality handling state (11 states, 6 groups) | `core/citizen_states.dart` | `src/states.js`, `i18n.js` | ❌ different words (open-decisions #13) |
+| `state`, `state_group` | Municipality handling state (11 states, 6 groups) | `core/citizen_states.dart` | `src/states.js`, `i18n.js` | ❌ different words today; decided 2026-11-21: citizen words on public pages, official words in staff screens |
 | `resolution` | Legacy v0.1 handling | fallback only | fallback only | ❌ `closed` maps differently (open-decisions #14) |
 | `note` | Citizen description (≤280) | Wizard step, cards, detail | List rows (2 lines), report page | ✅ |
 | `public_note` | Last official message | "Mensaje del municipio" | Staff writes it on transitions | ✅ |

@@ -3,12 +3,16 @@
 Phase 1 UX spec, 2026-11-21. Each item is something undefined, inconsistent or contradictory between the code and the docs.
 "Proposed owner" is a suggestion from the roles in `AGENTS.md`, not an assignment. ★ = blocks the Phase 2 wireframes.
 
+**Update 2026-11-21:** the ★ items 1, 2, 7, 13, 20, 21, 22 and 23 are decided in
+[`documentation/decisions/ux-2026-11-21.md`](../../../documentation/decisions/ux-2026-11-21.md) (marked ✅ below).
+Item 26: the app stays Flutter. Item 27: specs stay in `app/docs/ux/` for now. All other items remain open.
+
 ## Account and login
 
-1. ★ **Which login method is final?** `documentation/decisions/citizen-login.md` chose a six-digit phone code and it is
+1. ✅ *Decided: phone code; citizen ID (DPI) possible later.* ★ **Which login method is final?** `documentation/decisions/citizen-login.md` chose a six-digit phone code and it is
    built. `app/README.md` says "the login method (citizen ID or email) is undecided" and adds the MVP test account.
    Is it phone code, citizen ID (DPI), email, or more than one? *(Fernando, Helmut, Lorenz)*
-2. ★ **When must the citizen sign in?** The decision says "at the final report step". The reference (SeeClickFix) asks at
+2. ✅ *Decided: at send (option b).* ★ **When must the citizen sign in?** The decision says "at the final report step". The reference (SeeClickFix) asks at
    submit, as an optional "register to receive updates". The code asks at app start and blocks everything
    (`REQUIRE_CITIZEN_LOGIN` app default `true`), while the API default is `false`. Options: (a) login first,
    (b) browse freely, login at submit, (c) anonymous reports allowed, login only for notices. *(app + backend)*
@@ -22,7 +26,7 @@ Phase 1 UX spec, 2026-11-21. Each item is something undefined, inconsistent or c
 
 ## Report flow
 
-7. ★ **Do we show nearby reports before the photo?** The reference and `documentation/ui/app-ui-notes.md` include an
+7. ✅ *Decided: only when the API finds matches.* ★ **Do we show nearby reports before the photo?** The reference and `documentation/ui/app-ui-notes.md` include an
    "Is this your request?" step; the code removed it (README) and only shows duplicates **after** sending. A pre-check
    avoids uploads and duplicates but adds a step. Keep removed, restore, or show it only when matches exist?
 8. **Manual review:** after three rejections, **Enviar para revisión manual** only saves locally and says it is not
@@ -38,7 +42,7 @@ Phase 1 UX spec, 2026-11-21. Each item is something undefined, inconsistent or c
 
 ## States and wording
 
-13. ★ **Citizen and staff state names differ.** Same contract state, different words:
+13. ✅ *Decided: citizen words in the app and public portal; official words in staff screens.* ★ **Citizen and staff state names differ.** Same contract state, different words:
 
     | state | App (citizen) | Portal (staff/public) |
     |---|---|---|
@@ -70,15 +74,15 @@ Phase 1 UX spec, 2026-11-21. Each item is something undefined, inconsistent or c
 
 ## Visual design (see design-direction.md)
 
-20. ★ **New palette vs. binding shared tokens.** `documentation/design-tokens.md` (Helmut, 2026-11-20) binds the app *and*
+20. ✅ *Decided: app and portal change together.* ★ **New palette vs. binding shared tokens.** `documentation/design-tokens.md` (Helmut, 2026-11-20) binds the app *and*
     the portal to the calm teal/graphite palette. The new direction (Guatemala sky blue + coral) changes both. Do Isa
     and Helmut agree to change the shared tokens, or does only the app change? (Changing only the app breaks
     "app and portal share these values".)
-21. ★ **Contrast of the given colors.** White on `#2F7FBF` is 4.28:1 and white on `#FF7A59` is 2.57:1; both fail the
+21. ✅ *Decided: fixes accepted.* ★ **Contrast of the given colors.** White on `#2F7FBF` is 4.28:1 and white on `#FF7A59` is 2.57:1; both fail the
     4.5:1 rule that `test/core/theme_test.dart` enforces. Accept the proposed darker values in design-direction.md?
-22. **Status colors collide with the new brand.** Open = orange `#E8731A` is close to the coral accent; resolved = blue
+22. ✅ *Decided: new status set.* **Status colors collide with the new brand.** Open = orange `#E8731A` is close to the coral accent; resolved = blue
     `#2D8CD0` is close to the sky-blue primary. Re-map status colors, or keep them and pick quetzal green as the accent?
-23. **Coral or quetzal green** as the accent?
+23. ✅ *Decided: coral.* **Coral or quetzal green** as the accent?
 24. **Dark top bar:** the current Inicio and Explorar use a dark graphite `bar`. The new direction asks for white
     backgrounds and light cards. Do we drop the dark bar?
 25. **Inicio content:** the new references (category grid, metric cards with a chart) suggest a richer home than today's

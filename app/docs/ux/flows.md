@@ -26,6 +26,16 @@ Aldia is a Flutter app (Android, iOS, Linux demo), not a native Android/Jetpack 
 Drafts autosave, an outbox resends when the network returns, and every report has one idempotency key so retries never
 duplicate it. Real SMS delivery, push notifications, rewards, account deletion and real manual review do not exist.
 
+## Target changes decided on 2026-11-21
+
+From [`documentation/decisions/ux-2026-11-21.md`](../../../documentation/decisions/ux-2026-11-21.md). The flows below
+still describe today's code; Phase 2 wireframes use these targets:
+
+- **F2:** sign-in moves from app start to the **Revisar y enviar** step (citizens browse and fill in the report freely).
+  Phone code stays; leave room for a future citizen ID (DPI) method.
+- **F9:** after **Categoría**, a "¿Es este tu reporte?" step appears only when the nearby endpoint finds matches.
+- State names: citizen wording in the app and the public portal; official wording only in staff screens.
+
 ## Flow index
 
 | # | Flow | Status |

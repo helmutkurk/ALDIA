@@ -1,8 +1,9 @@
-# Design direction (proposal for team review)
+# Design direction (approved 2026-11-21)
 
-Phase 1 UX spec, 2026-11-21. **Spec only, not code.** Nothing in `lib/core/theme.dart` changes until the team approves
-this file. It would replace the calm teal/graphite palette in `documentation/design-tokens.md`, which today binds the app
-**and** the portal (open-decisions #20).
+Phase 1 UX spec, 2026-11-21. **Spec only, not code.** Approved for the app and the portal in
+[`documentation/decisions/ux-2026-11-21.md`](../../../documentation/decisions/ux-2026-11-21.md): new palette, contrast
+fixes (§2), coral accent and the new status colors (§5). It replaces the calm teal/graphite palette in
+`documentation/design-tokens.md` when the shared tokens are implemented in Phase 3.
 
 ## 1. Brief (as given)
 
