@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../widgets/place_text.dart';
-
 import '../../core/categories.dart';
 import '../../core/config.dart';
 import '../../core/strings.dart';
-import '../../core/text_x.dart';
 import '../../widgets/place_text.dart';
 import 'report_flow_controller.dart';
 import 'report_flow_widgets.dart';
