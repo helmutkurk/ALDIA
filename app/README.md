@@ -17,7 +17,8 @@ No reference assets, copy or code are included.
   fall back to individual reports. **Filtros** opens a sheet with search plus category and state-group chips
   (`state_group`); the list uses the same header.
 - Wizard: **Ubicación → Categoría → Foto → Detalles → Revisar y enviar** (the nearby-duplicates step was removed). Every step has a summary of
-  the chosen place/category. Location supports explicit address search, GPS, map pin and accessible coordinate inputs;
+  the chosen place/category. Location supports explicit address search, GPS, map pin and coordinate inputs (closed
+  **Ingresar coordenadas** section, for screen readers);
   **CONFIRMAR UBICACIÓN** remains at the bottom. Categories and groups come from `GET /api/categories`, with offline
   contract defaults. A report rejected by the verifier as a duplicate still shows the existing report.
   A live photo is mandatory. Retake and verifier feedback remain available.
