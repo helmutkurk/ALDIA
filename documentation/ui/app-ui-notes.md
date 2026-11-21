@@ -1,49 +1,53 @@
 # Citizen app UI notes
 
-Scope: `app/`, Spanish (Guatemala). Updated 2026-11-20: seven tasks of `app-reference-seeclickfix.md` plus the calm palette of `../design-tokens.md`.
+Scope: `app/`, Spanish (Guatemala). **Updated 2026-11-21** for Phase 3 (implementation of the approved design).
 Only reference principles are used; no SeeClickFix/FixMyStreet assets, text, colors or source code were copied.
-Colors and spacing/target tokens live in `lib/core/theme.dart`.
 
-## Calm SeeClickFix-style palette (2026-11-20)
+Where things are:
+- Decisions: [`../decisions/ux-2026-11-21.md`](../decisions/ux-2026-11-21.md) (login at send, nearby step only on
+  matches, citizen wording in public, palette, Explorar map, name **AlDía**).
+- UX specs and test kit: [`../../app/docs/ux/`](../../app/docs/ux/). Low-fi wireframes and clickable prototype: Figma
+  file "Aldia - prueba MCP", page "Wireframes low-fi".
+- Phase 3 progress, next steps and open to-dos: [`../../app/docs/ux/implementation-status.md`](../../app/docs/ux/implementation-status.md).
+- Tokens: [`../design-tokens.md`](../design-tokens.md), implemented in `lib/core/theme.dart` (`AldiaColors`,
+  `AldiaRadius`, `AldiaSpace`, light and dark `ColorScheme`), tested in `test/core/theme_test.dart`.
 
-Binding tokens: `../design-tokens.md`, implemented in `lib/core/theme.dart` (`AldiaColors`, light and dark `ColorScheme`).
-This replaces the neutral graphite palette of 2026-11-19.
+## Current palette and shapes (since PR #24)
 
-- `bar` `#3A3F44` (dark `#23292E`): top bar of the shell and Explorar, the MAPA/LISTA tab strip and the Inicio landing
-  background; white text (10.6:1). Other sheets (wizard) use the white `surface` header with title, help and close icons.
-- `primary` `#0F7A99`: full-width buttons (CONFIRMAR UBICACION, SIGUIENTE, ENVIAR), pressed `#0B6079`. Dark mode uses
-  `#4FB8D6` with dark text. Text buttons and links use `#0B6079` (the base teal is 4.48:1 on the page gray, so it is not
-  used for text).
-- `accent` `#E8731A`: only the tab underline (never text). Page `#F3F4F6`, cards `#FFFFFF`, border `#D9DEE3`,
-  text `#1F2933`, muted `#52606D`.
-- Status colors paint the dot or pin only: open orange, in work/scheduled green, resolved blue, closed gray, rejected red,
-  pending verification a hollow dot. The word always sits beside the dot in the normal text color (`StatusDot`,
-  `StatusLabel`; chips keep icon + word). The eleven-state citizen wording is unchanged.
-- `StatusMapPin`: status-colored disc, white 3 dp outline, white center with the state letter in text color (14:1).
-  `NeutralMapPin` (primary fill) remains for clusters and the location-selection pin.
-- Spacing scale `AldiaSpace` (4/8/12/16/24/32, 48 dp targets). Pressed and ripple states come from the theme (ink ripple,
-  darker pressed buttons); empty and error states use `EmptyState`.
-- `test/core/theme_test.dart` checks every text/background pair at 4.5:1 in light and dark (buttons, containers, snackbar,
-  top bar and tab label on `bar`, pin letter, text buttons and body/secondary text on every surface) and every status
-  dot at 3:1 against the surface (non-text).
+Guatemala sky-blue palette: primary `#2A6FA8` (pressed and links `#235E8F`), brand `#4997D0` for non-text marks,
+coral accent `#FF7A59` with dark text for the key call to action and badges, white page, light-sky cards `#EAF4FB`.
+Status dots and pins: open amber `#B26A00`, in work violet `#7E57C2`, resolved green `#17735A`, closed gray, rejected
+red, pending hollow; always with the state word. Pill buttons (52 dp) and chips, cards 20 dp, sheets and dialogs 28 dp.
+Transitional: the shell top bar (`AldiaColors.bar`) is blue `#235E8F` until Inicio and the other tabs move to light
+surfaces. The portal still uses the previous teal palette.
 
-## Screen map
+## Current screen map (develop, 2026-11-21)
 
 ```
-First run: skippable onboarding (3 slides)
-Shell: Inicio | Avisos | (+) Reportar | Mis reportes | Perfil
- Inicio: dark `bar` landing, Aldia mark, big resolved counter, Explorar mi ciudad, Reportar un problema
- Explorar: dark bar with search, locate, filter and menu icons; MAPA / LISTA with accent underline
- MAPA: viewport clusters/pins, summary sheet, zoom, locate, overlay/layer control
- LISTA: large-photo cards, status dot + word, location, note, date/id, heart/share
- Avisos: locally observed state changes, refresh, offline stored inbox
- Mis reportes: outbox, saved drafts, sent/followed reports (existing behavior)
- Perfil: phone placeholder, name-visibility preference, language/version, local data deletion
-Wizard: Ubicación > Categoría > Duplicados > Foto en vivo > Detalles > Revisar/enviar > Resultado
-Detail: photo, citizen state + verifier verdict, public timeline, nearby reports, checks
+First run: skippable onboarding (3 slides), then "Entra a AlDía" (login at start; see implementation-status: to change)
+Shell: Inicio | Avisos | (+) Reportar (coral pill) | Mis reportes | Perfil
+ Inicio: blue bar landing, resolved counter, Explorar mi ciudad, Reportar un problema, draft banner
+ Explorar (PR #26): full-screen map, no app bar; floating back, Mapa | Lista switch, filter button with count
+  Mapa: clusters or pins (category icon on state color + state word), legend, zoom, my location, layers,
+        loading / empty / error banners
+  Lista: same header; large-photo cards (16:9 photo, state dot + word, category, coordinates, note, date, reference)
+  Filtros: bottom sheet with search, category chips, state-group chips (sent as state_group)
+ Avisos: locally observed state changes, refresh, offline stored inbox (no push)
+ Mis reportes: outbox, saved drafts, sent/followed reports
+ Perfil: masked phone or test account, sign out / verify, language, version, delete local data
+Wizard: Ubicación > Categoría > Foto > Detalles > Revisar y enviar > Resultado
+ (no nearby step and no sign-in at send since PR #18; decisions say to restore both: Phase 3 steps 5 and 6)
+Detail: photo, state chips, explanation, official message, timeline, nearby reports, checks
+Shared widgets: AldiaBanner (info/warning/error), EmptyState, ReportTile, StatusDot/StatusLabel, StatusMapPin
 ```
 
-## Seven tasks implemented in order
+## History: seven tasks of 2026-11-20 (partly superseded)
+
+The sections below describe the SeeClickFix-parity work of 2026-11-20. Superseded since then: the teal/graphite
+palette (now the sky-blue tokens), the MAPA/LISTA tabs and app-bar search (now the full-screen map and filter sheet),
+and the nearby-duplicates step (removed in PR #18, to come back only when there are matches).
+
+### Seven tasks implemented in order
 
 1. **Wizard and summary.** Location first, category, nearby suggestions, mandatory live photo, optional note, review/send.
    Every editing step repeats a camera icon, place (address when selected, coordinates otherwise) and chosen category.

@@ -1,6 +1,7 @@
 # documentation
 
-- `decisions/`: team decisions ([2026-11-19](decisions/2026-11-19.md)).
+- `decisions/`: team decisions ([2026-11-19](decisions/2026-11-19.md), [UX decisions 2026-11-21](decisions/ux-2026-11-21.md)).
+- App UX: specs, test kit and Phase 3 status in [`app/docs/ux/`](../app/docs/ux/) (start with [implementation-status](../app/docs/ux/implementation-status.md)); [app UI notes](ui/app-ui-notes.md); [design tokens](design-tokens.md).
 - `research/`: market and technical research (competitors, photo analysis, countries).
 - `meetings/`: cleaned meeting notes.
 - [Development setup](dev-setup.md), [testing](testing.md), and [development demo credentials](demo-credentials.md).
