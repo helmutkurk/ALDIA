@@ -188,17 +188,25 @@ class _HomeScreenState extends State<HomeScreen> {
       // Explorar draws its own floating controls over a full-screen map.
       appBar: exploring
           ? null
-          : AppBar(
+          : _tab == HomeTab.home
+          // Inicio's blue hero continues the blue bar.
+          ? AppBar(
               backgroundColor: AldiaColors.barOf(context),
               foregroundColor: AldiaColors.onBar,
               iconTheme: const IconThemeData(color: AldiaColors.onBar),
               shape: null,
+              title: const Text(
+                S.appName,
+                style: TextStyle(color: AldiaColors.onBar),
+              ),
+            )
+          // Other tabs: light header from the theme (decision 15, Figma).
+          : AppBar(
               title: Text(switch (_tab) {
                 HomeTab.notices => 'Avisos',
                 HomeTab.mine => S.myReports,
-                HomeTab.profile => 'Perfil',
-                _ => S.appName,
-              }, style: const TextStyle(color: AldiaColors.onBar)),
+                _ => 'Perfil',
+              }),
             ),
       body: Column(
         children: [
