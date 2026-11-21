@@ -10,10 +10,18 @@ class AppConfig {
     defaultValue: 'http://10.0.2.2:8000/api',
   );
 
-  /// Match the API deployment's REQUIRE_CITIZEN_LOGIN setting.
+  /// Citizens log in with their phone at app start. Set
+  /// REQUIRE_CITIZEN_LOGIN=false only for anonymous demos.
   static const bool requireCitizenLogin = bool.fromEnvironment(
     'REQUIRE_CITIZEN_LOGIN',
-    defaultValue: false,
+    defaultValue: true,
+  );
+
+  /// MVP only: the login screen offers a local test account. Build with
+  /// ALLOW_TEST_ACCOUNT=false once the real login method is decided.
+  static const bool allowTestAccount = bool.fromEnvironment(
+    'ALLOW_TEST_ACCOUNT',
+    defaultValue: true,
   );
 
   /// Default map view: Guatemala City.

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/text_x.dart';
 import '../../core/theme.dart';
 import 'report_flow_controller.dart';
 
@@ -10,11 +11,11 @@ class SummaryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = controller;
-    final place =
-        c.placeLabel ??
-        (c.locationConfirmed
-            ? '${c.position.latitude.toStringAsFixed(5)}, ${c.position.longitude.toStringAsFixed(5)}'
-            : 'Elige el lugar del problema');
+    final place = c.placeLabel.isUsable
+        ? c.placeLabel!
+        : (c.locationConfirmed
+              ? '${c.position.latitude.toStringAsFixed(5)}, ${c.position.longitude.toStringAsFixed(5)}'
+              : 'Elige el lugar del problema');
     final category = c.categories
         .where((item) => item.id == c.categoryId)
         .firstOrNull;

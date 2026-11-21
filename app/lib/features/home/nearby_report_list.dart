@@ -7,6 +7,7 @@ import '../../core/theme.dart';
 import '../../data/report.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/report_tile.dart';
+import 'bottom_navigation_reselect.dart';
 
 class ReportList extends StatelessWidget {
   const ReportList({
@@ -79,6 +80,8 @@ class ReportList extends StatelessWidget {
         return RefreshIndicator(
           onRefresh: () async => onRetry(),
           child: ListView.separated(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            controller: BottomNavigationReselect.exploreListScrollController,
             padding: const EdgeInsets.fromLTRB(
               AldiaSpace.l,
               AldiaSpace.s,

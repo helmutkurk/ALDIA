@@ -6,20 +6,25 @@ import 'api_client.dart';
 import 'my_reports_store.dart';
 import 'report.dart';
 import 'local_citizen_store.dart';
-import '../core/config.dart';
 import '../services/identity_services.dart';
+import '../services/test_account.dart';
 
 class ReportRepository {
   ReportRepository({
     required this._api,
     required this._store,
     LocalCitizenStore? local,
-    this.requireCitizenLogin = AppConfig.requireCitizenLogin,
+    this.requireCitizenLogin = false,
+    this.testAccount,
   }) : local = local ?? LocalCitizenStore();
 
   final LocalCitizenStore local;
   final bool requireCitizenLogin;
+  final TestAccountSession? testAccount;
   AuthService get auth => _api.auth;
+
+  /// A verified phone session or the MVP test account.
+  bool get hasAccount => auth.isSignedIn || (testAccount?.active ?? false);
   Future<int?> resolvedCount() => _api.resolvedCount();
 
   Future<void> clearLocalData() async {
@@ -114,7 +119,7 @@ class ReportRepository {
     String? note,
     String? idempotencyKey,
   }) async {
-    if (requireCitizenLogin && !auth.isSignedIn) {
+    if (requireCitizenLogin && !hasAccount) {
       throw const ApiException(
         'Verifica tu número antes de enviar el reporte.',
         statusCode: 401,

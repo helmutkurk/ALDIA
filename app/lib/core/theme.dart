@@ -1,3 +1,5 @@
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// Design tokens shared with the portal. See documentation/design-tokens.md.
@@ -170,6 +172,14 @@ ThemeData _build(Brightness brightness) {
     ),
     splashFactory: InkRipple.splashFactory,
     focusColor: scheme.primary.withValues(alpha: 0.16),
+    // Selection sits behind text, so it gets opacity; cursor and handles are
+    // small and stay at full color.
+    textSelectionTheme: TextSelectionThemeData(
+      selectionColor: scheme.primary.withValues(alpha: 0.3),
+      selectionHandleColor: scheme.primary,
+      cursorColor: scheme.primary,
+    ),
+    pageTransitionsTheme: appPageTransitionsTheme,
     // Default app bar: sheet header (white). Explorar and the shell use the
     // dark `bar` through [AldiaColors.barOf].
     appBarTheme: AppBarTheme(
@@ -314,4 +324,42 @@ ThemeData _build(Brightness brightness) {
       linearTrackColor: scheme.outlineVariant,
     ),
   );
+}
+
+/// Native page transitions on Android and iOS (also in a mobile browser),
+/// none on web and desktop, where pages are click and open.
+const PageTransitionsTheme appPageTransitionsTheme = PageTransitionsTheme(
+  builders: {
+    TargetPlatform.android: kIsWeb
+        ? _NoPageTransitionsBuilder()
+        : PredictiveBackPageTransitionsBuilder(),
+    TargetPlatform.iOS: kIsWeb
+        ? _NoPageTransitionsBuilder()
+        : CupertinoPageTransitionsBuilder(),
+    TargetPlatform.macOS: _NoPageTransitionsBuilder(),
+    TargetPlatform.windows: _NoPageTransitionsBuilder(),
+    TargetPlatform.linux: _NoPageTransitionsBuilder(),
+    TargetPlatform.fuchsia: _NoPageTransitionsBuilder(),
+  },
+);
+
+class _NoPageTransitionsBuilder extends PageTransitionsBuilder {
+  const _NoPageTransitionsBuilder();
+
+  @override
+  Duration get transitionDuration => Duration.zero;
+
+  @override
+  Duration get reverseTransitionDuration => Duration.zero;
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    return child;
+  }
 }

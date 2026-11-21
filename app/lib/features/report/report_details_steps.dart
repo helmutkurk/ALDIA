@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 import '../../core/categories.dart';
 import '../../core/config.dart';
 import '../../core/strings.dart';
-import '../../data/report_repository.dart';
+import '../../core/text_x.dart';
 import 'report_flow_controller.dart';
 import 'report_flow_widgets.dart';
 
@@ -59,8 +58,9 @@ class ReviewStep extends StatelessWidget {
           child: const Text('${S.edit}: ${S.stepPhoto}'),
         ),
         Text(
-          c.placeLabel ??
-              '${c.position.latitude.toStringAsFixed(5)}, ${c.position.longitude.toStringAsFixed(5)}',
+          c.placeLabel.isUsable
+              ? c.placeLabel!
+              : '${c.position.latitude.toStringAsFixed(5)}, ${c.position.longitude.toStringAsFixed(5)}',
         ),
         TextButton(
           onPressed: () => c.edit(FlowStep.location),
@@ -80,12 +80,6 @@ class ReviewStep extends StatelessWidget {
           S.uploadSize((c.photo?.bytes.length ?? 0) + 1024 + c.note.length * 4),
         ),
         const FlowNotice(S.publicPhotoNotice),
-        const SizedBox(height: 16),
-        Text(
-          context.read<ReportRepository>().auth.isSignedIn
-              ? 'Tu número está verificado. Podrás consultar este reporte desde tu cuenta.'
-              : 'Para recibir avisos de tu reporte verifica tu número.',
-        ),
       ],
     );
   }

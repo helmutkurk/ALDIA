@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../core/categories.dart';
 import '../../core/citizen_states.dart';
+import '../../core/number_format.dart';
 import '../../core/strings.dart';
+import '../../core/text_x.dart';
 import '../../core/theme.dart';
 import '../../data/report.dart';
 import '../../widgets/neutral_map_pin.dart';
@@ -25,7 +27,7 @@ class ReportMapSummary extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             ReportTile(report: report, onTap: onOpen),
-            if (report.publicNote?.isNotEmpty == true)
+            if (report.publicNote.isUsable)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Text(report.publicNote!),
@@ -112,7 +114,10 @@ class ClusterPin extends StatelessWidget {
         child: NeutralMapPin(
           child: single
               ? const Icon(Icons.location_on)
-              : Text('${cluster.count}', textScaler: TextScaler.noScaling),
+              : Text(
+                  cluster.count.humanizedCompact(),
+                  textScaler: TextScaler.noScaling,
+                ),
         ),
       ),
     );

@@ -13,22 +13,25 @@ No reference assets, copy or code are included.
   it does not claim to be an all-time total.
 - **Explorar mi ciudad** opens **MAPA / LISTA** tabs with an accent underline. Map clusters fall back to individual
   reports; filters use citizen state and category. Map controls offer zoom, location and report-overlay visibility.
-- Wizard: **Ubicación → Categoría → Duplicados → Foto → Detalles → Revisar y enviar**. Every step has a summary of
+- Wizard: **Ubicación → Categoría → Foto → Detalles → Revisar y enviar** (the nearby-duplicates step was removed). Every step has a summary of
   the chosen place/category. Location supports explicit address search, GPS, map pin and accessible coordinate inputs;
   **CONFIRMAR UBICACIÓN** remains at the bottom. Categories and groups come from `GET /api/categories`, with offline
-  contract defaults. Nearby suggestions reuse `GET /api/reports/nearby`; empty/offline lookups allow continuing.
+  contract defaults. A report rejected by the verifier as a duplicate still shows the existing report.
   A live photo is mandatory. Retake and verifier feedback remain available.
 - Cards show a large photo (icon fallback), status dot **and word**, category, coordinates, note, date and reference.
   The API has no address field, so public cards display coordinates without inventing street addresses.
-  Hearts are device-local follows; followed reports appear in Mis reportes and feed the local inbox. The nearby step also offers **Seguir este reporte** to finish without creating a
-  duplicate and save it in Mis reportes.
+  Hearts are device-local follows; followed reports appear in Mis reportes and feed the local inbox.
 - Sharing uses Android/iOS system sheets (WhatsApp when installed), Linux's WhatsApp web handler, and a copied public
   link as fallback. Configure `PUBLIC_PORTAL_URL` before sharing outside the development laptop.
 - Avisos records state changes observed when refreshing the device's own/followed reports or opening their details. The first
   observation establishes a quiet baseline. Inbox/follows survive restarts; there is no push or background polling.
-- At submit, phone-code verification uses Guatemala's `+502` prefix and eight national digits. The code has six digits;
-  resending is disabled for 60 seconds. An optional display name stays private unless explicitly opted into publication.
-  **Continuar sin avisos** sends anonymously when login is optional.
+- Login comes first: after onboarding, the app shows **Entra a Aldia** until the citizen has an account, and the
+  report flow never asks for a phone. Phone-code verification uses Guatemala's `+502` prefix and eight national digits;
+  the code has six digits and resending is disabled for 60 seconds. An optional display name stays private unless
+  explicitly opted into publication. Logging out returns to the login screen.
+- **MVP test account:** while the login method (citizen ID or email) is undecided, **Entrar con cuenta de prueba**
+  enters without a server login. It is local to the device and reports are sent without credentials, so the API must
+  keep `REQUIRE_CITIZEN_LOGIN=false` (its default). Build with `--dart-define=ALLOW_TEST_ACCOUNT=false` to hide it.
 - Perfil shows only the verified number's masked last two digits and **Cerrar sesión**. **Borrar mis datos** confirms
   before deleting local drafts/photos, outbox, follows, notices, sent-report ids and the local login session. Already
   submitted public reports remain on the server; this does not delete the citizen account.
@@ -99,9 +102,8 @@ The six-digit development code appears only in the API log under a loud DEV bann
 message is sent. Use synthetic numbers only. The default `null` provider refuses delivery. Read the code
 locally; never paste it, phone numbers or bearer credentials into shared logs or screenshots.
 
-API `REQUIRE_CITIZEN_LOGIN=true` must match app `--dart-define=REQUIRE_CITIZEN_LOGIN=true`.
-The default is false in both. Required mode blocks submission/queuing until verification; optional mode
-offers **Continuar sin avisos**. A valid session automatically authenticates later submissions. Signing
+The app requires an account by default (`REQUIRE_CITIZEN_LOGIN=true`); `--dart-define=REQUIRE_CITIZEN_LOGIN=false`
+restores anonymous use for demos. The API default stays false, which the MVP test account needs. A valid session automatically authenticates later submissions. Signing
 out preserves local report references; account reports become available again after verification.
 
 Provisional outbox behavior: queued reports use the session active when actually sent. Switching accounts while

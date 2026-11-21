@@ -200,6 +200,7 @@ class _LocationStepState extends State<LocationStep> {
             signed: true,
             decimal: true,
           ),
+          textInputAction: TextInputAction.next,
         ),
         TextField(
           controller: _lon,
@@ -208,6 +209,8 @@ class _LocationStepState extends State<LocationStep> {
             signed: true,
             decimal: true,
           ),
+          textInputAction: TextInputAction.done,
+          onSubmitted: (_) => _apply(),
         ),
         if (_invalid) const FlowNotice(S.coordinatesInvalid),
         TextButton(onPressed: _apply, child: const Text(S.applyCoordinates)),

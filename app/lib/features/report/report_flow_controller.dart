@@ -8,14 +8,13 @@ import '../../core/config.dart';
 import '../../core/categories.dart';
 import '../../data/report.dart';
 import '../../data/report_repository.dart';
-import '../../services/connectivity_service.dart';
 import '../../services/location_service.dart';
 import '../../services/photo_service.dart';
 import '../drafts/draft_record.dart';
 import '../drafts/draft_store.dart';
 import '../outbox/outbox_service.dart';
 
-enum FlowStep { location, category, duplicates, photo, note, review }
+enum FlowStep { location, category, photo, note, review }
 
 enum SubmitState {
   editing,
@@ -34,7 +33,6 @@ class ReportFlowController extends ChangeNotifier {
     required this._photos,
     this._drafts,
     this._outbox,
-    this._connectivity,
     String Function()? newId,
   }) : _newId = newId ?? const Uuid().v4 {
     _id = _newId();
@@ -45,7 +43,6 @@ class ReportFlowController extends ChangeNotifier {
   final PhotoService _photos;
   final DraftStore? _drafts;
   final OutboxService? _outbox;
-  final ConnectivityService? _connectivity;
   final String Function() _newId;
   late String _id;
   DateTime _createdAt = DateTime.now().toUtc();
@@ -54,7 +51,6 @@ class ReportFlowController extends ChangeNotifier {
   Future<void> _saving = Future.value();
   bool _disposed = false;
   int _manualPicks = 0;
-  int _lookup = 0;
 
   FlowStep step = FlowStep.location;
   LatLng position = AppConfig.defaultCenter;
@@ -64,7 +60,6 @@ class ReportFlowController extends ChangeNotifier {
   double? accuracy;
   LatLng? gpsPosition;
   bool locating = false;
-  bool lookingForDuplicates = false;
   String? categoryId;
   String? placeLabel;
   List<ReportCategory> categories = reportCategories;
@@ -84,22 +79,17 @@ class ReportFlowController extends ChangeNotifier {
   bool photoError = false;
   bool storageError = false;
   int failedAttempts = 0;
-  List<Report> duplicates = const [];
   SubmitState submitState = SubmitState.editing;
   Report? result;
 
   String get idempotencyKey => _id;
-  bool get canAdvance =>
-      !lookingForDuplicates &&
-      switch (step) {
-        FlowStep.photo => photo != null,
-        FlowStep.location => locationConfirmed,
-        FlowStep.category => categoryId != null,
-        FlowStep.duplicates => true,
-        FlowStep.note => true,
-        FlowStep.review =>
-          photo != null && categoryId != null && locationConfirmed,
-      };
+  bool get canAdvance => switch (step) {
+    FlowStep.photo => photo != null,
+    FlowStep.location => locationConfirmed,
+    FlowStep.category => categoryId != null,
+    FlowStep.note => true,
+    FlowStep.review => photo != null && categoryId != null && locationConfirmed,
+  };
   bool get isLastStep => step == FlowStep.review;
   bool get canManualReview => failedAttempts >= 3;
 
@@ -121,17 +111,15 @@ class ReportFlowController extends ChangeNotifier {
     _photoPath = draft.photoPath;
     photo = await _drafts?.readPhoto(draft);
     _storedPhoto = photo;
+    // Drafts saved on the removed "duplicates" step continue at the photo.
+    final savedStep = draft.step == 'duplicates' ? 'photo' : draft.step;
     step =
-        FlowStep.values.where((s) => s.name == draft.step).firstOrNull ??
+        FlowStep.values.where((s) => s.name == savedStep).firstOrNull ??
         FlowStep.location;
     missingPhoto = photo == null && draft.photoPath != null;
     if (photo == null &&
         (draft.photoPath != null || step.index > FlowStep.photo.index)) {
       step = FlowStep.photo;
-    }
-    if (step == FlowStep.duplicates) {
-      // Suggestions are transient; refresh after a restart.
-      step = FlowStep.category;
     }
     // Also supports drafts created with the previous photo-first wizard.
     if (!locationConfirmed) {
@@ -249,7 +237,6 @@ class ReportFlowController extends ChangeNotifier {
 
   void setPosition(LatLng value, {String? label}) {
     _manualPicks++;
-    _lookup++;
     position = value;
     placeLabel = label;
     locationConfirmed = true;
@@ -260,7 +247,6 @@ class ReportFlowController extends ChangeNotifier {
 
   void setCategory(String id) {
     categoryId = id;
-    _lookup++;
     _changed();
   }
 
@@ -286,30 +272,7 @@ class ReportFlowController extends ChangeNotifier {
 
   Future<void> next() async {
     if (!canAdvance || isLastStep) return;
-    if (step == FlowStep.category) {
-      final generation = ++_lookup;
-      lookingForDuplicates = true;
-      _changed(save: false);
-      List<Report> nearby = [];
-      if (_connectivity?.isOnline != false) {
-        try {
-          nearby = await _repository
-              .duplicates(position, categoryId!)
-              .timeout(const Duration(seconds: 4));
-        } catch (_) {
-          /* Suggestions are optional; never block a report. */
-        }
-      }
-      lookingForDuplicates = false;
-      if (_disposed || generation != _lookup) {
-        _changed(save: false);
-        return;
-      }
-      duplicates = List.unmodifiable(nearby);
-      step = FlowStep.duplicates;
-    } else {
-      step = FlowStep.values[step.index + 1];
-    }
+    step = FlowStep.values[step.index + 1];
     _changed();
     if (step == FlowStep.location && !locationConfirmed) {
       unawaited(useMyLocation());
@@ -318,7 +281,6 @@ class ReportFlowController extends ChangeNotifier {
 
   void back() {
     if (step.index == 0) return;
-    _lookup++;
     step = FlowStep.values[step.index - 1];
     _changed();
   }
@@ -375,7 +337,7 @@ class ReportFlowController extends ChangeNotifier {
         category == null ||
         !locationConfirmed ||
         submitState == SubmitState.sending ||
-        (_repository.requireCitizenLogin && !_repository.auth.isSignedIn)) {
+        (_repository.requireCitizenLogin && !_repository.hasAccount)) {
       return;
     }
     submitState = SubmitState.sending;

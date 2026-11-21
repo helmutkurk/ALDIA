@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/text_x.dart';
 import '../../services/geocoder_service.dart';
 import 'report_flow_widgets.dart';
 
@@ -100,7 +101,7 @@ class _AddressSearchState extends State<AddressSearch> {
         ListTile(
           minTileHeight: 56,
           leading: const Icon(Icons.place_outlined),
-          title: Text(address.label),
+          title: Text(address.label.orPlaceholder()),
           onTap: () {
             widget.onSelected(address);
             setState(() => _addresses = const []);

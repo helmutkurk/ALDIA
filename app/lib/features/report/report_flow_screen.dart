@@ -6,16 +6,15 @@ import 'package:provider/provider.dart';
 import '../../core/strings.dart';
 import '../../core/theme.dart';
 import '../../data/report_repository.dart';
-import '../../services/connectivity_service.dart';
+import '../../services/haptics.dart';
 import '../../services/location_service.dart';
 import '../../services/photo_service.dart';
-import '../citizen/login_sheet.dart';
+import '../../widgets/bottom_padding.dart';
 import '../drafts/draft_record.dart';
 import '../drafts/draft_store.dart';
 import '../outbox/outbox_service.dart';
 import 'report_category_step.dart';
 import 'report_details_steps.dart';
-import 'report_duplicates_step.dart';
 import 'report_flow_controller.dart';
 import 'report_flow_widgets.dart';
 import 'report_location_step.dart';
@@ -35,7 +34,6 @@ class ReportFlowScreen extends StatelessWidget {
         photos: context.read<PhotoService>(),
         drafts: context.read<DraftStore?>(),
         outbox: context.read<OutboxService?>(),
-        connectivity: context.read<ConnectivityService?>(),
       );
       unawaited(controller.loadCategories());
       if (draft != null) unawaited(controller.restore(draft!));
@@ -74,6 +72,22 @@ class _FlowViewState extends State<_FlowView> with WidgetsBindingObserver {
     final key = '${c.step.name}:${c.submitState.name}';
     if (_lastHeading == key) return;
     _lastHeading = key;
+    switch (c.submitState) {
+      case SubmitState.done:
+        unawaited(
+          c.result?.status == 'rejected'
+              ? HapticsHelper.error()
+              : HapticsHelper.success(),
+        );
+      case SubmitState.queued ||
+          SubmitState.manualSaved ||
+          SubmitState.followed:
+        unawaited(HapticsHelper.success());
+      case SubmitState.failed:
+        unawaited(HapticsHelper.error());
+      default:
+        break;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _heading.requestFocus();
     });
@@ -97,16 +111,6 @@ class _FlowViewState extends State<_FlowView> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  Future<void> _submit(ReportFlowController controller) async {
-    final repository = context.read<ReportRepository>();
-    final auth = repository.auth;
-    if (!auth.isSignedIn) {
-      final verified = await showCitizenLogin(context, auth);
-      if (!mounted || !verified) return;
-    }
-    await controller.submit();
-  }
-
   @override
   Widget build(BuildContext context) {
     final c = context.watch<ReportFlowController>();
@@ -124,21 +128,24 @@ class _FlowViewState extends State<_FlowView> with WidgetsBindingObserver {
           IconButton(
             tooltip: 'Ayuda para reportar',
             icon: const Icon(Icons.help_outline),
-            onPressed: () => showDialog<void>(
-              context: context,
-              builder: (context) => AlertDialog(
-                title: const Text('Tu reporte, paso a paso'),
-                content: const Text(
-                  'Confirma el lugar, elige una categoría y revisa los reportes cercanos. Luego toma una foto en el momento y revisa los datos antes de enviar.',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text(S.close),
+            onPressed: () {
+              FocusManager.instance.primaryFocus?.unfocus();
+              showDialog<void>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Tu reporte, paso a paso'),
+                  content: const Text(
+                    'Confirma el lugar y elige una categoría. Luego toma una foto en el momento y revisa los datos antes de enviar.',
                   ),
-                ],
-              ),
-            ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text(S.close),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
           if (Navigator.of(context).canPop())
             IconButton(
@@ -157,27 +164,18 @@ class _FlowViewState extends State<_FlowView> with WidgetsBindingObserver {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (c.lookingForDuplicates) const LinearProgressIndicator(),
                     if (c.step.index > 0)
                       OutlinedButton(
                         onPressed: c.back,
                         child: const Text(S.back),
                       ),
-                    if (c.isLastStep &&
-                        !context.read<ReportRepository>().requireCitizenLogin &&
-                        !context.read<ReportRepository>().auth.isSignedIn)
-                      TextButton(
-                        onPressed: c.canAdvance ? c.submit : null,
-                        child: const Text('Continuar sin avisos'),
-                      ),
                     FilledButton(
                       onPressed: c.canAdvance
-                          ? (c.isLastStep ? () => _submit(c) : c.next)
+                          ? (c.isLastStep ? c.submit : c.next)
                           : null,
                       child: Text(switch (c.step) {
                         FlowStep.location => S.confirmLocation,
                         FlowStep.photo => S.usePhoto,
-                        FlowStep.duplicates => S.differentProblem,
                         FlowStep.review => S.send,
                         FlowStep.category || FlowStep.note => S.next,
                       }),
@@ -187,12 +185,15 @@ class _FlowViewState extends State<_FlowView> with WidgetsBindingObserver {
               ),
             ),
       body: SafeArea(
+        bottom: false,
         child: Align(
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 680),
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: const EdgeInsets.all(16)
+                  .copyWith(bottom: BottomPadding.of(context)),
               children: [
                 if (!result) ...[
                   SummaryRow(controller: c),
@@ -234,7 +235,6 @@ class _FlowViewState extends State<_FlowView> with WidgetsBindingObserver {
                     FlowStep.photo => PhotoStep(controller: c),
                     FlowStep.location => LocationStep(controller: c),
                     FlowStep.category => CategoryStep(controller: c),
-                    FlowStep.duplicates => DuplicatesStep(controller: c),
                     FlowStep.note => NoteStep(controller: c),
                     FlowStep.review => ReviewStep(controller: c),
                   },
@@ -254,7 +254,6 @@ String _title(FlowStep step) => switch (step) {
   FlowStep.photo => S.stepPhoto,
   FlowStep.location => S.stepLocation,
   FlowStep.category => S.stepCategory,
-  FlowStep.duplicates => S.stepDuplicates,
   FlowStep.note => S.stepNote,
   FlowStep.review => S.stepReview,
 };

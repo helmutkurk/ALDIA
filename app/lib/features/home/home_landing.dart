@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../core/categories.dart';
+import '../../core/number_format.dart';
 import '../../core/strings.dart';
 import '../../core/theme.dart';
 import '../drafts/draft_record.dart';
+import 'bottom_navigation_reselect.dart';
 
 class Landing extends StatelessWidget {
   const Landing({
@@ -27,6 +29,7 @@ class Landing extends StatelessWidget {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 680),
           child: ListView(
+            controller: BottomNavigationReselect.landingScrollController,
             shrinkWrap: true,
             padding: const EdgeInsets.all(AldiaSpace.xl),
             children: [
@@ -52,7 +55,7 @@ class Landing extends StatelessWidget {
                 builder: (context, snapshot) => Column(
                   children: [
                     Text(
-                      snapshot.data?.toString() ?? '—',
+                      snapshot.data?.humanizedCount() ?? '—',
                       textAlign: TextAlign.center,
                       style: theme.textTheme.displayLarge?.copyWith(
                         color: onBar,

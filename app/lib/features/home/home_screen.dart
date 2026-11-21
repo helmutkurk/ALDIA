@@ -7,13 +7,17 @@ import '../../core/strings.dart';
 import '../../core/theme.dart';
 import '../../data/report.dart';
 import '../../data/report_repository.dart';
+import '../../services/haptics.dart';
+import '../../widgets/adaptive_sheet_route.dart';
 import '../../widgets/routes.dart';
+import '../changelog/changelog.dart';
 import '../citizen/citizen_screens.dart';
 import '../detail/report_detail_screen.dart';
 import '../drafts/draft_record.dart';
 import '../drafts/draft_store.dart';
 import '../mine/my_reports_screen.dart';
 import '../report/report_flow_screen.dart';
+import 'bottom_navigation_reselect.dart';
 import 'explore_reports.dart';
 import 'home_landing.dart';
 import 'home_navigation.dart';
@@ -22,7 +26,10 @@ import 'report_map_view.dart';
 
 /// Nearby reports as a map or a list, with filters and the report button.
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.changelog});
+
+  /// Pending "Novedades" to show once. Null in tests.
+  final ChangelogController? changelog;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -52,6 +59,9 @@ class _HomeScreenState extends State<HomeScreen> {
     _resolved = _loadResolved();
     unawaited(_loadDraft());
     unawaited(_observeMine());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(showChangelogIfNeeded(context, widget.changelog));
+    });
   }
 
   Future<int?> _loadResolved() async {
@@ -114,13 +124,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _editFilters() async {
-    final result = await showModalBottomSheet<(String?, String?)>(
-      context: context,
-      isScrollControlled: true,
-      sheetAnimationStyle: MediaQuery.disableAnimationsOf(context)
-          ? AnimationStyle.noAnimation
-          : null,
-      builder: (_) => FiltersSheet(state: _state, category: _category),
+    FocusManager.instance.primaryFocus?.unfocus();
+    final result = await Navigator.of(context).push<(String?, String?)>(
+      FiltersSheet(
+        state: _state,
+        category: _category,
+      ).asAdaptiveSheetRoute<(String?, String?)>(
+        reduceMotion: MediaQuery.disableAnimationsOf(context),
+      ),
     );
     if (result == null) return;
     setState(() {
@@ -279,8 +290,22 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomNavigationBar: HomeNavigationBar(
         selected: _tab,
         onSelected: (tab) {
+          unawaited(HapticsHelper.light());
           if (tab == HomeTab.report) {
             unawaited(_startReport());
+            return;
+          }
+          if (tab == _tab) {
+            BottomNavigationReselect.scrollToTop(switch (tab) {
+              HomeTab.home =>
+                _exploring
+                    ? BottomNavigationReselect.exploreListScrollController
+                    : BottomNavigationReselect.landingScrollController,
+              HomeTab.notices =>
+                BottomNavigationReselect.noticesScrollController,
+              HomeTab.mine => BottomNavigationReselect.mineScrollController,
+              _ => BottomNavigationReselect.profileScrollController,
+            }, reduceMotion: MediaQuery.disableAnimationsOf(context));
             return;
           }
           setState(() {

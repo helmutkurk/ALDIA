@@ -3,7 +3,6 @@ import 'package:aldia_app/data/report.dart';
 import 'package:aldia_app/features/drafts/draft_record.dart';
 import 'package:aldia_app/features/report/report_flow_controller.dart';
 import 'package:aldia_app/features/report/verification_feedback.dart';
-import 'package:aldia_app/services/connectivity_service.dart';
 import 'package:aldia_app/services/location_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -11,18 +10,6 @@ import 'package:latlong2/latlong.dart';
 
 import '../support/fakes.dart';
 import '../support/memory_draft_store.dart';
-
-class _Connectivity implements ConnectivityService {
-  _Connectivity(this.isOnline);
-  @override
-  bool isOnline;
-  @override
-  Stream<bool> get changes => const Stream.empty();
-  @override
-  Future<void> initialize() async {}
-  @override
-  void dispose() {}
-}
 
 ReportFlowController build({
   MemoryStore? store,
@@ -34,7 +21,6 @@ ReportFlowController build({
   List<http.BaseRequest>? requests,
   bool Function()? failCreateWhen,
   MemoryDraftStore? drafts,
-  ConnectivityService? connectivity,
   LocationService? location,
 }) => ReportFlowController(
   repository: fakeRepository(
@@ -49,7 +35,6 @@ ReportFlowController build({
   location: location ?? FakeLocation(gps),
   photos: FakePhotos(),
   drafts: drafts,
-  connectivity: connectivity,
   newId: () => 'key-${DateTime.now().microsecondsSinceEpoch}',
 );
 
@@ -60,19 +45,15 @@ Future<void> toCategory(ReportFlowController c) async {
 }
 
 void main() {
-  test(
-    'the wizard order is place, category, duplicates, photo, details, review',
-    () {
-      expect(FlowStep.values, [
-        FlowStep.location,
-        FlowStep.category,
-        FlowStep.duplicates,
-        FlowStep.photo,
-        FlowStep.note,
-        FlowStep.review,
-      ]);
-    },
-  );
+  test('the wizard order is place, category, photo, details, review', () {
+    expect(FlowStep.values, [
+      FlowStep.location,
+      FlowStep.category,
+      FlowStep.photo,
+      FlowStep.note,
+      FlowStep.review,
+    ]);
+  });
 
   test('cannot advance until each step is complete', () async {
     final c = build();
@@ -85,10 +66,8 @@ void main() {
     expect(c.canAdvance, isFalse);
     c.setCategory('pothole');
     await c.next();
-    expect(c.step, FlowStep.duplicates);
-    expect(c.photo, isNull);
-    await c.next();
     expect(c.step, FlowStep.photo);
+    expect(c.photo, isNull);
     expect(c.canAdvance, isFalse);
     await c.takePhoto();
     await c.next();
@@ -141,87 +120,29 @@ void main() {
     expect(c.note.length, 280);
   });
 
-  group('duplicates step', () {
-    test('remains visible when nothing is nearby', () async {
-      final requests = <http.BaseRequest>[];
-      final c = build(requests: requests);
-      await toCategory(c);
-      await c.next();
-      expect(c.step, FlowStep.duplicates);
-      final nearby = requests.singleWhere(
-        (r) => r.url.path.endsWith('/nearby'),
-      );
-      expect(nearby.url.queryParameters, {
-        'lat': '14.61',
-        'lon': '-90.52',
-        'category': 'pothole',
-        'radius_m': '150',
-      });
-    });
+  test('category goes straight to the photo without a nearby lookup', () async {
+    final requests = <http.BaseRequest>[];
+    final c = build(requests: requests);
+    await toCategory(c);
+    await c.next();
+    expect(c.step, FlowStep.photo);
+    expect(requests.where((r) => r.url.path.endsWith('/nearby')), isEmpty);
+    c.back();
+    expect(c.step, FlowStep.category);
+  });
 
-    test('remains visible when the lookup fails', () async {
-      final c = build(failNearby: true);
-      await toCategory(c);
-      await c.next();
-      expect(c.step, FlowStep.duplicates);
-      expect(c.duplicates, isEmpty);
-    });
-
-    test('remains visible without a request when offline', () async {
-      final requests = <http.BaseRequest>[];
-      final c = build(requests: requests, connectivity: _Connectivity(false));
-      await toCategory(c);
-      await c.next();
-      expect(c.step, FlowStep.duplicates);
-      expect(requests.where((r) => r.url.path.endsWith('/nearby')), isEmpty);
-    });
-
-    test(
-      'lists nearby reports; "different problem" continues to the live photo',
-      () async {
-        final c = build(
-          nearby: [reportJson(id: 'aaaa1111-1111-4111-8111-111111111111')],
-        );
-        await toCategory(c);
-        await c.next();
-        expect(c.step, FlowStep.duplicates);
-        expect(c.duplicates, hasLength(1));
-        await c.next();
-        expect(c.step, FlowStep.photo);
-        c.back();
-        expect(c.step, FlowStep.duplicates);
-      },
+  test('following a report ends the wizard without sending', () async {
+    final store = MemoryStore();
+    final requests = <http.BaseRequest>[];
+    final c = build(store: store, requests: requests);
+    await toCategory(c);
+    await c.follow(
+      Report.fromJson(reportJson(id: 'aaaa1111-1111-4111-8111-111111111111')),
     );
-
-    test('following a nearby report ends the wizard without sending', () async {
-      final store = MemoryStore();
-      final requests = <http.BaseRequest>[];
-      final c = build(
-        store: store,
-        requests: requests,
-        nearby: [reportJson(id: 'aaaa1111-1111-4111-8111-111111111111')],
-      );
-      await toCategory(c);
-      await c.next();
-      await c.follow(c.duplicates.single);
-      expect(c.submitState, SubmitState.followed);
-      // A follow remains separate from the ids of authored reports.
-      expect(store.saved, isEmpty);
-      expect(requests.where((r) => r.method == 'POST'), isEmpty);
-    });
-
-    test(
-      'back from the photo returns to empty duplicate suggestions',
-      () async {
-        final c = build();
-        await toCategory(c);
-        await c.next();
-        await c.next();
-        expect(c.step, FlowStep.photo);
-        c.back();
-        expect(c.step, FlowStep.duplicates);
-      },
-    );
+    expect(c.submitState, SubmitState.followed);
+    // A follow remains separate from the ids of authored reports.
+    expect(store.saved, isEmpty);
+    expect(requests.where((r) => r.method == 'POST'), isEmpty);
   });
 
   test('submit stores the id on the device and exposes the result', () async {
@@ -315,6 +236,24 @@ void main() {
       await c.saveDraft();
       expect(drafts.records.values.single.note, 'hola');
     });
+
+    test(
+      'a draft saved on the removed duplicates step resumes at the photo',
+      () async {
+        final drafts = MemoryDraftStore();
+        final first = build(drafts: drafts);
+        await toCategory(first);
+        await first.saveDraft();
+        final record = drafts.records.values.single.copyWith(
+          step: 'duplicates',
+        );
+
+        final resumed = build(drafts: drafts);
+        await resumed.restore(record);
+        expect(resumed.step, FlowStep.photo);
+        expect(resumed.categoryId, 'pothole');
+      },
+    );
 
     test('resume restores fields and photo at the saved step', () async {
       final drafts = MemoryDraftStore();

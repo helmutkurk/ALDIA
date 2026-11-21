@@ -11,6 +11,7 @@ import '../../core/theme.dart';
 import '../../data/clusters_api.dart';
 import '../../data/report.dart';
 import '../../data/report_repository.dart';
+import '../../services/haptics.dart';
 import '../../services/location_service.dart';
 import '../../widgets/map_layers_button.dart';
 import 'report_map_widgets.dart';
@@ -65,6 +66,7 @@ class MapViewState extends State<MapView> {
     if (point != null) {
       _controller.move(point, 16);
     } else {
+      unawaited(HapticsHelper.error());
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text(S.locationUnavailable)));
     }
@@ -125,6 +127,7 @@ class MapViewState extends State<MapView> {
   }
 
   Future<void> _showSummary(Report report) {
+    FocusManager.instance.primaryFocus?.unfocus();
     return showModalBottomSheet<void>(
       context: context,
       sheetAnimationStyle: MediaQuery.disableAnimationsOf(context)
@@ -150,6 +153,7 @@ class MapViewState extends State<MapView> {
         if (mounted) await _showSummary(report);
       } catch (_) {
         if (mounted) {
+          unawaited(HapticsHelper.error());
           ScaffoldMessenger.of(context)
               .showSnackBar(const SnackBar(content: Text(S.loadError)));
         }

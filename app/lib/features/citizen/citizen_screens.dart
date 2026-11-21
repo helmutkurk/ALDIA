@@ -1,15 +1,22 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/categories.dart';
 import '../../core/citizen_states.dart';
+import '../../core/date_format.dart';
 import '../../core/strings.dart';
+import '../../core/text_x.dart';
 import '../../core/theme.dart';
 import '../../data/report.dart';
 import '../../data/report_repository.dart';
 import '../drafts/draft_store.dart';
+import '../home/bottom_navigation_reselect.dart';
 import '../outbox/outbox_service.dart';
 import '../../services/citizen_auth_service.dart';
+import '../../services/haptics.dart';
+import '../../widgets/version_indicator.dart';
 import 'login_sheet.dart';
 
 class NoticesScreen extends StatefulWidget {
@@ -45,6 +52,7 @@ class _NoticesScreenState extends State<NoticesScreen> {
         return RefreshIndicator(
           onRefresh: _refresh,
           child: ListView(
+            controller: BottomNavigationReselect.noticesScrollController,
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(AldiaSpace.l),
             children: [
@@ -84,7 +92,7 @@ class _NoticesScreenState extends State<NoticesScreen> {
                     leading: Icon(citizenStateFor(notice.state).icon),
                     title: Text(categoryById(notice.category).label),
                     subtitle: Text(
-                      '${citizenStateFor(notice.state).label}\n${notice.at.day}/${notice.at.month}/${notice.at.year} · ${S.reference(notice.reportId)}',
+                      '${citizenStateFor(notice.state).label}\n${notice.at.formattedDate()} · ${S.reference(notice.reportId)}',
                     ),
                     isThreeLine: false,
                     onTap: () async {
@@ -93,6 +101,7 @@ class _NoticesScreenState extends State<NoticesScreen> {
                         if (mounted) widget.onOpen(report);
                       } catch (_) {
                         if (context.mounted) {
+                          unawaited(HapticsHelper.error());
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text(S.loadError)),
                           );
@@ -124,7 +133,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _signingOut = true);
     String? message;
     try {
-      await context.read<ReportRepository>().auth.signOut();
+      final repository = context.read<ReportRepository>();
+      await repository.testAccount?.end();
+      if (repository.auth.isSignedIn) await repository.auth.signOut();
     } on CitizenAuthException catch (e) {
       message = e.message;
     } catch (_) {
@@ -134,6 +145,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _signingOut = false);
     widget.onCleared();
     if (message != null) {
+      unawaited(HapticsHelper.error());
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(message)));
     }
@@ -174,15 +186,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
       await repository.clearLocalData();
       try {
+        await repository.testAccount?.end();
         await repository.auth.signOut();
       } catch (_) {}
       if (!mounted) return;
       widget.onCleared();
+      unawaited(HapticsHelper.heavy());
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Datos locales borrados.')));
     } catch (_) {
       if (mounted) {
+        unawaited(HapticsHelper.error());
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -205,8 +220,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 680),
         child: AnimatedBuilder(
-          animation: Listenable.merge([local, auth]),
+          animation: Listenable.merge([local, auth, repository.testAccount]),
           builder: (context, _) => ListView(
+            controller: BottomNavigationReselect.profileScrollController,
             padding: const EdgeInsets.all(AldiaSpace.xl),
             children: [
               const CircleAvatar(
@@ -227,10 +243,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 leading: const Icon(Icons.phone_outlined),
                 title: const Text('Número de teléfono'),
                 subtitle: Text(
-                  auth.maskedPhone ?? 'Sin verificar. Verifica tu número para consultar tus reportes desde tu cuenta.',
+                  (repository.testAccount?.active ?? false)
+                      ? 'Cuenta de prueba'
+                      : auth.maskedPhone.isUsable
+                      ? auth.maskedPhone!
+                      : 'Sin verificar. Verifica tu número para consultar tus reportes desde tu cuenta.',
                 ),
               ),
-              if (auth.isSignedIn)
+              if (repository.hasAccount)
                 OutlinedButton.icon(
                   onPressed: _signingOut ? null : _signOut,
                   icon: const Icon(Icons.logout),
@@ -265,7 +285,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.info_outline),
                 title: Text('Versión de AlDía'),
-                subtitle: Text('0.1.0+1'),
+                subtitle: VersionIndicator(),
               ),
               const Divider(height: 32),
               OutlinedButton.icon(

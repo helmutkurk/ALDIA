@@ -1,3 +1,5 @@
+import 'number_format.dart';
+
 /// All user-facing text, Spanish (Guatemala). Move to ARB files when a second
 /// language is needed.
 class S {
@@ -17,7 +19,7 @@ class S {
   static const onboardingBodies = [
     'Baches, aceras, luminarias y más. Envías una foto y el punto en el mapa; el municipio da seguimiento.',
     'Toma la foto desde la acera, justo donde está el problema. No se aceptan fotos de la galería ni de personas.',
-    'La foto y el punto del reporte son públicos. No necesitas cuenta; no pedimos tu nombre ni tu teléfono.',
+    'La foto y el punto del reporte son públicos. Entras con tu número de teléfono, que nunca se publica.',
   ];
   static String onboardingPage(int current, int total) =>
       'Página $current de $total';
@@ -90,10 +92,8 @@ class S {
   static const stubNotice =
       'Verificación de prueba: aún no se clasifica la foto.';
 
-  static const stepDuplicates = '¿Ya está reportado?';
   static const stepReview = 'Revisar y enviar';
   static const usePhoto = 'Usar esta foto';
-  static const differentProblem = 'Es un problema distinto';
   static const followReport = 'Seguir este reporte';
   static const following = 'Reporte guardado en Mis reportes';
   static const changeCategory = 'Cambiar categoría';
@@ -155,7 +155,7 @@ class S {
       'La foto y el punto del reporte serán públicos. Evita incluir personas o datos privados.';
   static String reference(String id) => 'Referencia: $id';
   static String uploadSize(int bytes) =>
-      'Tamaño estimado de envío: ${(bytes / 1024).ceil()} KB';
+      'Tamaño estimado de envío: ${(bytes / 1024).ceil().humanizedCount()} KB';
   static String age(DateTime created, DateTime now) {
     final d = now.difference(created);
     if (d.inDays > 0) return 'Hace ${d.inDays} días';
@@ -163,8 +163,9 @@ class S {
     return 'Hace ${d.inMinutes.clamp(0, 59)} min';
   }
 
-  static String accuracy(double value) => 'Precisión GPS: ${value.round()} m';
-  static String clusterCount(int count) => '$count reportes';
+  static String accuracy(double value) =>
+      'Precisión GPS: ${value.round().humanizedCount()} m';
+  static String clusterCount(int count) => '${count.humanizedCount()} reportes';
   static String stepProgress(int current, int total) =>
       'Paso $current de $total';
   static String photoLabel(String category, String state) =>
