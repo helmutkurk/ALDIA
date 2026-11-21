@@ -8,7 +8,6 @@ import 'package:provider/provider.dart';
 import '../../core/config.dart';
 import '../../core/strings.dart';
 import '../../core/theme.dart';
-import '../../data/clusters_api.dart';
 import '../../data/report.dart';
 import '../../data/report_repository.dart';
 import '../../services/haptics.dart';
@@ -17,60 +16,41 @@ import '../../core/citizen_states.dart';
 import '../../widgets/aldia_banner.dart';
 import '../../widgets/map_layers_button.dart';
 import '../../widgets/status_chips.dart';
+import 'explore_query.dart';
 import 'report_map_widgets.dart';
 
-/// Clusters for the visible viewport; plain reports when clusters are not
-/// available or a filter is active (the clusters endpoint has no filters).
+/// The Explorar map. [query] decides what it shows; the map reports the
+/// visible area to it and draws clusters or pins from its state.
 class MapView extends StatefulWidget {
   const MapView({
     super.key,
-    required this.state,
-    required this.category,
+    required this.query,
     required this.onOpen,
     this.overlayTop = 0,
   });
 
-  /// Contract `state_group` filter, or null for all.
-  final String? state;
-  final String? category;
+  final ExploreQuery query;
   final void Function(Report) onOpen;
 
   /// Height covered by the floating Explorar controls; overlays start below.
   final double overlayTop;
 
   @override
-  State<MapView> createState() => MapViewState();
+  State<MapView> createState() => _MapViewState();
 }
 
-class MapViewState extends State<MapView> {
+class _MapViewState extends State<MapView> {
   final _controller = MapController();
-  Timer? _debounce;
-  var _token = 0;
   var _ready = false;
-  List<ReportCluster> _clusters = const [];
-  List<Report> _pins = const [];
-  bool _clustersFailed = false;
   bool _showReports = true;
-  bool _loading = true;
-  bool _failed = false;
-
-  @override
-  void didUpdateWidget(MapView oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.state != widget.state ||
-        oldWidget.category != widget.category) {
-      unawaited(_load());
-    }
-  }
 
   @override
   void dispose() {
-    _debounce?.cancel();
     _controller.dispose();
     super.dispose();
   }
 
-  Future<void> locate() async {
+  Future<void> _locate() async {
     final point = await context.read<LocationService>().currentPosition();
     if (!mounted) return;
     if (point != null) {
@@ -82,65 +62,14 @@ class MapViewState extends State<MapView> {
     }
   }
 
-  void _scheduleLoad() {
-    if (!_ready) return;
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 400), _load);
-  }
-
-  Future<void> _load() async {
+  void _reportArea() {
     final camera = _controller.camera;
     final bounds = camera.visibleBounds;
-    final token = ++_token;
-    final api = context.read<ClustersApi?>();
-    final repository = context.read<ReportRepository>();
-    final filtered = widget.state != null || widget.category != null;
-    // Set without a rebuild: this can run while the map is building.
-    _loading = true;
-    _failed = false;
-    if (api != null && !filtered) {
-      try {
-        final clusters = await api.clusters(
-          southWest: bounds.southWest,
-          northEast: bounds.northEast,
-          zoom: camera.zoom,
-        );
-        if (!mounted || token != _token) return;
-        setState(() {
-          _clusters = clusters;
-          _pins = const [];
-          _clustersFailed = false;
-          _loading = false;
-        });
-        return;
-      } catch (_) {
-        // Fall through to the plain list below.
-      }
-    }
-    try {
-      final page = await repository.nearby(
-        southWest: bounds.southWest,
-        northEast: bounds.northEast,
-        stateGroup: widget.state,
-        category: widget.category,
-      );
-      if (!mounted || token != _token) return;
-      setState(() {
-        _clusters = const [];
-        _pins = page.items;
-        _clustersFailed = api != null && !filtered;
-        _loading = false;
-      });
-    } catch (_) {
-      if (!mounted || token != _token) return;
-      setState(() {
-        _clusters = const [];
-        _pins = const [];
-        _clustersFailed = false;
-        _loading = false;
-        _failed = true;
-      });
-    }
+    widget.query.setArea((
+      southWest: bounds.southWest,
+      northEast: bounds.northEast,
+      zoom: camera.zoom,
+    ));
   }
 
   Future<void> _showSummary(Report report) {
@@ -183,6 +112,13 @@ class MapViewState extends State<MapView> {
 
   @override
   Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: widget.query,
+      builder: (context, _) => _build(context, widget.query.state),
+    );
+  }
+
+  Widget _build(BuildContext context, ExploreState state) {
     return Stack(
       children: [
         Semantics(
@@ -194,9 +130,11 @@ class MapViewState extends State<MapView> {
               initialZoom: AppConfig.defaultZoom,
               onMapReady: () {
                 _ready = true;
-                unawaited(_load());
+                _reportArea();
               },
-              onPositionChanged: (_, _) => _scheduleLoad(),
+              onPositionChanged: (_, _) {
+                if (_ready) _reportArea();
+              },
             ),
             children: [
               TileLayer(
@@ -207,7 +145,7 @@ class MapViewState extends State<MapView> {
               if (_showReports)
                 MarkerLayer(
                   markers: [
-                    for (final report in _pins)
+                    for (final report in state.pins)
                       Marker(
                         point: report.position,
                         width: 104,
@@ -217,7 +155,7 @@ class MapViewState extends State<MapView> {
                           onTap: () => _showSummary(report),
                         ),
                       ),
-                    for (final cluster in _clusters)
+                    for (final cluster in state.clusters)
                       Marker(
                         point: cluster.position,
                         width: 56,
@@ -240,15 +178,15 @@ class MapViewState extends State<MapView> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (_loading && _ready)
+              if (state.loading && _ready)
                 const _Floating(child: AldiaBanner(S.mapLoading))
-              else if (_failed)
+              else if (state.failed)
                 _Floating(
                   child: Semantics(
                     button: true,
-                    onTap: _load,
+                    onTap: widget.query.retry,
                     child: GestureDetector(
-                      onTap: _load,
+                      onTap: widget.query.retry,
                       child: const AldiaBanner(
                         S.mapError,
                         kind: BannerKind.error,
@@ -256,11 +194,11 @@ class MapViewState extends State<MapView> {
                     ),
                   ),
                 )
-              else if (_ready && _pins.isEmpty && _clusters.isEmpty)
+              else if (_ready && state.pins.isEmpty && state.clusters.isEmpty)
                 const _Floating(
                   child: AldiaBanner(S.mapEmpty, kind: BannerKind.warning),
                 ),
-              if (_clustersFailed)
+              if (state.clustersUnavailable)
                 const _Floating(child: AldiaBanner(S.mapFallback)),
             ],
           ),
@@ -306,7 +244,7 @@ class MapViewState extends State<MapView> {
                 radius: 26,
                 child: IconButton(
                   tooltip: S.useMyLocation,
-                  onPressed: locate,
+                  onPressed: _locate,
                   icon: const Icon(Icons.my_location),
                 ),
               ),

@@ -1,62 +1,41 @@
 import 'package:flutter/material.dart';
 
-import '../../core/categories.dart';
-import '../../core/citizen_states.dart';
 import '../../core/strings.dart';
 import '../../core/theme.dart';
 import '../../data/report.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/report_tile.dart';
 import 'bottom_navigation_reselect.dart';
+import 'explore_query.dart';
 
+/// Lista: the same reports as the map, for the same area and filters.
 class ReportList extends StatelessWidget {
-  const ReportList({
-    super.key,
-    required this.future,
-    required this.filtered,
-    required this.query,
-    required this.onOpen,
-    required this.onRetry,
-    required this.onClear,
-  });
+  const ReportList({super.key, required this.query, required this.onOpen});
 
-  final Future<List<Report>> future;
-  final bool filtered;
-  final String query;
+  final ExploreQuery query;
   final void Function(Report) onOpen;
-  final VoidCallback onRetry;
-  final VoidCallback onClear;
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<Report>>(
-      future: future,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
+    return ListenableBuilder(
+      listenable: query,
+      builder: (context, _) {
+        final state = query.state;
+        if (state.loading) {
           return const Center(child: CircularProgressIndicator());
         }
-        if (snapshot.hasError) {
+        if (state.failed) {
           return EmptyState(
             icon: Icons.cloud_off,
             title: S.loadError,
             actionLabel: S.retry,
-            onAction: onRetry,
+            onAction: query.retry,
           );
         }
-        final all = snapshot.data!;
-        final needle = query.toLowerCase();
-        final reports = needle.isEmpty
-            ? all
-            : [
-                for (final r in all)
-                  if ([
-                    categoryById(r.category).label,
-                    citizenStateFor(r.citizenState).label,
-                    r.note ?? '',
-                  ].any((t) => t.toLowerCase().contains(needle)))
-                    r,
-              ];
-        if (reports.isEmpty && needle.isNotEmpty) {
+        final reports = state.reports;
+        final searching = query.filters.query.isNotEmpty;
+        final filtered = query.filterCount > 0;
+        if (reports.isEmpty && searching) {
           return const EmptyState(
             icon: Icons.search_off,
             title: 'Sin resultados para tu búsqueda',
@@ -69,7 +48,7 @@ class ReportList extends StatelessWidget {
                   icon: Icons.filter_list_off,
                   title: S.emptyFiltered,
                   actionLabel: S.clearFilters,
-                  onAction: onClear,
+                  onAction: () => query.setFilters(noFilters),
                 )
               : const EmptyState(
                   icon: Icons.map_outlined,
@@ -78,7 +57,7 @@ class ReportList extends StatelessWidget {
                 );
         }
         return RefreshIndicator(
-          onRefresh: () async => onRetry(),
+          onRefresh: query.retry,
           child: ListView.separated(
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             controller: BottomNavigationReselect.exploreListScrollController,
