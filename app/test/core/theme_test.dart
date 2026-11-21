@@ -28,25 +28,27 @@ void main() {
     expect(_contrast(Colors.white, Colors.white), 1);
   });
 
-  test('light palette matches the shared calm design tokens', () {
+  test('light palette matches the approved Guatemala sky-blue tokens', () {
     final theme = buildTheme();
     final scheme = theme.colorScheme;
-    expect(AldiaColors.bar, const Color(0xFF3A3F44));
-    expect(AldiaColors.accent, const Color(0xFFE8731A));
-    expect(scheme.primary, const Color(0xFF0F7A99));
+    expect(AldiaColors.bar, const Color(0xFF235E8F));
+    expect(AldiaColors.brand, const Color(0xFF4997D0));
+    expect(AldiaColors.accent, const Color(0xFFFF7A59));
+    expect(scheme.primary, const Color(0xFF2A6FA8));
     expect(scheme.onPrimary, Colors.white);
     expect(scheme.surface, Colors.white);
-    expect(theme.scaffoldBackgroundColor, const Color(0xFFF3F4F6));
-    expect(scheme.outlineVariant, const Color(0xFFD9DEE3));
+    expect(scheme.surfaceContainerLow, const Color(0xFFEAF4FB));
+    expect(theme.scaffoldBackgroundColor, Colors.white);
+    expect(scheme.outlineVariant, const Color(0xFFC5D9E8));
     expect(scheme.onSurface, const Color(0xFF1F2933));
     expect(scheme.onSurfaceVariant, const Color(0xFF52606D));
     expect(theme.tabBarTheme.indicatorColor, AldiaColors.accent);
     for (final (state, color) in [
-      ('nuevo', const Color(0xFFE8731A)),
-      ('en_revision', const Color(0xFFE8731A)),
-      ('programado', const Color(0xFF3F9A47)),
-      ('en_proceso', const Color(0xFF3F9A47)),
-      ('resuelto', const Color(0xFF2D8CD0)),
+      ('nuevo', const Color(0xFFB26A00)),
+      ('en_revision', const Color(0xFFB26A00)),
+      ('programado', const Color(0xFF7E57C2)),
+      ('en_proceso', const Color(0xFF7E57C2)),
+      ('resuelto', const Color(0xFF17735A)),
       ('no_procede', const Color(0xFF6B7280)),
       ('rechazado_verificador', const Color(0xFFB91C1C)),
     ]) {
@@ -54,6 +56,21 @@ void main() {
     }
     expect(AldiaColors.statusIsHollow('pendiente_verificacion'), isTrue);
     expect(AldiaColors.statusIsHollow('nuevo'), isFalse);
+  });
+
+  test('buttons and chips are pills; cards use the large radius', () {
+    final theme = buildTheme();
+    expect(
+      theme.filledButtonTheme.style!.shape!.resolve({}),
+      isA<StadiumBorder>(),
+    );
+    expect(
+      theme.outlinedButtonTheme.style!.shape!.resolve({}),
+      isA<StadiumBorder>(),
+    );
+    expect(theme.chipTheme.shape, isA<StadiumBorder>());
+    final card = theme.cardTheme.shape! as RoundedRectangleBorder;
+    expect(card.borderRadius, BorderRadius.circular(AldiaRadius.card));
   });
 
   for (final theme in [buildTheme(), buildDarkTheme()]) {
@@ -80,8 +97,14 @@ void main() {
           AldiaColors.barOfBrightness(theme.brightness),
         ),
         'tab label on bar': (
-          const Color(0xFFD9DEE3),
+          AldiaColors.onBarMuted,
           AldiaColors.barOfBrightness(theme.brightness),
+        ),
+        'text on coral': (AldiaColors.onAccent, AldiaColors.accent),
+        'text on dark coral': (AldiaColors.onAccent, AldiaColors.darkAccent),
+        'fab': (
+          theme.floatingActionButtonTheme.foregroundColor!,
+          theme.floatingActionButtonTheme.backgroundColor!,
         ),
         'pin letter': (AldiaColors.text, Colors.white),
         for (final background in [
@@ -129,8 +152,13 @@ void main() {
         'unknown',
       ]) {
         final dot = AldiaColors.status(state, theme.brightness);
-        final ratio = _contrast(dot, theme.colorScheme.surface);
-        expect(ratio, greaterThanOrEqualTo(3), reason: '$state $ratio');
+        for (final background in [
+          theme.colorScheme.surface,
+          theme.colorScheme.surfaceContainerLow,
+        ]) {
+          final ratio = _contrast(dot, background);
+          expect(ratio, greaterThanOrEqualTo(3), reason: '$state $ratio');
+        }
       }
     });
   }
