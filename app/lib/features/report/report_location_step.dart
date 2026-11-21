@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/config.dart';
 import '../../core/strings.dart';
+import '../../core/theme.dart';
 import '../../services/location_service.dart';
 import '../../widgets/map_layers_button.dart';
 import '../../widgets/neutral_map_pin.dart';
@@ -194,29 +195,44 @@ class _LocationStepState extends State<LocationStep> {
           icon: const Icon(Icons.my_location),
           label: const Text(S.useMyLocation),
         ),
-        const Text(S.confirmPinHint),
-        TextField(
-          controller: _lat,
-          decoration: const InputDecoration(labelText: S.latitude),
-          keyboardType: const TextInputType.numberWithOptions(
-            signed: true,
-            decimal: true,
-          ),
-          textInputAction: TextInputAction.next,
+        // For screen-reader and expert use; most people search or use GPS.
+        ExpansionTile(
+          title: const Text(S.enterCoordinates),
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: const EdgeInsets.only(bottom: AldiaSpace.m),
+          expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+          initiallyExpanded: _invalid,
+          children: [
+            const Text(S.confirmPinHint),
+            const SizedBox(height: AldiaSpace.m),
+            TextField(
+              controller: _lat,
+              decoration: const InputDecoration(labelText: S.latitude),
+              keyboardType: const TextInputType.numberWithOptions(
+                signed: true,
+                decimal: true,
+              ),
+              textInputAction: TextInputAction.next,
+            ),
+            const SizedBox(height: AldiaSpace.m),
+            TextField(
+              controller: _lon,
+              decoration: const InputDecoration(labelText: S.longitude),
+              keyboardType: const TextInputType.numberWithOptions(
+                signed: true,
+                decimal: true,
+              ),
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _apply(),
+            ),
+            if (_invalid)
+              const FlowNotice(S.coordinatesInvalid, kind: BannerKind.error),
+            TextButton(
+              onPressed: _apply,
+              child: const Text(S.applyCoordinates),
+            ),
+          ],
         ),
-        TextField(
-          controller: _lon,
-          decoration: const InputDecoration(labelText: S.longitude),
-          keyboardType: const TextInputType.numberWithOptions(
-            signed: true,
-            decimal: true,
-          ),
-          textInputAction: TextInputAction.done,
-          onSubmitted: (_) => _apply(),
-        ),
-        if (_invalid)
-          const FlowNotice(S.coordinatesInvalid, kind: BannerKind.error),
-        TextButton(onPressed: _apply, child: const Text(S.applyCoordinates)),
       ],
     );
   }
