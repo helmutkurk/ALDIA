@@ -137,6 +137,24 @@ class S {
   static const allCategories = 'Todas las categorías';
   static const filterState = 'Estado';
   static const filterCategory = 'Categoría';
+  static const filtersTitle = 'Filtros';
+  static const filtersHelp = 'Filtra reportes por categoría o estado.';
+  static const filterSearch = 'Buscar';
+  static const filterSearchHint = 'Categoría, estado o nota';
+  static const allCategoriesShort = 'Todas';
+  static const allStatesShort = 'Todos';
+  static const applyFilters = 'Aplicar filtros';
+  static const exploreMap = 'Mapa';
+  static const exploreList = 'Lista';
+  static const backToHome = 'Volver a Inicio';
+  static const legendTitle = 'Estado';
+  static const zoomIn = 'Acercar mapa';
+  static const zoomOut = 'Alejar mapa';
+  static const mapLoading = 'Cargando reportes de esta zona…';
+  static const mapEmpty =
+      'No hay reportes en esta zona. Aleja el mapa o quita filtros.';
+  static const mapError =
+      'No se pudieron cargar los reportes. Toca para reintentar.';
   static const viewDetail = 'Ver detalle';
   static const photoAlternative = 'Foto del problema reportado';
   static const mapAlternative =

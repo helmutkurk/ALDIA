@@ -64,7 +64,7 @@ class StatePin extends StatelessWidget {
           children: [
             StatusMapPin(
               state: report.citizenState,
-              letter: state.label.characters.first.toUpperCase(),
+              icon: categoryById(report.category).icon,
             ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 4),

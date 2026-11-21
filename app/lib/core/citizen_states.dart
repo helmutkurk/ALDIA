@@ -82,3 +82,14 @@ const CitizenState _fallback = CitizenState(
 /// Wording for [state]; unknown or missing values (v0.1 servers) read as received.
 CitizenState citizenStateFor(String? state) =>
     citizenStates[state] ?? _fallback;
+
+/// Public state groups (contract `state_group`), in lifecycle order, with
+/// the word used in the map legend and the filters, and one member state
+/// that gives the group its dot color.
+const Map<String, (String, String)> stateGroups = {
+  'pending': ('En verificación', 'pendiente_verificacion'),
+  'open': ('Abierto', 'nuevo'),
+  'in_work': ('En proceso', 'en_proceso'),
+  'resolved': ('Resuelto', 'resuelto'),
+  'closed': ('Cerrado', 'no_procede'),
+};

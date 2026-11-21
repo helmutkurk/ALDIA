@@ -38,19 +38,23 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   HomeTab _tab = HomeTab.home;
   bool _exploring = false;
-  bool _searching = false;
   String _query = '';
   final _mapKey = GlobalKey<MapViewState>();
   late Future<int?> _resolved;
   // Tabs are built on first visit and then kept (map camera, scroll position).
   final _visited = <HomeTab>{HomeTab.home};
   int _mineToken = 0;
-  String? _state;
+
+  /// Contract `state_group` filter.
+  String? _group;
   String? _category;
   DraftRecord? _draft;
   late Future<List<Report>> _list;
 
-  bool get _filtered => _state != null || _category != null;
+  int get _filterCount =>
+      (_group != null ? 1 : 0) +
+      (_category != null ? 1 : 0) +
+      (_query.isNotEmpty ? 1 : 0);
 
   @override
   void initState() {
@@ -82,7 +86,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<List<Report>> _loadList() {
     final future = context.read<ReportRepository>().nearby(
-      state: _state,
+      stateGroup: _group,
       category: _category,
     );
     // Explore is lazy. Observe failures now; FutureBuilder still receives the
@@ -117,26 +121,26 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _clearFilters() {
     setState(() {
-      _state = null;
+      _group = null;
       _category = null;
+      _query = '';
       _list = _loadList();
     });
   }
 
   Future<void> _editFilters() async {
     FocusManager.instance.primaryFocus?.unfocus();
-    final result = await Navigator.of(context).push<(String?, String?)>(
-      FiltersSheet(
-        state: _state,
-        category: _category,
-      ).asAdaptiveSheetRoute<(String?, String?)>(
-        reduceMotion: MediaQuery.disableAnimationsOf(context),
-      ),
+    final result = await Navigator.of(context).push<ReportFilters>(
+      FiltersSheet(initial: (group: _group, category: _category, query: _query))
+          .asAdaptiveSheetRoute<ReportFilters>(
+            reduceMotion: MediaQuery.disableAnimationsOf(context),
+          ),
     );
     if (result == null) return;
     setState(() {
-      _state = result.$1;
-      _category = result.$2;
+      _group = result.group;
+      _category = result.category;
+      _query = result.query;
       _list = _loadList();
     });
   }
@@ -148,14 +152,16 @@ class _HomeScreenState extends State<HomeScreen> {
         _exploring
             ? ExploreReports(
                 mapKey: _mapKey,
-                state: _state,
+                group: _group,
                 category: _category,
                 onOpen: _open,
                 reports: _list,
-                filtered: _filtered,
+                filterCount: _filterCount,
                 query: _query,
                 onRetry: _reload,
                 onClear: _clearFilters,
+                onBack: () => setState(() => _exploring = false),
+                onFilters: _editFilters,
               )
             : Landing(
                 resolved: _resolved,
@@ -177,97 +183,26 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final filterCount = (_state != null ? 1 : 0) + (_category != null ? 1 : 0);
     final exploring = _tab == HomeTab.home && _exploring;
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: AldiaColors.barOf(context),
-        foregroundColor: AldiaColors.onBar,
-        iconTheme: const IconThemeData(color: AldiaColors.onBar),
-        actionsIconTheme: const IconThemeData(color: AldiaColors.onBar),
-        shape: null,
-        leading: exploring
-            ? IconButton(
-                tooltip: 'Volver a Inicio',
-                onPressed: () => setState(() {
-                  _exploring = false;
-                  _searching = false;
-                  _query = '';
-                }),
-                icon: const Icon(Icons.arrow_back),
-              )
-            : null,
-        title: exploring && _searching
-            ? TextField(
-                autofocus: true,
-                style: const TextStyle(color: AldiaColors.onBar),
-                cursorColor: AldiaColors.onBar,
-                textInputAction: TextInputAction.search,
-                decoration: const InputDecoration(
-                  hintText: 'Buscar reportes',
-                  hintStyle: TextStyle(color: Color(0xFFD9DEE3)),
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  filled: false,
-                ),
-                onChanged: (value) => setState(() => _query = value.trim()),
-              )
-            : Text(
-                exploring
-                    ? 'Explorar mi ciudad'
-                    : switch (_tab) {
-                        HomeTab.notices => 'Avisos',
-                        HomeTab.mine => S.myReports,
-                        HomeTab.profile => 'Perfil',
-                        _ => S.appName,
-                      },
-                style: const TextStyle(color: AldiaColors.onBar),
-              ),
-        actions: [
-          if (exploring) ...[
-            IconButton(
-              tooltip: _searching ? 'Cerrar búsqueda' : 'Buscar reportes',
-              onPressed: () => setState(() {
-                _searching = !_searching;
-                if (!_searching) _query = '';
-              }),
-              icon: Icon(_searching ? Icons.close : Icons.search),
+      // Explorar draws its own floating controls over a full-screen map.
+      appBar: exploring
+          ? null
+          : AppBar(
+              backgroundColor: AldiaColors.barOf(context),
+              foregroundColor: AldiaColors.onBar,
+              iconTheme: const IconThemeData(color: AldiaColors.onBar),
+              shape: null,
+              title: Text(switch (_tab) {
+                HomeTab.notices => 'Avisos',
+                HomeTab.mine => S.myReports,
+                HomeTab.profile => 'Perfil',
+                _ => S.appName,
+              }, style: const TextStyle(color: AldiaColors.onBar)),
             ),
-            IconButton(
-              tooltip: S.useMyLocation,
-              onPressed: () => _mapKey.currentState?.locate(),
-              icon: const Icon(Icons.my_location),
-            ),
-            IconButton(
-              tooltip: S.filtersLabel,
-              onPressed: _editFilters,
-              icon: Badge(
-                isLabelVisible: _filtered,
-                label: Text('$filterCount'),
-                child: const Icon(Icons.filter_list),
-              ),
-            ),
-            PopupMenuButton<String>(
-              tooltip: 'Más opciones',
-              iconColor: AldiaColors.onBar,
-              onSelected: (value) =>
-                  value == 'clear' ? _clearFilters() : _reload(),
-              itemBuilder: (_) => [
-                const PopupMenuItem(value: 'reload', child: Text('Actualizar')),
-                if (_filtered)
-                  const PopupMenuItem(
-                    value: 'clear',
-                    child: Text(S.clearFilters),
-                  ),
-              ],
-            ),
-          ],
-        ],
-      ),
       body: Column(
         children: [
-          if (_draft case final draft? when _tab == HomeTab.home)
+          if (_draft case final draft? when _tab == HomeTab.home && !exploring)
             ConstrainedBox(
               constraints: BoxConstraints(
                 maxHeight: MediaQuery.sizeOf(context).height * 0.3,

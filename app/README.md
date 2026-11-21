@@ -11,8 +11,11 @@ No reference assets, copy or code are included.
 - Inicio shows the resolved count from `GET /api/stats` (`resueltos`, with a v0.1 fallback). A failed request shows an
   unavailable marker and leaves both actions usable. The counter follows the server's default reporting period;
   it does not claim to be an all-time total.
-- **Explorar mi ciudad** opens **MAPA / LISTA** tabs with an accent underline. Map clusters fall back to individual
-  reports; filters use citizen state and category. Map controls offer zoom, location and report-overlay visibility.
+- **Explorar mi ciudad** opens a full-screen map with floating controls: back, a **Mapa | Lista** switch and a
+  filter button with the number of active filters. The map adds zoom, my location, layers, a state legend and
+  loading/empty/error messages; pins show the category icon on the state color with the state word below. Clusters
+  fall back to individual reports. **Filtros** opens a sheet with search plus category and state-group chips
+  (`state_group`); the list uses the same header.
 - Wizard: **Ubicación → Categoría → Foto → Detalles → Revisar y enviar** (the nearby-duplicates step was removed). Every step has a summary of
   the chosen place/category. Location supports explicit address search, GPS, map pin and accessible coordinate inputs;
   **CONFIRMAR UBICACIÓN** remains at the bottom. Categories and groups come from `GET /api/categories`, with offline

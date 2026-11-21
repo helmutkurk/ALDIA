@@ -65,16 +65,17 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Corresponde a otra entidad'), findsOneWidget);
 
-    await tester.ensureVisible(find.text('LISTA'));
-    await tester.tap(find.text('LISTA'));
+    await tester.ensureVisible(find.text('Lista'));
+    await tester.tap(find.text('Lista'));
     await tester.pumpAndSettle();
     expect(find.byType(ReportTile), findsWidgets);
 
     await tester.ensureVisible(find.byTooltip(S.filtersLabel));
     await tester.tap(find.byTooltip(S.filtersLabel));
     await tester.pumpAndSettle();
-    expect(find.text(S.apply), findsOneWidget);
-    await tester.tapAt(const Offset(5, 5));
+    expect(find.text(S.applyFilters), findsOneWidget);
+    await tester.ensureVisible(find.text(S.applyFilters));
+    await tester.tap(find.text(S.applyFilters));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Avisos'));
     await tester.pumpAndSettle();

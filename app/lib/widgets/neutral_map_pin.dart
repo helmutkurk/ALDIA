@@ -33,25 +33,32 @@ class NeutralMapPin extends StatelessWidget {
   );
 }
 
-/// Report pin: disc in the status color with a white outline and a white
-/// center holding the state letter (text color on white, 4.5:1). The state
-/// word is announced by the caller's semantics and shown in the label below.
+/// Report pin: disc in the status color with a white outline and the
+/// category icon in the middle. The state word is shown by the caller below
+/// the pin and announced in its semantics (never color alone).
 class StatusMapPin extends StatelessWidget {
   const StatusMapPin({
     super.key,
     required this.state,
-    required this.letter,
+    required this.icon,
     this.size = 40,
   });
 
   final String? state;
-  final String letter;
+  final IconData icon;
   final double size;
 
   @override
   Widget build(BuildContext context) {
-    final color = AldiaColors.status(state, Theme.of(context).brightness);
+    final brightness = Theme.of(context).brightness;
+    final color = AldiaColors.status(state, brightness);
     final hollow = AldiaColors.statusIsHollow(state);
+    // White on the light status colors; dark ink on the lighter dark-mode ones.
+    final ink = hollow
+        ? color
+        : brightness == Brightness.dark
+        ? AldiaColors.darkSurface
+        : Colors.white;
     return Container(
       width: size,
       height: size,
@@ -59,27 +66,11 @@ class StatusMapPin extends StatelessWidget {
         color: hollow ? Colors.white : color,
         shape: BoxShape.circle,
         border: Border.all(color: hollow ? color : Colors.white, width: 3),
-        boxShadow: const [BoxShadow(color: Color(0x40000000), blurRadius: 3)],
+        boxShadow: const [BoxShadow(color: Color(0x40000000), blurRadius: 4)],
       ),
       alignment: Alignment.center,
-      child: Container(
-        width: size * 0.56,
-        height: size * 0.56,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          letter,
-          textScaler: TextScaler.noScaling,
-          style: const TextStyle(
-            color: AldiaColors.text,
-            fontSize: 13,
-            fontWeight: FontWeight.w800,
-            height: 1,
-          ),
-        ),
+      child: ExcludeSemantics(
+        child: Icon(icon, size: size * 0.5, color: ink),
       ),
     );
   }
