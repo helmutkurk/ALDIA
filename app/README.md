@@ -22,7 +22,8 @@ No reference assets, copy or code are included.
   any filter or search switches the map to pins, and search is matched in the app on the loaded reports. Results
   come 100 at a time: the map says when more exist, and Lista has **Ver más**.
 - Wizard: **Ubicación → Categoría → Foto → Detalles → Revisar y enviar** (the nearby-duplicates step was removed). Every step has a summary of
-  the chosen place/category. Location supports explicit address search, GPS, map pin and accessible coordinate inputs;
+  the chosen place/category. Location supports explicit address search, GPS, map pin and coordinate inputs (closed
+  **Ingresar coordenadas** section, for screen readers);
   **CONFIRMAR UBICACIÓN** remains at the bottom. Categories and groups come from `GET /api/categories`, with offline
   contract defaults. A report rejected by the verifier as a duplicate still shows the existing report.
   A live photo is mandatory. Retake and verifier feedback remain available.

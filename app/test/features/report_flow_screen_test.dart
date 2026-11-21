@@ -214,4 +214,25 @@ void main() {
       expect(find.text(S.pendingHelp), findsOneWidget);
     },
   );
+
+  testWidgets('coordinates stay hidden until Ingresar coordenadas is opened', (
+    tester,
+  ) async {
+    await tester.pumpWidget(host(fakeRepository()));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(TextField, S.latitude), findsNothing);
+
+    await tapText(tester, S.enterCoordinates);
+    final lat = find.widgetWithText(TextField, S.latitude);
+    final lon = find.widgetWithText(TextField, S.longitude);
+    expect(lat, findsOneWidget);
+    expect(find.text(S.confirmPinHint), findsOneWidget);
+    // The two fields do not touch.
+    final gap = tester.getTopLeft(lon).dy - tester.getBottomLeft(lat).dy;
+    expect(gap, greaterThanOrEqualTo(12));
+
+    await tester.enterText(lat, 'abc');
+    await tapText(tester, S.applyCoordinates);
+    expect(find.text(S.coordinatesInvalid), findsOneWidget);
+  });
 }

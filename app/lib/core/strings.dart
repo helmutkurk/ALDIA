@@ -182,6 +182,7 @@ class S {
       'Punto del problema. Toca el mapa para ajustarlo.';
   static const confirmPinHint =
       'También puedes ajustar latitud y longitud sin usar el mapa.';
+  static const enterCoordinates = 'Ingresar coordenadas';
   static const latitude = 'Latitud';
   static const longitude = 'Longitud';
   static const coordinatesInvalid = 'Introduce coordenadas válidas.';
