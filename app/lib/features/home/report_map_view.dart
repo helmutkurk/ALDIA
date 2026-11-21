@@ -200,6 +200,11 @@ class _MapViewState extends State<MapView> {
                 ),
               if (state.clustersUnavailable)
                 const _Floating(child: AldiaBanner(S.mapFallback)),
+              if (!state.showsClusters &&
+                  state.hasMore &&
+                  !state.loading &&
+                  !state.failed)
+                _Floating(child: AldiaBanner(S.mapCapped(state.loaded))),
             ],
           ),
         ),

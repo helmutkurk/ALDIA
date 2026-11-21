@@ -36,10 +36,15 @@ class ReportList extends StatelessWidget {
         final searching = query.filters.query.isNotEmpty;
         final filtered = query.filterCount > 0;
         if (reports.isEmpty && searching) {
-          return const EmptyState(
+          // Search only sees loaded pages; offer the next one.
+          return EmptyState(
             icon: Icons.search_off,
-            title: 'Sin resultados para tu búsqueda',
-            help: 'Prueba con otra palabra o quita la búsqueda.',
+            title: S.searchEmpty,
+            help: state.hasMore
+                ? S.searchScope(state.loaded, state.total)
+                : S.searchEmptyHelp,
+            actionLabel: state.hasMore ? S.loadMore : null,
+            onAction: state.hasMore ? query.loadMore : null,
           );
         }
         if (reports.isEmpty) {
@@ -67,13 +72,61 @@ class ReportList extends StatelessWidget {
               AldiaSpace.l,
               AldiaSpace.fabClearance,
             ),
-            itemCount: reports.length,
+            itemCount: reports.length + (state.hasMore ? 1 : 0),
             separatorBuilder: (_, _) => const SizedBox(height: AldiaSpace.s),
-            itemBuilder: (context, i) =>
-                ReportTile(report: reports[i], onTap: () => onOpen(reports[i])),
+            itemBuilder: (context, i) => i == reports.length
+                ? _LoadMore(query: query, searching: searching)
+                : ReportTile(
+                    report: reports[i],
+                    onTap: () => onOpen(reports[i]),
+                  ),
           ),
         );
       },
+    );
+  }
+}
+
+/// Footer when the server has more reports than are loaded: how many are
+/// shown (or searched) and "Ver más" for the next page.
+class _LoadMore extends StatelessWidget {
+  const _LoadMore({required this.query, required this.searching});
+
+  final ExploreQuery query;
+  final bool searching;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = query.state;
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AldiaSpace.m),
+      child: Column(
+        children: [
+          Text(
+            searching
+                ? S.searchScope(state.loaded, state.total)
+                : S.listShowing(state.loaded, state.total),
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: AldiaSpace.s),
+          state.loadingMore
+              ? const SizedBox.square(
+                  dimension: 40,
+                  child: Padding(
+                    padding: EdgeInsets.all(AldiaSpace.s),
+                    child: CircularProgressIndicator(strokeWidth: 3),
+                  ),
+                )
+              : OutlinedButton(
+                  onPressed: query.loadMore,
+                  child: const Text(S.loadMore),
+                ),
+        ],
+      ),
     );
   }
 }
