@@ -80,7 +80,10 @@ class S {
   static const mapFallback =
       'No se pudo cargar la agrupación del mapa; se muestran reportes sueltos.';
   static const pinReport = 'Reporte';
-  static const zoomToCluster = 'Acercar para ver los reportes';
+  static const openCluster = 'Ver la lista de reportes';
+  static String clusterSheetTitle(int count) => count == 1
+      ? '1 reporte en esta zona'
+      : '${clusterCount(count)} en esta zona';
   static const filtersLabel = 'Filtros de reportes';
   static const duplicateOfTitle = 'Ya está reportado';
   static const viewMainReport = 'Ver el reporte principal';
@@ -162,6 +165,15 @@ class S {
       'No hay reportes en esta zona. Aleja el mapa o quita filtros.';
   static const mapError =
       'No se pudieron cargar los reportes. Toca para reintentar.';
+  static String mapCapped(int shown) =>
+      'Mostrando los $shown más recientes. Acerca el mapa para ver más.';
+  static const loadMore = 'Ver más';
+  static String listShowing(int loaded, int total) =>
+      'Mostrando $loaded de $total reportes';
+  static String searchScope(int loaded, int total) =>
+      'Buscando en $loaded de $total reportes';
+  static const searchEmpty = 'Sin resultados para tu búsqueda';
+  static const searchEmptyHelp = 'Prueba con otra palabra o quita la búsqueda.';
   static const viewDetail = 'Ver detalle';
   static const photoAlternative = 'Foto del problema reportado';
   static const mapAlternative =
