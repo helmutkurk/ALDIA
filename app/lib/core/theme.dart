@@ -60,6 +60,9 @@ class AldiaColors {
   static const Color danger = Color(0xFFB91C1C);
   static const Color lightErrorContainer = Color(0xFFFDE8E8);
 
+  /// Warning banners (amber icon, normal text color).
+  static const Color warningContainer = Color(0xFFFFF1D6);
+
   // Dark mode keeps the hues, lighter, on dark surfaces.
   static const Color darkBar = Color(0xFF0B2A40);
   static const Color darkBackground = Color(0xFF12181D);
@@ -77,6 +80,7 @@ class AldiaColors {
   static const Color darkClosed = Color(0xFF9CA3AF);
   static const Color darkDanger = Color(0xFFF2A5A5);
   static const Color darkErrorContainer = Color(0xFF4A2323);
+  static const Color darkWarningContainer = Color(0xFF3D2E12);
 
   /// Dot or pin color for a citizen or verifier state. Pending states are
   /// drawn hollow by [statusIsHollow]. Use together with the word.

@@ -15,6 +15,7 @@ import '../drafts/draft_store.dart';
 import '../outbox/outbox_service.dart';
 import 'report_category_step.dart';
 import 'report_details_steps.dart';
+import '../../widgets/aldia_banner.dart';
 import 'report_flow_controller.dart';
 import 'report_flow_widgets.dart';
 import 'report_location_step.dart';
@@ -223,7 +224,8 @@ class _FlowViewState extends State<_FlowView> with WidgetsBindingObserver {
                   ),
                 ),
                 const SizedBox(height: 16),
-                if (c.storageError) const FlowNotice(S.storageError),
+                if (c.storageError)
+                  const FlowNotice(S.storageError, kind: BannerKind.error),
                 if (outcome == SubmitState.sending) ...[
                   const LinearProgressIndicator(),
                   const SizedBox(height: 16),
@@ -239,7 +241,7 @@ class _FlowViewState extends State<_FlowView> with WidgetsBindingObserver {
                     FlowStep.review => ReviewStep(controller: c),
                   },
                   if (c.submitState == SubmitState.failed)
-                    const FlowNotice(S.sendError),
+                    const FlowNotice(S.sendError, kind: BannerKind.error),
                 ],
               ],
             ),

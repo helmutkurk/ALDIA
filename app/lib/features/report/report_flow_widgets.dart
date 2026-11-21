@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/text_x.dart';
 import '../../core/theme.dart';
+import '../../widgets/aldia_banner.dart';
 import 'report_flow_controller.dart';
 
 class SummaryRow extends StatelessWidget {
@@ -60,19 +61,14 @@ class SummaryRow extends StatelessWidget {
   }
 }
 
+/// Notice inside a wizard step; an [AldiaBanner] with vertical spacing.
 class FlowNotice extends StatelessWidget {
-  const FlowNotice(this.text, {super.key});
+  const FlowNotice(this.text, {super.key, this.kind = BannerKind.info});
   final String text;
+  final BannerKind kind;
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 8),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Icon(Icons.info_outline),
-        const SizedBox(width: 8),
-        Expanded(child: Text(text)),
-      ],
-    ),
+    padding: const EdgeInsets.symmetric(vertical: AldiaSpace.s),
+    child: AldiaBanner(text, kind: kind),
   );
 }
