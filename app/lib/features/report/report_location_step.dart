@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/config.dart';
 import '../../core/strings.dart';
-import '../../core/theme.dart';
 import '../../services/location_service.dart';
 import '../../widgets/map_layers_button.dart';
 import '../../widgets/neutral_map_pin.dart';
@@ -23,51 +21,18 @@ class LocationStep extends StatefulWidget {
 
 class _LocationStepState extends State<LocationStep> {
   final _map = MapController();
-  late final TextEditingController _lat;
-  late final TextEditingController _lon;
-  bool _invalid = false;
   bool _showAccuracy = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _lat = TextEditingController(
-      text: '${widget.controller.position.latitude}',
-    );
-    _lon = TextEditingController(
-      text: '${widget.controller.position.longitude}',
-    );
-  }
 
   @override
   void didUpdateWidget(covariant LocationStep oldWidget) {
     super.didUpdateWidget(oldWidget);
     _map.move(widget.controller.position, _map.camera.zoom);
-    _lat.text = '${widget.controller.position.latitude}';
-    _lon.text = '${widget.controller.position.longitude}';
   }
 
   @override
   void dispose() {
     _map.dispose();
-    _lat.dispose();
-    _lon.dispose();
     super.dispose();
-  }
-
-  void _apply() {
-    final lat = double.tryParse(_lat.text);
-    final lon = double.tryParse(_lon.text);
-    setState(
-      () => _invalid =
-          lat == null ||
-          lon == null ||
-          !lat.isFinite ||
-          !lon.isFinite ||
-          lat.abs() > 90 ||
-          lon.abs() > 180,
-    );
-    if (!_invalid) widget.controller.setPosition(LatLng(lat!, lon!));
   }
 
   @override
@@ -194,44 +159,6 @@ class _LocationStepState extends State<LocationStep> {
           onPressed: c.locating ? null : c.useMyLocation,
           icon: const Icon(Icons.my_location),
           label: const Text(S.useMyLocation),
-        ),
-        // For screen-reader and expert use; most people search or use GPS.
-        ExpansionTile(
-          title: const Text(S.enterCoordinates),
-          tilePadding: EdgeInsets.zero,
-          childrenPadding: const EdgeInsets.only(bottom: AldiaSpace.m),
-          expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
-          initiallyExpanded: _invalid,
-          children: [
-            const Text(S.confirmPinHint),
-            const SizedBox(height: AldiaSpace.m),
-            TextField(
-              controller: _lat,
-              decoration: const InputDecoration(labelText: S.latitude),
-              keyboardType: const TextInputType.numberWithOptions(
-                signed: true,
-                decimal: true,
-              ),
-              textInputAction: TextInputAction.next,
-            ),
-            const SizedBox(height: AldiaSpace.m),
-            TextField(
-              controller: _lon,
-              decoration: const InputDecoration(labelText: S.longitude),
-              keyboardType: const TextInputType.numberWithOptions(
-                signed: true,
-                decimal: true,
-              ),
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => _apply(),
-            ),
-            if (_invalid)
-              const FlowNotice(S.coordinatesInvalid, kind: BannerKind.error),
-            TextButton(
-              onPressed: _apply,
-              child: const Text(S.applyCoordinates),
-            ),
-          ],
         ),
       ],
     );

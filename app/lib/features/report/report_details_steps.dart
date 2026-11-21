@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../widgets/place_text.dart';
+
 import '../../core/categories.dart';
 import '../../core/config.dart';
 import '../../core/strings.dart';
 import '../../core/text_x.dart';
+import '../../widgets/place_text.dart';
 import 'report_flow_controller.dart';
 import 'report_flow_widgets.dart';
 
@@ -57,7 +60,7 @@ class ReviewStep extends StatelessWidget {
           onPressed: () => c.edit(FlowStep.photo),
           child: const Text('${S.edit}: ${S.stepPhoto}'),
         ),
-        Text(c.placeLabel.isUsable ? c.placeLabel! : S.pointOnMap),
+        PlaceText(position: c.position, label: c.placeLabel),
         TextButton(
           onPressed: () => c.edit(FlowStep.location),
           child: const Text('${S.edit}: ${S.stepLocation}'),

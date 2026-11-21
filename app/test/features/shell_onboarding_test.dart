@@ -131,9 +131,7 @@ void main() {
     }
   });
 
-  testWidgets('the app stays light when the system is dark', (
-    tester,
-  ) async {
+  testWidgets('the app stays light when the system is dark', (tester) async {
     expect(buildTheme().colorScheme.brightness, Brightness.light);
     final dark = buildDarkTheme();
     expect(dark.colorScheme.brightness, Brightness.dark);

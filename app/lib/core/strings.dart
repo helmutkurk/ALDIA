@@ -180,13 +180,6 @@ class S {
       'Mapa de reportes. Usa Lista para consultar sin el mapa.';
   static const pinAlternative =
       'Punto del problema. Toca el mapa para ajustarlo.';
-  static const confirmPinHint =
-      'También puedes ajustar latitud y longitud sin usar el mapa.';
-  static const enterCoordinates = 'Ingresar coordenadas';
-  static const latitude = 'Latitud';
-  static const longitude = 'Longitud';
-  static const coordinatesInvalid = 'Introduce coordenadas válidas.';
-  static const applyCoordinates = 'Usar estas coordenadas';
   static const pendingHelp =
       'Guardado, verificación pendiente. Puedes consultar las novedades en Mis reportes.';
   static const publicPhotoNotice =

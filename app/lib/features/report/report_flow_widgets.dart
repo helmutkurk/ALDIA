@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../core/strings.dart';
 import '../../core/text_x.dart';
 import '../../core/theme.dart';
 import '../../widgets/aldia_banner.dart';
+import '../../widgets/place_text.dart';
 import 'report_flow_controller.dart';
 
 class SummaryRow extends StatelessWidget {
@@ -13,9 +13,9 @@ class SummaryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = controller;
-    final place = c.placeLabel.isUsable
-        ? c.placeLabel!
-        : (c.locationConfirmed ? S.pointOnMap : 'Elige el lugar del problema');
+    final Widget place = c.placeLabel.isUsable || c.locationConfirmed
+        ? PlaceText(position: c.position, label: c.placeLabel)
+        : const Text('Elige el lugar del problema');
     final category = c.categories
         .where((item) => item.id == c.categoryId)
         .firstOrNull;
@@ -48,7 +48,7 @@ class SummaryRow extends StatelessWidget {
                         : 'Tu reporte',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  Text(place),
+                  place,
                   if (category != null) Text(category.label),
                 ],
               ),

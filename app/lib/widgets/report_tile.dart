@@ -9,6 +9,7 @@ import '../core/citizen_states.dart';
 import '../core/strings.dart';
 import '../core/text_x.dart';
 import '../core/theme.dart';
+import 'place_text.dart';
 import 'status_chips.dart';
 import '../data/report.dart';
 import '../data/report_repository.dart';
@@ -114,6 +115,12 @@ class ReportTile extends StatelessWidget {
                               style: theme.textTheme.titleLarge?.copyWith(
                                 fontWeight: FontWeight.w700,
                               ),
+                            ),
+                            const SizedBox(height: AldiaSpace.xs),
+                            PlaceText(
+                              position: report.position,
+                              icon: true,
+                              style: theme.textTheme.bodyLarge,
                             ),
                             if (report.note.isUsable)
                               Padding(
