@@ -34,7 +34,7 @@ void main() {
     await tester.tap(find.text('Inicio'));
     await tester.pumpAndSettle();
     expect(tester.state(find.byType(MapView)), same(map));
-    expect(find.text('MAPA'), findsOneWidget);
+    expect(find.text('Mapa'), findsOneWidget);
   });
 
   testWidgets('map shows clusters from the clusters endpoint', (tester) async {
@@ -103,7 +103,7 @@ void main() {
     },
   );
 
-  testWidgets('a filter skips clusters and sends state and category', (
+  testWidgets('filter chips skip clusters and send state group and category', (
     tester,
   ) async {
     final requests = <Uri>[];
@@ -125,19 +125,52 @@ void main() {
 
     await tester.tap(find.byTooltip(S.filtersLabel));
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(DropdownButtonFormField<String?>).first);
+    await tester.tap(find.widgetWithText(FilterChip, 'Resuelto'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Resuelto').last);
+    await tester.tap(find.widgetWithText(FilterChip, 'Bache'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text(S.apply));
+    await tester.ensureVisible(find.text(S.applyFilters));
+    await tester.tap(find.text(S.applyFilters));
     await tester.pumpAndSettle();
 
     expect(clusters.calls, before);
     expect(
-      requests.where((u) => u.queryParameters['state'] == 'resuelto'),
+      requests.where(
+        (u) =>
+            u.queryParameters['state_group'] == 'resolved' &&
+            u.queryParameters['category'] == 'pothole',
+      ),
       isNotEmpty,
     );
+    // The filter button shows how many filters are active.
+    expect(find.text('2'), findsOneWidget);
     expect(find.text('Resuelto'), findsWidgets);
+  });
+
+  testWidgets('full-screen map: no app bar, legend, and an empty message', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      harness(
+        home: const HomeScreen(),
+        repository: repositoryWith(),
+        clusters: FakeClusters(const []),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Explorar mi ciudad'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AppBar), findsNothing);
+    expect(find.byTooltip(S.backToHome), findsOneWidget);
+    expect(find.text(S.legendTitle), findsOneWidget);
+    for (final word in ['Abierto', 'En proceso', 'Resuelto', 'Cerrado']) {
+      expect(find.text(word), findsOneWidget, reason: word);
+    }
+    expect(find.text(S.mapEmpty), findsOneWidget);
+
+    await tester.tap(find.byTooltip(S.backToHome));
+    await tester.pumpAndSettle();
+    expect(find.text('Explorar mi ciudad'), findsOneWidget);
   });
 
   testWidgets('list alternative shows reports and the empty state', (
@@ -152,7 +185,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Explorar mi ciudad'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('LISTA'));
+    await tester.tap(find.text('Lista'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Programado'), findsOneWidget);
   });

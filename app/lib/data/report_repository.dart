@@ -51,11 +51,13 @@ class ReportRepository {
     LatLng? southWest,
     LatLng? northEast,
     String? state,
+    String? stateGroup,
     String? category,
   }) => _api.listReports(
     southWest: southWest,
     northEast: northEast,
     state: state,
+    stateGroup: stateGroup,
     category: category,
   );
   Future<List<Report>> duplicates(LatLng position, String category) =>

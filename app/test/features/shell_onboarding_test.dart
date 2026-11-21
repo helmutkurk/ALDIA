@@ -4,6 +4,7 @@ import 'package:aldia_app/core/theme.dart';
 import 'package:aldia_app/features/home/home_screen.dart';
 import 'package:aldia_app/features/onboarding/onboarding_screen.dart';
 import 'package:aldia_app/widgets/empty_state.dart';
+import 'package:aldia_app/features/home/report_map_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
@@ -58,7 +59,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Explorar mi ciudad'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('LISTA'));
+    await tester.tap(find.text('Lista'));
     await tester.pumpAndSettle();
     expect(find.byType(Card), findsWidgets);
     expect(find.text('Bache'), findsOneWidget);
@@ -71,7 +72,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Explorar mi ciudad'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('LISTA'));
+    await tester.tap(find.text('Lista'));
     await tester.pumpAndSettle();
     expect(find.byType(EmptyState), findsOneWidget);
     expect(find.text(S.emptyNearby), findsOneWidget);
@@ -158,9 +159,17 @@ void main() {
     expect(bar.animationDuration, Duration.zero);
     await tester.tap(find.text('Explorar mi ciudad'));
     await tester.pumpAndSettle();
-    final tabs = tester.widget<DefaultTabController>(
-      find.byType(DefaultTabController),
+    // Mapa / Lista switch instantly: one frame after the tap the list shows.
+    await tester.tap(find.text('Lista'));
+    await tester.pump();
+    final stack = tester.widget<IndexedStack>(
+      find
+          .ancestor(
+            of: find.byType(MapView, skipOffstage: false),
+            matching: find.byType(IndexedStack, skipOffstage: false),
+          )
+          .first,
     );
-    expect(tabs.animationDuration, Duration.zero);
+    expect(stack.index, 1);
   });
 }

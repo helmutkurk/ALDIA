@@ -70,11 +70,13 @@ class ApiClient {
     LatLng? northEast,
     int limit = 100,
     String? state,
+    String? stateGroup,
     String? category,
   }) async {
     final query = <String, String>{
       'limit': '$limit',
       'state': ?state,
+      'state_group': ?stateGroup,
       'category': ?category,
     };
     if (southWest != null && northEast != null) {
