@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../../core/categories.dart';
 import '../../core/citizen_states.dart';
+import '../../data/cluster_query.dart';
 import '../../data/clusters_api.dart';
 import '../../data/report.dart';
 import '../../data/report_repository.dart';
@@ -91,6 +92,9 @@ class ExploreQuery extends ChangeNotifier {
   int _token = 0;
   bool _disposed = false;
 
+  /// Zoom the current clusters were requested at; their grid cells use it.
+  int _clusterZoom = 0;
+
   bool _loading = true;
   bool _failed = false;
   bool _showsClusters = false;
@@ -171,6 +175,17 @@ class ExploreQuery extends ChangeNotifier {
     _publish();
   }
 
+  /// One page of the reports grouped in [cluster]: every report in its grid
+  /// cell, not only the first ids the clusters endpoint sends.
+  Future<ReportPage> clusterReports(ReportCluster cluster, {int offset = 0}) {
+    final cell = clusterCell(cluster.position, _clusterZoom);
+    return _repository.nearby(
+      southWest: cell.southWest,
+      northEast: cell.northEast,
+      offset: offset,
+    );
+  }
+
   bool get _filtered => filterCount > 0;
   bool get _needsReports => !_showsClusters || _mode == ExploreMode.list;
   bool _stale(int token) => _disposed || token != _token;
@@ -201,12 +216,14 @@ class ExploreQuery extends ChangeNotifier {
     _publish();
     if (clustersApi != null && _showsClusters) {
       try {
+        final zoom = clusterRequestZoom(area.zoom);
         final clusters = await clustersApi.clusters(
           southWest: area.southWest,
           northEast: area.northEast,
-          zoom: area.zoom,
+          zoom: zoom.toDouble(),
         );
         if (_stale(token)) return;
+        _clusterZoom = zoom;
         _clusters = clusters;
       } catch (_) {
         if (_stale(token)) return;

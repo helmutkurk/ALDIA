@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -106,8 +105,20 @@ class _MapViewState extends State<MapView> {
       }
       return;
     }
-    final zoom = math.min(_controller.camera.zoom + 2, 18).toDouble();
-    _controller.move(cluster.position, zoom);
+    FocusManager.instance.primaryFocus?.unfocus();
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      sheetAnimationStyle: MediaQuery.disableAnimationsOf(context)
+          ? AnimationStyle.noAnimation
+          : null,
+      builder: (_) => ClusterReportsSheet(
+        query: widget.query,
+        cluster: cluster,
+        onOpen: widget.onOpen,
+      ),
+    );
   }
 
   @override

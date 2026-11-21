@@ -311,4 +311,34 @@ void main() {
     expect(q.state.total, 130);
     expect(q.state.hasMore, isTrue);
   });
+
+  test('clusters are requested 3 zoom levels out', () async {
+    final clusters = FakeClusters([_cluster]);
+    query(clusters: clusters).setArea(_area);
+    await _settle();
+
+    expect(clusters.lastZoom, 10);
+  });
+
+  test('a cluster lists every report in its grid cell', () async {
+    final q = query(list: [_report(1), _report(2)])..setArea(_area);
+    await _settle();
+
+    final page = await q.clusterReports(_cluster);
+
+    expect(page.items, hasLength(2));
+    final bbox = listCalls().last.queryParameters['bbox']!
+        .split(',')
+        .map(double.parse)
+        .toList();
+    // Cell of 360 / 2^14 degrees around the cluster at request zoom 10.
+    final size = 360 / 16384;
+    expect(bbox[2] - bbox[0], closeTo(size, 1e-9));
+    expect(bbox[3] - bbox[1], closeTo(size, 1e-9));
+    expect(_cluster.position.longitude, inInclusiveRange(bbox[0], bbox[2]));
+    expect(_cluster.position.latitude, inInclusiveRange(bbox[1], bbox[3]));
+
+    await q.clusterReports(_cluster, offset: 100);
+    expect(listCalls().last.queryParameters['offset'], '100');
+  });
 }

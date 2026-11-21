@@ -111,6 +111,7 @@ class FakeClusters implements ClustersApi {
   final List<ReportCluster> result;
   final bool fail;
   int calls = 0;
+  double? lastZoom;
 
   @override
   Future<List<ReportCluster>> clusters({
@@ -119,6 +120,7 @@ class FakeClusters implements ClustersApi {
     required double zoom,
   }) async {
     calls++;
+    lastZoom = zoom;
     if (fail) throw http.ClientException('offline');
     return result;
   }

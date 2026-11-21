@@ -80,7 +80,10 @@ class S {
   static const mapFallback =
       'No se pudo cargar la agrupación del mapa; se muestran reportes sueltos.';
   static const pinReport = 'Reporte';
-  static const zoomToCluster = 'Acercar para ver los reportes';
+  static const openCluster = 'Ver la lista de reportes';
+  static String clusterSheetTitle(int count) => count == 1
+      ? '1 reporte en esta zona'
+      : '${clusterCount(count)} en esta zona';
   static const filtersLabel = 'Filtros de reportes';
   static const duplicateOfTitle = 'Ya está reportado';
   static const viewMainReport = 'Ver el reporte principal';

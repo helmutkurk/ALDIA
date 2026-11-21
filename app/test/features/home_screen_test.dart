@@ -5,6 +5,7 @@ import 'package:aldia_app/features/drafts/draft_record.dart';
 import 'package:aldia_app/features/home/home_screen.dart';
 import 'package:aldia_app/features/home/report_map_view.dart';
 import 'package:aldia_app/widgets/neutral_map_pin.dart';
+import 'package:aldia_app/widgets/report_tile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
@@ -53,6 +54,38 @@ void main() {
     expect(clusters.calls, greaterThan(0));
     expect(find.text('7'), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('7 reportes')), findsOneWidget);
+  });
+
+  testWidgets('tapping a cluster lists the reports of its area', (
+    tester,
+  ) async {
+    final requests = <Uri>[];
+    await tester.pumpWidget(
+      harness(
+        home: const HomeScreen(),
+        repository: repositoryWith(
+          // One report: a second card would load its photo off screen.
+          list: [stateJson('nuevo')],
+          requests: requests,
+        ),
+        clusters: FakeClusters([_cluster]),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Explorar mi ciudad'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('7'));
+    await tester.pumpAndSettle();
+
+    expect(find.text(S.clusterSheetTitle(1)), findsOneWidget);
+    expect(find.byType(ReportTile), findsOneWidget);
+    expect(
+      requests.where(
+        (u) => u.path.endsWith('/reports') && u.queryParameters['bbox'] != null,
+      ),
+      isNotEmpty,
+    );
   });
 
   testWidgets(

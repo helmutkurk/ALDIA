@@ -14,7 +14,9 @@ which reports Explorar shows. Mapa and Lista always show the same result set.
 label, state label, note) because the API has no text search.
 
 **Clusters** - Grouped pins from `GET /api/reports/clusters`, shown only when no filter is active (the endpoint has no
-filters). When the endpoint fails, the map falls back to plain pins.
+filters). The app asks for them 3 zoom levels out, so each grid cell is about 128 px on screen. Tapping a cluster opens
+a list of every report in its **grid cell** (360 / 2^(zoom+4) degrees, anchored at -180/-90). When the endpoint fails,
+the map falls back to plain pins.
 
 **Pins** - Single reports from `GET /api/reports` for the visible area, shown when a filter is active or clusters are
 not available. Loaded 100 at a time; "Ver más" loads the next page.
