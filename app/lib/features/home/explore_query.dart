@@ -39,10 +39,11 @@ class ExploreState {
   /// Something the current mode needs is still on its way.
   final bool loading;
 
-  /// The last load for the current area and filters failed.
+  /// The report list for the current area and filters failed to load. While
+  /// [showsClusters] the map still works; Lista offers retry.
   final bool failed;
 
-  /// The map shows [clusters]; otherwise it shows [pins].
+  /// The map shows [clusters]. Otherwise it shows only [pins].
   final bool showsClusters;
 
   /// The clusters endpoint failed, so the map fell back to pins.
@@ -50,7 +51,8 @@ class ExploreState {
 
   final List<ReportCluster> clusters;
 
-  /// Reports drawn on the map: empty while [showsClusters].
+  /// Reports drawn as state pins. While [showsClusters], only the one-report
+  /// clusters whose report is loaded; those are left out of [clusters].
   final List<Report> pins;
 
   /// Reports for Lista, search applied.
@@ -70,8 +72,10 @@ class ExploreState {
 /// Decides which reports Explorar shows from the filters, the map area and the
 /// Mapa/Lista mode (see `app/GLOSSARY.md`, "Explorar query").
 ///
-/// Without filters the map uses clusters, and the list loads only while Lista
-/// is open. Any filter, search included, switches the map to pins, because the
+/// Without filters the map uses clusters. The newest page of reports for the
+/// same area loads too: Lista shows it, and a one-report cluster whose report
+/// is in it is drawn as that report's state pin (clusters carry no category or
+/// state). Any filter, search included, switches the map to pins, because the
 /// clusters endpoint has no filters. Search is matched here, on the reports
 /// loaded so far, because the API has no text search.
 class ExploreQuery extends ChangeNotifier {
@@ -142,11 +146,7 @@ class ExploreQuery extends ChangeNotifier {
   void setMode(ExploreMode mode) {
     if (mode == _mode) return;
     _mode = mode;
-    if (_area != null && _needsReports && !_fetchedReports && !_loading) {
-      unawaited(_loadReports(_token));
-    } else {
-      _publish();
-    }
+    _publish();
   }
 
   Future<void> retry() {
@@ -187,7 +187,6 @@ class ExploreQuery extends ChangeNotifier {
   }
 
   bool get _filtered => filterCount > 0;
-  bool get _needsReports => !_showsClusters || _mode == ExploreMode.list;
   bool _stale(int token) => _disposed || token != _token;
 
   Future<ReportPage> _nearby(MapArea area, {int offset = 0}) =>
@@ -231,12 +230,7 @@ class ExploreQuery extends ChangeNotifier {
         _clustersUnavailable = true;
       }
     }
-    if (_needsReports) {
-      await _loadReports(token);
-    } else {
-      _loading = false;
-      _publish();
-    }
+    await _loadReports(token);
   }
 
   Future<void> _loadReports(int token) async {
@@ -267,13 +261,25 @@ class ExploreQuery extends ChangeNotifier {
             for (final r in _fetched)
               if (_matches(r, needle)) r,
           ];
+    var clusters = _clusters;
+    var pins = reports;
+    if (_showsClusters) {
+      final byId = {for (final r in _fetched) r.id: r};
+      Report? single(ReportCluster c) =>
+          c.count == 1 && c.ids.length == 1 ? byId[c.ids.single] : null;
+      clusters = [
+        for (final c in _clusters)
+          if (single(c) == null) c,
+      ];
+      pins = [for (final c in _clusters) ?single(c)];
+    }
     _state = ExploreState(
       loading: _loading,
       failed: _failed,
       showsClusters: _showsClusters,
       clustersUnavailable: _clustersUnavailable,
-      clusters: _clusters,
-      pins: _showsClusters ? const [] : reports,
+      clusters: clusters,
+      pins: pins,
       reports: reports,
       loaded: _fetched.length,
       total: _total,

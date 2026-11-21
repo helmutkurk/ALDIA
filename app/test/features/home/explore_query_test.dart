@@ -85,36 +85,6 @@ void main() {
     expect(listCalls(), isEmpty);
   });
 
-  test(
-    'without filters the map shows clusters and does not load the list',
-    () async {
-      final clusters = FakeClusters([_cluster]);
-      final q = query(clusters: clusters)..setArea(_area);
-      await _settle();
-
-      expect(clusters.calls, 1);
-      expect(q.state.loading, isFalse);
-      expect(q.state.clusters, [_cluster]);
-      expect(q.state.pins, isEmpty);
-      expect(q.state.showsClusters, isTrue);
-      expect(listCalls(), isEmpty);
-    },
-  );
-
-  test('opening Lista loads the reports of the same map area', () async {
-    final q = query(list: [_report(1), _report(2)])..setArea(_area);
-    await _settle();
-
-    q.setMode(ExploreMode.list);
-    expect(q.state.loading, isTrue);
-    await _settle();
-
-    expect(q.state.reports, hasLength(2));
-    expect(q.state.clusters, [_cluster]);
-    expect(q.state.pins, isEmpty);
-    expect(listCalls().single.queryParameters['bbox'], '-90.6,14.5,-90.4,14.7');
-  });
-
   test('falls back to pins when clusters fail', () async {
     final q = query(
       list: [_report(1)],
@@ -340,5 +310,87 @@ void main() {
 
     await q.clusterReports(_cluster, offset: 100);
     expect(listCalls().last.queryParameters['offset'], '100');
+  });
+
+  test(
+    'without filters the map shows clusters and loads the area once',
+    () async {
+      final clusters = FakeClusters([_cluster]);
+      final q = query(list: [_report(1), _report(2)], clusters: clusters)
+        ..setArea(_area);
+      await _settle();
+
+      expect(clusters.calls, 1);
+      expect(q.state.loading, isFalse);
+      expect(q.state.showsClusters, isTrue);
+      expect(q.state.clusters, [_cluster]);
+      expect(q.state.pins, isEmpty);
+      expect(
+        listCalls().single.queryParameters['bbox'],
+        '-90.6,14.5,-90.4,14.7',
+      );
+
+      // Lista already has the same area's reports: no second request.
+      q.setMode(ExploreMode.list);
+      expect(q.state.reports, hasLength(2));
+      expect(listCalls(), hasLength(1));
+    },
+  );
+
+  test(
+    'a one-report cluster becomes a state pin when its report is loaded',
+    () async {
+      final single = ReportCluster(
+        position: const LatLng(14.62, -90.52),
+        count: 1,
+        ids: [_id(2)],
+      );
+      final q = query(
+        list: [
+          _report(1),
+          _report(2, state: 'resuelto'),
+        ],
+        clusters: FakeClusters([_cluster, single]),
+      )..setArea(_area);
+      await _settle();
+
+      expect(q.state.showsClusters, isTrue);
+      expect(q.state.clusters, [_cluster]);
+      expect(q.state.pins.map((r) => r.id), [_id(2)]);
+    },
+  );
+
+  test(
+    'a one-report cluster without a loaded report stays a cluster',
+    () async {
+      final single = ReportCluster(
+        position: const LatLng(14.62, -90.52),
+        count: 1,
+        ids: [_id(99)],
+      );
+      final q = query(list: [_report(1)], clusters: FakeClusters([single]))
+        ..setArea(_area);
+      await _settle();
+
+      expect(q.state.clusters, [single]);
+      expect(q.state.pins, isEmpty);
+    },
+  );
+
+  test('if the area list fails, clusters still show', () async {
+    final gated = _gated();
+    final q = ExploreQuery(
+      repository: gated.repository,
+      clusters: FakeClusters([_cluster]),
+      debounce: const Duration(milliseconds: 5),
+    )..setArea(_area);
+    await _settle();
+    gated.pending.single.complete(http.Response('down', 503));
+    await _settle();
+
+    expect(q.state.showsClusters, isTrue);
+    expect(q.state.clusters, [_cluster]);
+    expect(q.state.failed, isTrue, reason: 'Lista offers retry');
+    expect(q.state.loading, isFalse);
   });
 }

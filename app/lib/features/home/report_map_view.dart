@@ -191,7 +191,7 @@ class _MapViewState extends State<MapView> {
             children: [
               if (state.loading && _ready)
                 const _Floating(child: AldiaBanner(S.mapLoading))
-              else if (state.failed)
+              else if (state.failed && !state.showsClusters)
                 _Floating(
                   child: Semantics(
                     button: true,

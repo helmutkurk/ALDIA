@@ -56,6 +56,31 @@ void main() {
     expect(find.bySemanticsLabel(RegExp('7 reportes')), findsOneWidget);
   });
 
+  testWidgets('a one-report cluster shows the report state pin', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      harness(
+        home: const HomeScreen(),
+        repository: repositoryWith(list: [stateJson('resuelto')]),
+        clusters: FakeClusters([
+          _cluster,
+          const ReportCluster(
+            position: LatLng(14.62, -90.52),
+            count: 1,
+            ids: [detailId],
+          ),
+        ]),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Explorar mi ciudad'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(StatusMapPin), findsOneWidget);
+    expect(find.text('7'), findsOneWidget);
+  });
+
   testWidgets('tapping a cluster lists the reports of its area', (
     tester,
   ) async {
