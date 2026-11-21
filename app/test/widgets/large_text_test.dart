@@ -46,16 +46,21 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    final landing = find
+        .descendant(
+          of: find.byType(ListView).first,
+          matching: find.byType(Scrollable),
+        )
+        .first;
     await tester.scrollUntilVisible(
       find.text('Explorar mi ciudad'),
       180,
-      scrollable: find
-          .descendant(
-            of: find.byType(ListView).first,
-            matching: find.byType(Scrollable),
-          )
-          .first,
+      scrollable: landing,
     );
+    // "Visible" includes the area behind the bottom bar; scroll the action
+    // clear of it, as a person would, before tapping.
+    await tester.drag(landing, const Offset(0, -200));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Explorar mi ciudad'));
     await tester.pumpAndSettle();
     expect(find.text('Corresponde a otra entidad'), findsOneWidget);
@@ -81,7 +86,7 @@ void main() {
     expect(find.text('Actualizar avisos'), findsOneWidget);
     await tester.tap(find.text('Perfil'));
     await tester.pumpAndSettle();
-    expect(find.text('Tu perfil en Aldia'), findsOneWidget);
+    expect(find.text('Tu perfil en AlDía'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

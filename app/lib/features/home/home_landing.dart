@@ -41,7 +41,7 @@ class Landing extends StatelessWidget {
               Semantics(
                 header: true,
                 child: Text(
-                  'Tu ciudad, al día',
+                  'Tu ciudad, AlDía',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.headlineMedium?.copyWith(color: onBar),
                 ),
