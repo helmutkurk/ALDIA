@@ -85,10 +85,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<List<Report>> _loadList() {
-    final future = context.read<ReportRepository>().nearby(
-      stateGroup: _group,
-      category: _category,
-    );
+    final future = context
+        .read<ReportRepository>()
+        .nearby(stateGroup: _group, category: _category)
+        .then((page) => page.items);
     // Explore is lazy. Observe failures now; FutureBuilder still receives the
     // original error when the citizen opens Lista and offers Retry.
     future.ignore();

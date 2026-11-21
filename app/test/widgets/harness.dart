@@ -76,8 +76,15 @@ ReportRepository repositoryWith({
       return http.Response(jsonEncode({'items': nearby}), 200);
     }
     if (path.endsWith('/reports')) {
+      final offset =
+          int.tryParse(request.url.queryParameters['offset'] ?? '') ?? 0;
+      final limit =
+          int.tryParse(request.url.queryParameters['limit'] ?? '') ?? 100;
       return http.Response(
-        jsonEncode({'items': list, 'total': list.length}),
+        jsonEncode({
+          'items': list.skip(offset).take(limit).toList(),
+          'total': list.length,
+        }),
         200,
       );
     }

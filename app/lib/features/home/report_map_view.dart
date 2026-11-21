@@ -118,7 +118,7 @@ class MapViewState extends State<MapView> {
       }
     }
     try {
-      final reports = await repository.nearby(
+      final page = await repository.nearby(
         southWest: bounds.southWest,
         northEast: bounds.northEast,
         stateGroup: widget.state,
@@ -127,7 +127,7 @@ class MapViewState extends State<MapView> {
       if (!mounted || token != _token) return;
       setState(() {
         _clusters = const [];
-        _pins = reports;
+        _pins = page.items;
         _clustersFailed = api != null && !filtered;
         _loading = false;
       });
