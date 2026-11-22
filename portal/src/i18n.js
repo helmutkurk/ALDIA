@@ -284,6 +284,7 @@ export const ui = Object.freeze({
   statusFilter: 'Estado',
   moreFilters: 'Más filtros',
   mainNav: 'Principal',
+  brandTagline: 'Portal de gobierno',
   navMap: 'Mapa',
   navTriage: 'Triaje',
   navDashboard: 'Panel',

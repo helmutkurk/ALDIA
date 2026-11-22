@@ -1,38 +1,62 @@
-/* Binding mirror of documentation/design-tokens.md (calm palette, 2026-11-20). */
+/* Binding mirror of documentation/design-tokens.md (Guatemala sky-blue palette, 2026-11-21),
+   plus portal layout tokens. Text colors meet 4.5:1 on white; status colors are non-text only and
+   always sit next to the status word. */
 :root {
-  --bar: #3a3f44;
+  /* Shell: the sidebar uses the palette's dark bar value. */
+  --bar: #0b2a40;
   --on-bar: #ffffff;
-  --primary: #0f7a99;
-  --primary-dark: #0b6079;
+  --on-bar-muted: #b9cbdb;
+  --bar-hover: rgb(255 255 255 / 8%);
+  --bar-current: rgb(255 255 255 / 12%);
+
+  --primary: #2a6fa8;
+  --primary-dark: #235e8f;
   --on-primary: #ffffff;
-  --accent: #e8731a; /* underlines and highlights only, never text */
+  --primary-container: #d3e7f6;
+  --on-primary-container: #0b2a40;
+  --brand: #4997d0; /* logo, clusters, chart lines; non-text only */
+  --accent: #ff7a59; /* badges, highlights, key call to action; never text */
+
   --surface: #ffffff;
-  --background: #f3f4f6;
-  --border: #d9dee3;
+  --background: #f4f7fa;
+  --card: #eaf4fb;
+  --border: #dbe4ec;
+  --border-strong: #c5d9e8;
+  --outline: #6b7280;
   --text: #1f2933;
   --text-muted: #52606d;
-  --focus: #0b6079;
+  --focus: #235e8f;
 
   /* Status dots, pins and series; always paired with the status word. */
-  --state-open: #e8731a;
-  --state-work: #3f9a47;
-  --state-resolved: #2d8cd0;
+  --state-open: #b26a00;
+  --state-work: #7e57c2;
+  --state-resolved: #17735a;
   --state-closed: #6b7280;
   --state-pending: #ffffff;
-  --success: #2e7d32;
+  --success: #17735a;
   --danger: #b91c1c;
+  --danger-container: #fdecec;
+  --success-container: #e6f4ef;
+  --warning-container: #fdf3e2;
 
-  /* Portal-only layout, spacing scale and data-series tokens. */
+  /* Type: system stack with Inter first when installed (the CSP allows no web fonts). */
+  --font:
+    'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    sans-serif;
+
+  /* Layout, spacing scale and data series. */
   --header-height: 3.5rem;
-  --radius: 0.5rem;
-  --radius-sm: 0.3rem;
+  --sidebar-width: 15rem;
+  --radius-lg: 0.75rem;
+  --radius: 0.625rem;
+  --radius-sm: 0.5rem;
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
   --space-4: 1rem;
   --space-5: 1.5rem;
   --space-6: 2.5rem;
-  --shadow-raised: 0 2px 10px rgb(31 41 51 / 16%);
-  --series-received: var(--primary-dark);
-  --series-resolved: var(--success);
+  --shadow-raised: 0 12px 32px -14px rgb(11 42 64 / 28%);
+  --series-received: var(--primary);
+  --series-resolved: var(--state-resolved);
 }

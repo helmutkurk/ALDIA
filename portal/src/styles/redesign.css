@@ -1,0 +1,385 @@
+/* ---------- redesign layer (2026-11-22, see docs/redesign-plan.md) ----------
+   Loaded last: sidebar shell on wide screens, calmer type, white cards with a thin border,
+   pill buttons and chips. Behavior and markup contracts stay in the files above. */
+
+:root {
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Buttons: quiet by default, filled primary for main actions, pills like the app. */
+button {
+  border-color: var(--border-strong);
+  border-radius: 999px;
+}
+button:where(:hover:not(:disabled)) {
+  background: var(--background);
+  border-color: var(--outline);
+}
+.retry-button,
+.search-button,
+.filters-done {
+  border-radius: 999px;
+}
+input,
+textarea,
+select {
+  border-color: var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+input:hover,
+select:hover,
+textarea:hover {
+  border-color: var(--outline);
+}
+
+/* Brand and nav pieces (all widths). */
+.site-header .brand {
+  gap: 0.6rem;
+  font-size: 1.05rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.brand-logo {
+  width: 28px;
+  height: 28px;
+  flex: none;
+}
+.brand-logo-pin {
+  fill: var(--brand);
+}
+.brand-logo-check {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 3.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+.brand-name {
+  font-weight: 700;
+}
+.brand-tagline {
+  display: none;
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--on-bar-muted);
+}
+.nav-icon {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.site-nav a,
+.site-nav button {
+  gap: 0.55rem;
+}
+
+/* ---------- wide screens: left sidebar ---------- */
+@media (min-width: 1001px) {
+  body {
+    display: grid;
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+    min-height: 100dvh;
+  }
+  .site-header {
+    position: sticky;
+    top: 0;
+    height: 100dvh;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 1.75rem;
+    padding: 1.5rem 0.9rem;
+    overflow-y: auto;
+  }
+  .site-header .brand {
+    padding: 0 0.5rem;
+  }
+  .brand-tagline {
+    display: block;
+  }
+  .site-nav {
+    flex: 1;
+    flex-direction: column;
+    align-items: stretch;
+    flex-wrap: nowrap;
+    gap: 0.15rem;
+  }
+  .site-nav a,
+  .site-nav button {
+    justify-content: flex-start;
+    width: 100%;
+    padding: 0 0.75rem;
+    border: 0;
+    border-radius: var(--radius-sm);
+    color: var(--on-bar-muted);
+    font-weight: 500;
+  }
+  .site-nav a:hover,
+  .site-nav button:hover {
+    color: var(--on-bar);
+    background: var(--bar-hover);
+  }
+  .site-nav a[aria-current='page'] {
+    color: var(--on-bar);
+    background: var(--bar-current);
+    border-radius: var(--radius-sm);
+    box-shadow: inset 3px 0 0 var(--accent);
+    font-weight: 600;
+  }
+  .site-nav .staff-link {
+    margin: auto 0 0;
+    border: 1px solid rgb(255 255 255 / 22%);
+    color: var(--on-bar);
+  }
+  .site-nav .staff-link[aria-expanded='true'] {
+    background: var(--bar-current);
+  }
+  main {
+    min-width: 0;
+  }
+  .workspace {
+    height: 100vh;
+    height: 100dvh;
+    grid-template-columns: minmax(22rem, 26rem) minmax(0, 1fr);
+  }
+  .dash-body {
+    min-height: auto;
+  }
+}
+
+/* ---------- map page ---------- */
+.panel {
+  background: var(--surface);
+  border-right-color: var(--border);
+}
+.panel-header {
+  padding: 1.1rem 1.25rem 0.75rem;
+  border-bottom: 0;
+}
+.panel-header h1 {
+  font-size: 1.25rem;
+  letter-spacing: -0.01em;
+}
+.filters {
+  padding-top: 0.25rem;
+}
+.filter-field label,
+label.filter-field {
+  font-weight: 500;
+  color: var(--text-muted);
+}
+.filter-chips button {
+  min-height: 32px;
+  border-color: transparent;
+  color: var(--on-primary-container);
+  background: var(--primary-container);
+}
+.filter-chips button:hover {
+  background: #c3ddf1;
+}
+.result-count {
+  background: var(--surface);
+  color: var(--text-muted);
+  font-weight: 500;
+  border-top: 1px solid var(--border);
+}
+.report-list li {
+  border-bottom-color: var(--border);
+}
+.report-button:hover {
+  background: var(--background);
+}
+.report-button[aria-pressed='true'] {
+  background: #f1f7fc;
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+.report-category {
+  font-size: 0.95rem;
+}
+.row-thumbnail {
+  border-radius: var(--radius-sm);
+  border-color: var(--border);
+}
+.state-chip {
+  border-color: var(--border);
+  font-weight: 500;
+}
+.pagination button {
+  border-color: var(--border-strong);
+}
+.map-legend,
+.map-title {
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+.leaflet-bar {
+  border-radius: var(--radius-sm) !important;
+}
+
+/* ---------- pages: report, triage, staff ---------- */
+.page h1 {
+  font-size: clamp(1.4rem, 2.4vw, 1.75rem);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+.report-evidence,
+.report-handling > section,
+.report-location,
+.nearby-reports,
+.timeline,
+.staff-actions {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.1rem 1.25rem;
+}
+.report-handling {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+}
+.report-handling .timeline,
+.report-handling .staff-actions,
+.nearby-reports,
+.report-location {
+  margin-top: 1rem;
+}
+.page .report-photo,
+.report-evidence .report-photo {
+  border-radius: var(--radius);
+}
+.location-map {
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.queue-tabs {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  border-radius: 999px;
+  background: #e6edf3;
+}
+.queue-tabs button {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+}
+.queue-tabs [aria-selected='true'] {
+  border: 0;
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgb(11 42 64 / 12%);
+  font-weight: 600;
+}
+.queue-list > li {
+  border-radius: var(--radius-lg);
+  box-shadow: none;
+}
+.age-badge {
+  display: inline-block;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  background: var(--warning-container);
+  color: #7a4a00;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.staff-root {
+  background: var(--card);
+  border-bottom-color: var(--border-strong);
+}
+.staff-panel form {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.staff-panel button[type='submit'] {
+  border: 0;
+  color: var(--on-primary);
+  background: var(--primary);
+  font-weight: 600;
+}
+.staff-panel button[type='submit']:hover:not(:disabled) {
+  background: var(--primary-dark);
+}
+
+/* ---------- statistics ---------- */
+.dash-band {
+  padding-top: 1.5rem;
+  padding-bottom: 0.5rem;
+  color: var(--text);
+  background: transparent;
+  border-bottom: 0;
+}
+.dash-band a {
+  color: var(--primary-dark);
+}
+.dash-band :focus-visible {
+  outline-color: var(--focus);
+}
+.page .dash-band h1 {
+  font-size: clamp(1.5rem, 3vw, 1.85rem);
+  letter-spacing: -0.015em;
+}
+.dash-scope {
+  color: var(--text-muted);
+}
+.dash-body {
+  gap: 1rem;
+}
+.dash-block {
+  border-radius: var(--radius-lg);
+  box-shadow: none;
+}
+.dash-block > h2,
+.bar-section h2 {
+  border-bottom: 0;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0;
+  font-size: 1rem;
+}
+.metric-card {
+  border-radius: var(--radius-lg);
+  box-shadow: none;
+}
+.dash-pair {
+  gap: 1rem;
+}
+
+/* Report page details */
+.report-handling > section:empty,
+.staff-actions:empty {
+  display: none;
+}
+.verification-checks {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+.verification-checks li {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+}
+.report-navigation button,
+.report-navigation a {
+  border-color: var(--border-strong);
+}
