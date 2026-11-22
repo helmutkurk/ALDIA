@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createSiteHeader } from '../src/header.js';
+import { createMapKpis } from '../src/map-kpis.js';
 
 let header;
 afterEach(() => {
@@ -10,7 +11,7 @@ afterEach(() => {
 
 const css = (name) => readFileSync(`src/styles/${name}.css`, 'utf8');
 
-it('shows the brand with its tagline and keeps nav labels as text next to decorative icons', () => {
+it('shows the brand, municipality card and nav labels as text next to decorative icons', () => {
   const root = document.createElement('header');
   document.body.append(root);
   header = createSiteHeader(root, { onStaff: vi.fn() });
@@ -18,6 +19,7 @@ it('shows the brand with its tagline and keeps nav labels as text next to decora
   expect(root.querySelector('.brand-tagline').textContent).toBe(
     'Portal de gobierno',
   );
+  expect(root.querySelector('.org-label').textContent).toBe('Municipio');
   const labels = [...root.querySelectorAll('.site-nav .nav-label')].map(
     (span) => span.textContent,
   );
@@ -27,20 +29,37 @@ it('shows the brand with its tagline and keeps nav labels as text next to decora
   }
 });
 
-it('mirrors the shared Guatemala sky-blue tokens and loads the redesign layer last', () => {
-  const tokens = css('tokens');
-  for (const value of [
-    '--primary: #2a6fa8',
-    '--brand: #4997d0',
-    '--accent: #ff7a59',
-    '--state-open: #b26a00',
-    '--state-work: #7e57c2',
-    '--state-resolved: #17735a',
-    '--state-closed: #6b7280',
-  ]) {
-    expect(tokens).toContain(value);
-  }
+it('summarizes the map area and blanks values it cannot trust', () => {
+  const root = document.createElement('section');
+  const kpis = createMapKpis(root);
+  kpis.render({
+    abiertos: 22,
+    resueltos: 26,
+    by_state_group: { in_work: 4 },
+    resolucion_horas: { median: 216 },
+    weekly: [
+      { recibidos: 3, resueltos: 1 },
+      { recibidos: 5, resueltos: 2 },
+    ],
+  });
+  const values = [...root.querySelectorAll('.map-kpi-value')].map(
+    (node) => node.textContent,
+  );
+  expect(values).toEqual(['22', '4', '26', '9.0 d']);
+  expect(root.querySelectorAll('.kpi-spark polyline')).toHaveLength(2);
+  kpis.render({ abiertos: '<b>x</b>', resolucion_horas: { median: null } });
+  expect(
+    [...root.querySelectorAll('.map-kpi-value')].map((n) => n.textContent),
+  ).toEqual(['—', '—', '—', '—']);
+  kpis.render(null);
+  expect(root.querySelector('.map-kpi-value').textContent).toBe('—');
+});
+
+it('loads the redesign layer last with the wide-screen layout and the split-screen login', () => {
   const app = css('app').trim().split(/\r?\n/);
   expect(app.at(-1).trim()).toBe("@import './redesign.css';");
-  expect(css('redesign')).toContain('@media (min-width: 1001px)');
+  const redesign = css('redesign');
+  expect(redesign).toContain('@media (min-width: 1001px)');
+  expect(redesign).toContain("'list map'");
+  expect(redesign).toContain('.staff-root:has(.login-form:not([hidden]))');
 });

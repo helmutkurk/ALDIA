@@ -20,6 +20,7 @@ import { mountPortal } from './mount.js';
 import { createTriage } from './triage.js';
 import { ui, t } from './i18n.js';
 import { loadWorkspace } from './workspace-load.js';
+import { createMapKpis } from './map-kpis.js';
 
 /** Compose the retained workspace and cancellable pages. Factories avoid tiles in tests.
  * @param {object} options
@@ -91,6 +92,16 @@ export function createPortal({
         },
         reload: scheduleLoad,
       });
+      // Summary strip: same scope as the list; a failure only blanks the numbers.
+      if (api.getStats && !own.signal.aborted)
+        api
+          .getStats(query(), { signal: own.signal })
+          .then((stats) => {
+            if (current === generation) kpis.render(stats);
+          })
+          .catch(() => {
+            if (current === generation) kpis.render(null);
+          });
     }, 300);
   }
   const map = mapFactory(mapElement, {
@@ -132,6 +143,10 @@ export function createPortal({
   });
   panelElement.querySelector('.panel-header').after(staffRoot);
   panelElement.querySelector('.results').before(side);
+  const kpiRoot = element('section');
+  // Outside the list panel: the panel never contains SVG (see municipal tests).
+  panelElement.before(kpiRoot);
+  const kpis = createMapKpis(kpiRoot);
   const toggle = element('button', 'map-toggle', ui.showMap);
   toggle.type = 'button';
   toggle.setAttribute('aria-expanded', 'false');
@@ -164,7 +179,7 @@ export function createPortal({
         },
       })
     : null;
-  const searchRoot = element('div');
+  const searchRoot = element('div', 'search-root');
   panelElement.querySelector('.panel-header').after(searchRoot);
   const search = createPlaceSearch(searchRoot, {
     onSelect: (place) => map.flyToPlace(place),

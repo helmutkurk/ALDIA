@@ -1,34 +1,33 @@
 # Portal redesign plan (2026-11-22)
 
 Goal: one portal that keeps every feature of the current portal (login, map with list, report page, triage,
-statistics, CSV) and takes the look of the `dashboard` branch mockup (sidebar, white cards, calmer type), in the
-shared Guatemala sky-blue palette of `documentation/design-tokens.md`, so the portal matches the app.
-
-Mockup: team design canvas, page "Versión combinada" (login, map and cases, report page, triage, statistics).
+statistics, CSV) and looks like the approved mockup: team design canvas, page "Versión combinada" (login, map and
+cases, report page, triage, statistics).
 
 ## Decisions
 
-- **Palette**: the shared tokens (primary `#2A6FA8`, brand `#4997D0`, coral accent `#FF7A59`, status amber /
-  violet / green / gray, red for rejected). The sidebar uses the dark bar value `#0B2A40`.
-- **Surfaces**: light neutral page background with white cards and a 1 px border. The shared tokens suggest
-  `card #EAF4FB` filled tiles; white cards keep the dense staff screens calmer. To agree with the app team.
-- **Type**: system font stack with Inter first when installed. No web font: the production CSP allows only
-  `font-src 'self'`, and self-hosting font files would be a new asset to agree on.
-- **Behavior is unchanged**: same routes, API calls, permissions and states. This is a layout and style pass.
-  Every test must still pass.
+- **Palette**: the mockup's colors (navy sidebar `#0F2A44`, accent `#2F6FB0`, page `#F6F7F9`, white cards with a
+  `#E4E7EC` border; states red / orange / green / gray). Four values were darkened slightly to pass the existing
+  contrast tests (focus ring, "en trabajo" orange, "cerrado" gray, received series). This differs from the shared
+  app palette in `documentation/design-tokens.md`; aligning app and portal is still open with the app team.
+- **Type**: Inter when installed, then the system font, on a 12/13/14/16/20/28 px scale. No web font: the
+  production CSP allows only `font-src 'self'`.
+- **Behavior is unchanged**: same routes, API calls, permissions and states. All existing tests still pass.
 
-## Steps
+## What changed
 
-1. Tokens: replace the calm teal tokens with the shared palette; spacing, radius and type scale.
-2. Shell: the top header becomes a left sidebar on wide screens (logo, Mapa, Triaje, Panel, Modo personal, help);
-   on narrow screens it stays a top bar with the menu button.
-3. Map page: larger map, list panel with cards, filter chips and count line restyled.
-4. Report page, triage and staff login: card layout, pill buttons, clear state chips.
-5. Statistics: white cards, calmer charts, KPI cards. Change vs. previous period needs a second stats request
-   for the previous window (follow-up).
-6. Check: `npm run check` (lint, format, tests, build), browser review on desktop and phone width.
+1. Tokens (`src/styles/tokens.css`) and a redesign layer loaded last (`src/styles/redesign.css`).
+2. Shell: navy left sidebar on wide screens (logo, Mapa, Triaje, Panel, Modo personal, municipality card); phones
+   and tablets keep the top bar with the menu button.
+3. Map page: title row with place search, one filter bar, a summary strip (open, in work, resolved, median repair
+   time, from `GET /stats` for the same scope), list card with thumbnails and pagination, large map card; the
+   selected report floats over the map.
+4. Staff login: split screen while the login form shows.
+5. Report page: two-column cards. Triage: table-like rows. Statistics: KPI cards first, then the trend, then cards.
 
 ## Not in this pass
 
-- Change vs. previous period and sparklines on the KPI cards (needs an extra request per card or an API field).
+- Change vs. previous period on the KPI cards (needs a second stats request or an API field).
+- Report page state stepper and the triage column header from the mockup (need markup changes in report.js and
+  triage.js).
 - Dark mode.

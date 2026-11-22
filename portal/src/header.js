@@ -75,7 +75,16 @@ export function createSiteHeader(root, { onStaff }) {
   };
   staff.addEventListener('click', enterStaff);
   nav.append(staff, help.button);
-  root.replaceChildren(brand, menu, nav, help.guide);
+  const org = document.createElement('div');
+  org.className = 'org-card';
+  const orgLabel = document.createElement('span');
+  orgLabel.className = 'org-label';
+  orgLabel.textContent = ui.municipality;
+  const orgName = document.createElement('span');
+  orgName.className = 'org-name';
+  orgName.textContent = t.city;
+  org.append(orgLabel, orgName);
+  root.replaceChildren(brand, menu, nav, org, help.guide);
   return {
     setStaffOpen(open) {
       staff.setAttribute('aria-expanded', String(open));
