@@ -1,7 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { createApiClient } from '../src/api.js';
 import { createDashboard } from '../src/dashboard.js';
-import { recentDates } from '../src/dashboard-recent.js';
 import snapshot from './fixtures/stats-api-snapshot.json';
 import recentSnapshot from './fixtures/stats-recent-snapshot.json';
 
@@ -46,15 +45,15 @@ it('accepts a 0–1 resolution ratio and rejects the former percentage represent
   });
 });
 
-it('renders real-shaped counters, cumulative lines, seven-day activity and category repairs through the API validator', async () => {
+it('renders the real-shaped snapshot through the API validator with the mockup cards', async () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-11-20T12:00:00Z'));
   const fetchImpl = vi.fn(async (url) =>
     json(
       contractShape(
-        new URL(url).searchParams.has('created_from')
-          ? recentSnapshot
-          : snapshot,
+        new URL(url).searchParams.get('created_to') === '2026-11-20'
+          ? snapshot
+          : recentSnapshot,
       ),
     ),
   );
@@ -66,70 +65,23 @@ it('renders real-shaped counters, cumulative lines, seven-day activity and categ
   });
   await flush();
   expect(root.querySelector('[role="alert"]')).toBeNull();
-  expect(root.querySelectorAll('.weekly-line')).toHaveLength(2);
-  expect(
-    [...root.querySelectorAll('.chart-total dd')].map(
-      (node) => node.textContent,
-    ),
-  ).toEqual(['66', '26']);
-  const metrics = root.querySelector(
-    '.metric-cards:not(.kpi-strip)',
-  ).textContent;
-  expect(metrics).toContain('42.6 %');
-  expect(metrics).toContain('SLA cumplido76.9 %');
-  expect(metrics).toContain('Vencidos12');
-  expect(root.querySelector('.last-week h2').textContent).toBe(
-    'Últimos 7 días',
+  const [current, previous] = fetchImpl.mock.calls.map(([url]) => new URL(url));
+  expect(current.searchParams.get('created_from')).toBe('2026-10-22');
+  expect(previous.searchParams.get('created_to')).toBe('2026-10-21');
+  expect(current.searchParams.get('bbox')).toBe('-91,14,-90,15');
+  const values = [...root.querySelectorAll('.stat-kpi-value')].map(
+    (node) => node.textContent,
   );
+  expect(values[0]).toBe('66');
+  expect(values[1]).toBe('42.6 %');
+  expect(root.querySelectorAll('.stat-trend polyline')).toHaveLength(2);
+  expect(root.querySelector('.stat-times').textContent).toContain('76.9 %');
+  expect(root.querySelector('.stat-times').textContent).toContain('12');
+  expect(root.querySelectorAll('.stat-frequency .stat-row')).toHaveLength(6);
   expect(
-    [...root.querySelectorAll('.spark-value')].map((node) => node.textContent),
-  ).toEqual(['22', '19']);
-  const [all, recent] = fetchImpl.mock.calls.map(([url]) => new URL(url));
-  expect(all.searchParams.get('include_old')).toBe('true');
-  expect(recent.searchParams.get('created_from')).toBe('2026-11-14');
-  expect(recent.searchParams.get('created_to')).toBe('2026-11-20');
-  expect(recent.searchParams.get('bbox')).toBe('-91,14,-90,15');
-  expect(root.querySelectorAll('.top-categories li')).toHaveLength(5);
-  expect(root.querySelector('.category-repair').textContent).toContain('57 h');
-  for (const name of ['category-repair', 'category-frequency']) {
-    const chart = root.querySelector(`.${name}`);
-    expect(
-      chart.querySelector('.chart-note').textContent.length,
-    ).toBeGreaterThan(30);
-    const details = chart.querySelector('details');
-    expect(details.querySelector('summary').textContent).toBe('Ver tabla');
-    details.querySelector('summary').click();
-    expect(details.open).toBe(true);
-  }
+    root.querySelector('.stat-repair .stat-row-value').textContent,
+  ).toMatch(/ d$/);
   expect(root.querySelector('.csv-link').textContent).toBe('Descargar CSV');
   expect(document.activeElement).toBe(root.querySelector('h1[tabindex="-1"]'));
-  expect(root.querySelector('.dash-body > .weekly-chart')).toBe(
-    root.querySelector('.dashboard-total').nextElementSibling,
-  );
   expect(fetchImpl).toHaveBeenCalledTimes(2); // Cross-tab queries remain deferred.
-});
-
-it('uses Guatemala calendar boundaries across a month and keeps the recent failure local', async () => {
-  expect(recentDates(new Date('2026-12-01T01:00:00Z'))).toEqual({
-    created_from: '2026-11-24',
-    created_to: '2026-11-30',
-  });
-  const root = document.createElement('section');
-  const api = {
-    getStats: vi
-      .fn()
-      .mockResolvedValueOnce(contractShape(snapshot))
-      .mockRejectedValueOnce(new Error('offline')),
-    getCsvUrl: () => '/api/reports.csv',
-  };
-  page = createDashboard(root, { api, filters: {} });
-  await flush();
-  expect(root.querySelectorAll('.weekly-line')).toHaveLength(2);
-  expect(root.querySelector('.last-week').textContent).toContain(
-    'No se pudo cargar la actividad reciente',
-  );
-  api.getStats.mockResolvedValueOnce(contractShape(recentSnapshot));
-  root.querySelector('.last-week button').click();
-  await flush();
-  expect(root.querySelectorAll('.spark-value')).toHaveLength(2);
 });

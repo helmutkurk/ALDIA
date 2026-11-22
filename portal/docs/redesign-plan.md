@@ -22,12 +22,28 @@ cases, report page, triage, statistics).
 3. Map page: title row with place search, one filter bar, a summary strip (open, in work, resolved, median repair
    time, from `GET /stats` for the same scope), list card with thumbnails and pagination, large map card; the
    selected report floats over the map.
-4. Staff login: split screen while the login form shows.
-5. Report page: two-column cards. Triage: table-like rows. Statistics: KPI cards first, then the trend, then cards.
+4. Landing (mockup "Login2"): the first screen on every load. Staff sign in (same `POST /auth/login`, same
+   lockout: 5 failed attempts lock the account for 15 minutes, sessions last up to 12 hours) or continue to the
+   public map without an account. A restored cookie session skips it. The portal behind it is `inert` until then.
+   "Modo personal" in the sidebar still opens the split-screen login later.
+5. Report page: two-column cards.
+6. Triage (mockup "Triaje2"): table with Foto, Reporte, Antigüedad (red over 3 days, amber over 1 day),
+   Verificación, Asignado a (inline assignment) and Acción ("Pasar a revisión" when the move needs no note; every
+   other move, with its note rules, under "Más"). The count shows on the selected tab only: a count for the other
+   tab would need one more queue request per load.
+7. Statistics (mockup "Panel2"): period buttons 30 días / 90 días / Todo (default 30 días; filter dates from the
+   map are used as they are, with no button pressed, until one is chosen), CSV next to them, four KPI cards with the change against the previous period
+   of the same length (a second `GET /stats`), weekly trend with totals, repair time per problem (median and p90),
+   most frequent problems by state, age of open reports, attention times, and the category-by-state table on
+   demand.
+
+## Differences from the mockup
+
+- "Por zona": the API has no zone breakdown, so this card shows the category-by-state table and says so.
+- Triage rows show the report date and the citizen note instead of a street address (reports have none).
+- Totals say "resueltos en el periodo", not "con foto de después": not every resolved report has an after photo.
 
 ## Not in this pass
 
-- Change vs. previous period on the KPI cards (needs a second stats request or an API field).
-- Report page state stepper and the triage column header from the mockup (need markup changes in report.js and
-  triage.js).
+- Report page state stepper.
 - Dark mode.

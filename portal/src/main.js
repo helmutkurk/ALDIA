@@ -21,6 +21,7 @@ import { createTriage } from './triage.js';
 import { ui, t } from './i18n.js';
 import { loadWorkspace } from './workspace-load.js';
 import { createMapKpis } from './map-kpis.js';
+import { createLanding } from './landing.js';
 
 /** Compose the retained workspace and cancellable pages. Factories avoid tiles in tests.
  * @param {object} options
@@ -34,6 +35,7 @@ export function createPortal({
   workspaceElement,
   headerElement,
   locationMapFactory,
+  landingElement,
   staff = createStaffSession(),
 }) {
   api ??= createApiClient({ staff });
@@ -147,6 +149,20 @@ export function createPortal({
   // Outside the list panel: the panel never contains SVG (see municipal tests).
   panelElement.before(kpiRoot);
   const kpis = createMapKpis(kpiRoot);
+  // First screen: staff sign-in, or continue to the public map without an account.
+  const landing = landingElement
+    ? createLanding(landingElement, {
+        api,
+        staff,
+        hide: [headerElement, workspaceElement?.parentElement].filter(Boolean),
+        onClose() {
+          map.invalidateSize?.();
+          headerElement
+            ?.querySelector('a, button')
+            ?.focus({ preventScroll: true });
+        },
+      })
+    : null;
   const toggle = element('button', 'map-toggle', ui.showMap);
   toggle.type = 'button';
   toggle.setAttribute('aria-expanded', 'false');
@@ -307,6 +323,7 @@ export function createPortal({
       selection.clear();
       unsubscribeStaff();
       unsubscribe();
+      landing?.destroy();
       header?.destroy();
       toggle.remove();
       router?.destroy();

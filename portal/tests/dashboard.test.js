@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createDashboard } from '../src/dashboard.js';
+import { createDashboard, periodDates } from '../src/dashboard.js';
 import { createApiClient } from '../src/api.js';
 
 let page;
@@ -8,13 +8,12 @@ afterEach(() => {
   document.body.replaceChildren();
   vi.useRealTimers();
 });
-const flush = async () => {
-  await Promise.resolve();
-  await Promise.resolve();
-};
+const NOW = new Date('2026-11-20T12:00:00Z');
+const now = () => NOW;
+const last30 = periodDates(30, NOW);
 
-describe('dashboard', () => {
-  it('loads filtered stats, renders labelled bars and exports identical filters', async () => {
+describe('legacy statistics', () => {
+  it('loads filtered stats for the last 30 days, renders labelled bars and exports identical filters', async () => {
     const root = document.createElement('section');
     const filters = {
       bbox: [-91, 14, -90, 15],
@@ -33,27 +32,18 @@ describe('dashboard', () => {
         () => 'http://localhost/api/reports.csv?resolution=open',
       ),
     };
-    page = createDashboard(root, { api, filters });
-    await flush();
-    expect(api.getStats).toHaveBeenCalledWith(
-      {
-        ...filters,
-        ...(!filters.created_from && !filters.created_to
-          ? { include_old: true }
-          : {}),
-      },
-      {
-        signal: expect.any(AbortSignal),
-      },
-    );
+    page = createDashboard(root, { api, filters, now });
+    await flushAll();
+    const scope = { ...filters, ...last30.current, include_old: true };
+    expect(api.getStats).toHaveBeenCalledWith(scope, {
+      signal: expect.any(AbortSignal),
+    });
     expect(root.textContent).toContain('Total de reportes: 2');
     expect(root.textContent).toContain('Bache');
     expect(root.textContent).toContain('Verificado');
-    expect(root.textContent).toContain('Abierto');
     expect(root.querySelectorAll('meter')).toHaveLength(13);
     expect(api.getCsvUrl).toHaveBeenCalledWith({
-      ...filters,
-      include_old: true,
+      ...scope,
       delimiter: 'comma',
     });
     expect(root.querySelector('[download]').textContent).toBe('Descargar CSV');
@@ -64,8 +54,8 @@ describe('dashboard', () => {
       getStats: vi.fn().mockRejectedValue(new Error('offline')),
       getCsvUrl: vi.fn(() => '/api/reports.csv'),
     };
-    page = createDashboard(root, { api, filters: {} });
-    await flush();
+    page = createDashboard(root, { api, filters: {}, now });
+    await flushAll();
     expect(root.querySelector('[role="alert"]')).not.toBeNull();
     api.getStats.mockResolvedValue({
       total: 0,
@@ -73,8 +63,8 @@ describe('dashboard', () => {
       by_status: {},
       by_resolution: {},
     });
-    root.querySelector('button').click();
-    await flush();
+    root.querySelector('.retry-button').click();
+    await flushAll();
     expect(root.textContent).toContain('Total de reportes: 0');
     expect(root.querySelector('meter').value).toBe(0);
   });
@@ -120,47 +110,124 @@ const flushAll = async () => {
   for (let i = 0; i < 12; i++) await Promise.resolve();
 };
 
-describe('municipal dashboard', () => {
-  it('renders API metric formulas, samples, ages and weekly SVG with text alternative', async () => {
-    vi.useFakeTimers();
+const categories = [
+  {
+    category: 'pothole',
+    total: 8,
+    resueltos: 4,
+    abiertos: 3,
+    cerrados: 1,
+    mediana_reparacion_horas: 6,
+    p90_reparacion_horas: 17,
+    n_resueltos: 4,
+  },
+  {
+    category: 'open_drain',
+    total: 1,
+    resueltos: 0,
+    abiertos: 1,
+    cerrados: 0,
+    mediana_reparacion_horas: null,
+    p90_reparacion_horas: null,
+    n_resueltos: 0,
+  },
+];
+const kpis = (root) =>
+  Object.fromEntries(
+    [...root.querySelectorAll('.stat-kpi')].map((card) => [
+      card.querySelector('.stat-kpi-label').textContent,
+      [
+        card.querySelector('.stat-kpi-value').textContent,
+        card.querySelector('.stat-kpi-foot').textContent,
+      ],
+    ]),
+  );
+const csvUrl = (query) => `/api/reports.csv?${new URLSearchParams(query)}`;
+
+describe('statistics page (mockup layout)', () => {
+  it('compares the last 30 days with the 30 days before, in Guatemala dates', async () => {
     const root = document.createElement('section');
-    const stats = municipalStats();
+    document.body.append(root);
+    const previous = municipalStats({
+      recibidos: 16,
+      tasa_resolucion: 0.25,
+      resolucion_horas: { median: 36, p90: 60, mean: 40, n: 4 },
+      primera_respuesta_horas: { median: 2, p90: 6, n: 10 },
+    });
     const api = {
-      getStats: vi.fn(
-        () => new Promise((resolve) => setTimeout(() => resolve(stats), 25)),
+      getStats: vi.fn(async (query) =>
+        query.created_from === last30.current.created_from
+          ? municipalStats({ por_categoria: categories })
+          : previous,
       ),
       getCsvUrl: vi.fn(() => '/api/reports.csv'),
     };
-    page = createDashboard(root, { api, filters: { category: 'pothole' } });
-    expect(root.getAttribute('aria-busy')).toBe('true');
-    await vi.advanceTimersByTimeAsync(25);
+    page = createDashboard(root, { api, filters: { assignee: 'A' }, now });
     await flushAll();
-    const values = Object.fromEntries(
-      [...root.querySelectorAll('.metric-card')].map((card) => [
-        card.querySelector('dt').textContent,
-        card.querySelector('dd').textContent,
-      ]),
+    expect(last30).toEqual({
+      current: { created_from: '2026-10-22', created_to: '2026-11-20' },
+      previous: { created_from: '2026-09-22', created_to: '2026-10-21' },
+    });
+    expect(periodDates(30, new Date('2026-12-01T01:00:00Z')).current).toEqual({
+      created_from: '2026-11-01',
+      created_to: '2026-11-30',
+    });
+    expect(api.getStats).toHaveBeenCalledTimes(2);
+    expect(api.getStats.mock.calls[1][0]).toEqual({
+      assignee: 'A',
+      ...last30.previous,
+      include_old: true,
+    });
+    const values = kpis(root);
+    expect(values.Recibidos[0]).toBe('20');
+    expect(values.Recibidos[1]).toContain('+25 %');
+    expect(values['Tasa de resolución'][0]).toBe('31.3 %');
+    expect(values['Tasa de resolución'][1]).toContain('+6.3 pts');
+    expect(values['Tasa de resolución'][1]).toContain('n = 16');
+    expect(values['Mediana de reparación'][0]).toBe('0.5 d');
+    expect(values['Mediana de reparación'][1]).toContain('−1.0 d');
+    expect(
+      root.querySelector('.stat-kpi:nth-child(3) .stat-delta').className,
+    ).toContain('good');
+    expect(values['Primera respuesta'][0]).toBe('2 h');
+    expect(values['Primera respuesta'][1]).toContain('±0 h');
+    expect(root.querySelector('[aria-pressed="true"]').textContent).toBe(
+      '30 días',
     );
-    expect(values.Recibidos).toBe('20');
-    expect(values.Resueltos).toBe('5');
-    expect(values['Tasa de resolución']).toBe('31.3 %n = 16');
-    expect(values['Mediana de resolución']).toBe('12 hn = 5');
-    expect(values['p90 de resolución']).toBe('48 hn = 5');
-    expect(values['Primera respuesta: mediana']).toBe('2 hn = 12');
-    expect(values['SLA cumplido']).toBe('80 %n = 5');
-    expect(root.querySelector('.age-buckets').textContent).toContain(
-      '>30 días: 1',
-    );
-    expect(root.querySelectorAll('svg polyline')).toHaveLength(2);
-    expect(root.querySelector('.weekly-table').textContent).toContain(
-      '2026-W47124',
-    );
-    expect(root.querySelectorAll('.category-groups tbody tr')).toHaveLength(1);
-    expect(api.getStats).toHaveBeenCalledTimes(1);
-    expect(root.getAttribute('aria-busy')).toBe('false');
+    expect(document.activeElement).toBe(root.querySelector('h1'));
   });
 
-  it('preserves filter scope for CSV delimiters and exact category/group click-throughs', async () => {
+  it('switches to the full history without comparison and to 90 days', async () => {
+    const root = document.createElement('section');
+    const api = {
+      getStats: vi.fn().mockResolvedValue(municipalStats()),
+      getCsvUrl: vi.fn(csvUrl),
+    };
+    page = createDashboard(root, { api, filters: {}, now });
+    await flushAll();
+    const button = (text) =>
+      [...root.querySelectorAll('.stat-periods button')].find(
+        (node) => node.textContent === text,
+      );
+    button('Todo').click();
+    await flushAll();
+    expect(api.getStats).toHaveBeenLastCalledWith(
+      { include_old: true },
+      { signal: expect.any(AbortSignal) },
+    );
+    expect(kpis(root).Recibidos[1]).toContain('Sin periodo de comparación');
+    expect(root.querySelector('[download]').href).not.toContain('created_from');
+    button('90 días').click();
+    await flushAll();
+    const dates = periodDates(90, NOW);
+    expect(api.getStats.mock.calls.at(-2)[0]).toEqual({
+      ...dates.current,
+      include_old: true,
+    });
+    expect(button('90 días').getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('keeps explicit filter dates and every filter for stats, CSV and list links', async () => {
     const root = document.createElement('section');
     const filters = {
       bbox: [-91, 14, -90, 15],
@@ -172,13 +239,18 @@ describe('municipal dashboard', () => {
       include_old: true,
     };
     const api = {
-      getStats: vi.fn().mockResolvedValue(municipalStats()),
-      getCsvUrl: vi.fn(
-        (query) => `/api/reports.csv?${new URLSearchParams(query)}`,
-      ),
+      getStats: vi
+        .fn()
+        .mockResolvedValue(municipalStats({ por_categoria: categories })),
+      getCsvUrl: vi.fn(csvUrl),
     };
-    page = createDashboard(root, { api, filters });
+    page = createDashboard(root, { api, filters, now });
     await flushAll();
+    expect(api.getStats).toHaveBeenCalledOnce();
+    expect(api.getStats).toHaveBeenCalledWith(filters, {
+      signal: expect.any(AbortSignal),
+    });
+    expect(root.querySelector('[aria-pressed="true"]')).toBeNull();
     const select = root.querySelector('select');
     select.value = 'semicolon';
     select.dispatchEvent(new window.Event('change'));
@@ -186,19 +258,110 @@ describe('municipal dashboard', () => {
       ...filters,
       delimiter: 'semicolon',
     });
-    expect(root.querySelector('[download]').href).toContain(
-      'delimiter=semicolon',
-    );
-    const link = root.querySelector('.category-groups tbody td a');
+    const link = root.querySelector('.stat-frequency a');
     const params = new URLSearchParams(link.hash.split('?')[1]);
     expect(params.get('category')).toBe('pothole');
-    expect(params.get('state_group')).toBe('open');
     expect(params.get('assignee')).toBe('<img src=x>');
     expect(params.get('created_from')).toBe('2026-11-01');
     expect(root.querySelector('img')).toBeNull();
   });
 
-  it('obtains actual joint category/group counts without fabricating a cross product', async () => {
+  it('draws the weekly trend with totals and a text table that never interprets week strings', async () => {
+    const root = document.createElement('section');
+    const hostile = '<img src=x onerror=alert(1)>';
+    const api = {
+      getStats: vi.fn().mockResolvedValue(
+        municipalStats({
+          weekly: [
+            { week: '2026-W46', recibidos: 8, resueltos: 1 },
+            { week: hostile, recibidos: 12, resueltos: 4 },
+          ],
+        }),
+      ),
+      getCsvUrl: vi.fn(() => '/api/reports.csv'),
+    };
+    page = createDashboard(root, { api, filters: {}, now });
+    await flushAll();
+    const trend = root.querySelector('.stat-trend');
+    expect(trend.querySelectorAll('svg polyline')).toHaveLength(2);
+    expect(trend.querySelector('svg').getAttribute('aria-hidden')).toBe('true');
+    expect(trend.querySelector('.weekly-table').textContent).toContain(hostile);
+    expect(trend.textContent).toContain('S46');
+    expect(
+      [...trend.querySelectorAll('.stat-total-value')].map(
+        (node) => node.textContent,
+      ),
+    ).toEqual(['20', '5', '2']);
+    expect(root.querySelector('img')).toBeNull();
+  });
+
+  it('shows an empty trend message and unavailable values, never zero', async () => {
+    const root = document.createElement('section');
+    const api = {
+      getStats: vi.fn().mockResolvedValue(
+        municipalStats({
+          tasa_resolucion: null,
+          sla_cumplido: null,
+          resolucion_horas: { median: null, p90: null, mean: null, n: 0 },
+          weekly: [],
+          por_categoria: [categories[1]],
+        }),
+      ),
+      getCsvUrl: vi.fn(() => '/api/reports.csv'),
+    };
+    page = createDashboard(root, { api, filters: {}, now });
+    await flushAll();
+    expect(root.querySelector('.stat-trend').textContent).toContain(
+      'No hay semanas con datos',
+    );
+    expect(root.querySelector('.stat-trend svg')).toBeNull();
+    expect(kpis(root)['Tasa de resolución'][0]).toBe('Sin datos');
+    expect(kpis(root)['Mediana de reparación'][0]).toBe('Sin datos');
+    expect(root.querySelector('.stat-repair').textContent).toContain(
+      'Todavía no hay reportes resueltos',
+    );
+    expect(root.querySelector('.stat-times').textContent).toContain(
+      'Sin datos',
+    );
+  });
+
+  it('renders repair bars with p90 markers, stacked frequency, ages and attention times', async () => {
+    const root = document.createElement('section');
+    const api = {
+      getStats: vi
+        .fn()
+        .mockResolvedValue(municipalStats({ por_categoria: categories })),
+      getCsvUrl: vi.fn(() => '/api/reports.csv'),
+    };
+    page = createDashboard(root, { api, filters: {}, now });
+    await flushAll();
+    const repair = root.querySelector('.stat-repair');
+    expect(repair.querySelectorAll('.stat-bar')).toHaveLength(1);
+    expect(repair.querySelector('.stat-p90').style.left).toBe('100%');
+    expect(repair.querySelector('.stat-row-value').textContent).toBe('0.3 d');
+    const frequency = root.querySelectorAll('.stat-frequency .stat-row');
+    expect(frequency).toHaveLength(2);
+    expect(frequency[0].querySelectorAll('.stat-seg')).toHaveLength(3);
+    expect(frequency[0].querySelector('.stat-row-value').textContent).toBe('8');
+    const ages = root.querySelector('.stat-ages');
+    expect(
+      [...ages.querySelectorAll('.stat-column-value')].map(
+        (node) => node.textContent,
+      ),
+    ).toEqual(['2', '3', '2', '1']);
+    expect(ages.querySelector('.stat-column-bar--late')).not.toBeNull();
+    expect(ages.textContent).toContain('1 caso lleva más de 30 días abierto.');
+    const times = root.querySelector('.stat-times').textContent;
+    expect(times).toContain('12 h');
+    expect(times).toContain('48 h');
+    expect(times).toContain('80.0 %');
+    expect(times).toContain('n 5');
+    expect(root.querySelector('.stat-zone-note').textContent).toContain(
+      'desglose por zona',
+    );
+  });
+
+  it('loads actual joint category/group counts only when the table is opened', async () => {
     const root = document.createElement('section');
     const api = {
       getStats: vi.fn(async (query) =>
@@ -208,138 +371,42 @@ describe('municipal dashboard', () => {
       ),
       getCsvUrl: vi.fn(() => '/api/reports.csv'),
     };
-    page = createDashboard(root, { api, filters: { assignee: 'Cuadrilla A' } });
+    page = createDashboard(root, {
+      api,
+      filters: { assignee: 'Cuadrilla A' },
+      now,
+    });
     await flushAll();
-    expect(api.getStats).toHaveBeenCalledTimes(7);
+    expect(api.getStats).toHaveBeenCalledTimes(2);
+    const details = root.querySelector('.category-group-detail');
+    details.open = true;
+    details.dispatchEvent(new window.Event('toggle'));
+    await flushAll();
+    expect(api.getStats).toHaveBeenCalledTimes(8);
+    expect(api.getStats.mock.calls[2][0]).toMatchObject({
+      assignee: 'Cuadrilla A',
+      ...last30.current,
+    });
     const rows = [...root.querySelectorAll('.category-groups tbody tr')];
     const pothole = rows.find(
       (row) => row.querySelector('th').textContent === 'Bache',
     );
     expect(pothole.querySelectorAll('td')[1].textContent).toBe('7');
-    expect(
-      rows
-        .find((row) => row.querySelector('th').textContent !== 'Bache')
-        .querySelectorAll('td')[1].textContent,
-    ).toBe('0');
   });
 
-  it('shows undefined ratios as unavailable and does not interpret hostile week strings', async () => {
-    const root = document.createElement('section');
-    const hostile = '<img src=x onerror=alert(1)>';
-    const api = {
-      getStats: vi.fn().mockResolvedValue(
-        municipalStats({
-          recibidos: 0,
-          tasa_resolucion: null,
-          sla_cumplido: null,
-          resolucion_horas: { median: null, p90: null, mean: null, n: 0 },
-          weekly: [{ week: hostile, recibidos: 0, resueltos: 0 }],
-        }),
-      ),
-      getCsvUrl: vi.fn(() => '/api/reports.csv'),
-    };
-    page = createDashboard(root, { api, filters: { category: 'pothole' } });
-    await flushAll();
-    expect(
-      root.querySelector('.metric-cards:not(.kpi-strip)').textContent,
-    ).toContain('Sin datos');
-    expect(root.querySelector('.weekly-table').textContent).toContain(hostile);
-    expect(root.querySelector('img')).toBeNull();
-  });
-
-  it('draws the band, the all-time chart with end numbers, sparklines and the top five', async () => {
-    const root = document.createElement('section');
-    const weeks = [
-      { week: '2026-W44', recibidos: 2, resueltos: 0 },
-      { week: '2026-W45', recibidos: 5, resueltos: 1 },
-      { week: '2026-W46', recibidos: 8, resueltos: 1 },
-      { week: '2026-W47', recibidos: 12, resueltos: 4 },
-    ];
-    const api = {
-      getStats: vi.fn(async () =>
-        municipalStats({
-          total: 27,
-          recibidos: 27,
-          resueltos: 6,
-          by_category: {
-            pothole: 10,
-            graffiti: 7,
-            sidewalk: 4,
-            street_light: 3,
-            open_drain: 2,
-            accessibility: 1,
-          },
-          weekly: weeks,
-        }),
-      ),
-      getCsvUrl: vi.fn(() => '/api/reports.csv'),
-    };
-    page = createDashboard(root, { api, filters: {} });
-    await flushAll();
-    expect(root.classList.contains('page--dashboard')).toBe(true);
-    expect(root.querySelector('.dash-band h1').textContent).toBe(
-      'Panel de reportes',
-    );
-    // Two cumulative lines; sparklines use paths so the chart keeps exactly two polylines.
-    expect(root.querySelectorAll('svg polyline')).toHaveLength(2);
-    const ends = [...root.querySelectorAll('.chart-total')].map(
-      (node) => node.textContent,
-    );
-    expect(ends[0]).toContain('27');
-    expect(ends[0]).toContain('reportes recibidos');
-    expect(ends[1]).toContain('6');
-    expect(root.querySelector('.all-time-chart').textContent).toContain(
-      'Recibidos: 27',
-    );
-    expect(root.querySelector('.all-time-chart').textContent).toContain(
-      'Resueltos: 6',
-    );
-    expect(root.querySelector('.weekly-dot--recibidos').tagName).toBe('circle');
-    expect(root.querySelector('.weekly-dot--resueltos').tagName).toBe('rect');
-    const cumulative = root
-      .querySelector('.weekly-line--recibidos')
-      .getAttribute('points')
-      .split(' ');
-    expect(cumulative).toHaveLength(4);
-    // Last-week block: only series the contract provides (no invented "updates").
-    const sparks = [...root.querySelectorAll('.spark-item')];
-    expect(
-      sparks.map((node) => node.querySelector('.spark-label').textContent),
-    ).toEqual(['Recibidos', 'Resueltos']);
-    expect(sparks[0].querySelector('.spark-value').textContent).toBe('12');
-    expect(sparks[0].querySelector('.spark-dot').tagName).toBe('circle');
-    expect(sparks[1].querySelector('.spark-dot').tagName).toBe('rect');
-    expect(sparks[0].querySelector('svg').getAttribute('aria-label')).toContain(
-      '2, 5, 8, 12',
-    );
-    expect(root.textContent).not.toContain('actualizaciones');
-    const top = [...root.querySelectorAll('.top-categories li a')].map(
-      (node) => node.textContent,
-    );
-    expect(top).toHaveLength(5);
-    expect(top[0]).toBe('Bache: 10');
-    expect(top.join(' ')).not.toContain('Accesibilidad');
-    expect(root.querySelector('.zone-link').hash).toBe('#/?include_old=true');
-    expect(root.querySelector('.metric-cards')).not.toBeNull();
-    page.destroy();
-    expect(root.classList.contains('page--dashboard')).toBe(false);
-  });
-
-  it('shows an empty chart message and keeps the page usable without weekly data', async () => {
+  it('still renders when the comparison request fails', async () => {
     const root = document.createElement('section');
     const api = {
-      getStats: vi.fn(async () =>
-        municipalStats({ weekly: [], by_category: {}, total: 0, recibidos: 0 }),
-      ),
+      getStats: vi
+        .fn()
+        .mockResolvedValueOnce(municipalStats())
+        .mockRejectedValueOnce(new Error('offline')),
       getCsvUrl: vi.fn(() => '/api/reports.csv'),
     };
-    page = createDashboard(root, { api, filters: {} });
+    page = createDashboard(root, { api, filters: {}, now });
     await flushAll();
-    expect(root.textContent).toContain('No hay semanas con datos');
-    expect(root.querySelector('.top-categories').textContent).toContain(
-      'No hay reportes por categoría',
-    );
-    expect(root.querySelector('svg polyline')).toBeNull();
+    expect(root.querySelector('[role="alert"]')).toBeNull();
+    expect(kpis(root).Recibidos).toEqual(['20', 'Sin periodo de comparación']);
   });
 
   it('ignores late statistics after disposal', async () => {
@@ -354,12 +421,11 @@ describe('municipal dashboard', () => {
       ),
       getCsvUrl: vi.fn(),
     };
-    page = createDashboard(root, { api, filters: {} });
+    page = createDashboard(root, { api, filters: {}, now });
     page.destroy();
     resolve(municipalStats());
     await flushAll();
     expect(root.childElementCount).toBe(0);
-    expect(api.getCsvUrl).not.toHaveBeenCalled();
   });
 });
 
@@ -383,7 +449,7 @@ it('integrates dashboard and API through mocked fetch with every CSV filter reta
   page = createDashboard(root, { api, filters });
   await vi.advanceTimersByTimeAsync(0);
   await flushAll();
-  expect(root.querySelector('.metric-cards')).not.toBeNull();
+  expect(root.querySelectorAll('.stat-kpi')).toHaveLength(4);
   const requested = new URL(fetchImpl.mock.calls[0][0]);
   expect(requested.pathname).toBe('/api/stats');
   const csv = new URL(root.querySelector('[download]').href);
@@ -391,166 +457,4 @@ it('integrates dashboard and API through mocked fetch with every CSV filter reta
     expect(requested.searchParams.get(key)).toBe(String(value));
     expect(csv.searchParams.get(key)).toBe(String(value));
   }
-  const selector = root.querySelector('select');
-  selector.value = 'semicolon';
-  selector.dispatchEvent(new window.Event('change'));
-  expect(
-    new URL(root.querySelector('[download]').href).searchParams.get(
-      'delimiter',
-    ),
-  ).toBe('semicolon');
-});
-
-describe('v0.3 category charts', () => {
-  const categories = [
-    {
-      category: 'pothole',
-      total: 8,
-      resueltos: 4,
-      abiertos: 3,
-      cerrados: 1,
-      mediana_reparacion_horas: 6,
-      p90_reparacion_horas: 17,
-      n_resueltos: 4,
-    },
-    {
-      category: 'open_drain',
-      total: 1,
-      resueltos: 0,
-      abiertos: 1,
-      cerrados: 0,
-      mediana_reparacion_horas: null,
-      p90_reparacion_horas: null,
-      n_resueltos: 0,
-    },
-    {
-      category: 'street_light',
-      total: 1,
-      resueltos: 1,
-      abiertos: 0,
-      cerrados: 0,
-      mediana_reparacion_horas: 0,
-      p90_reparacion_horas: 0,
-      n_resueltos: 1,
-    },
-  ];
-  it('uses one filtered API response for charts, tables, ranking and a KPI strip', async () => {
-    const root = document.createElement('section');
-    document.body.append(root);
-    const filters = { assignee: 'Equipo A', created_from: '2026-11-01' };
-    const api = {
-      getStats: vi.fn().mockResolvedValue(
-        municipalStats({
-          por_categoria: categories,
-          top_categorias: [categories[0]],
-        }),
-      ),
-      getCsvUrl: vi.fn(() => '/api/reports.csv'),
-    };
-    page = createDashboard(root, { api, filters });
-    await flushAll();
-    expect(api.getStats).toHaveBeenCalledTimes(2);
-    expect(api.getStats).toHaveBeenCalledWith(
-      {
-        ...filters,
-        ...(!filters.created_from && !filters.created_to
-          ? { include_old: true }
-          : {}),
-      },
-      {
-        signal: expect.any(AbortSignal),
-      },
-    );
-    expect(root.querySelectorAll('.kpi-strip .metric-card')).toHaveLength(5);
-    expect(root.querySelectorAll('.top-categories li')).toHaveLength(1);
-    const repair = root.querySelector('.category-repair');
-    const frequency = root.querySelector('.category-frequency');
-    expect(repair.querySelectorAll('svg')).toHaveLength(3);
-    expect(frequency.querySelectorAll('svg')).toHaveLength(3);
-    const chartFills = [
-      ...frequency.querySelectorAll('.category-chart-bar'),
-    ].map((bar) => bar.getAttribute('fill'));
-    expect(chartFills[0]).toBe('var(--primary)');
-    expect(chartFills[1]).toMatch(/^url\(#chart-pattern-\d+-diagonal\)$/);
-    expect(chartFills[2]).toBe('var(--surface)');
-    // Pattern references must resolve even with several SVGs on a routed page.
-    const ids = [...root.querySelectorAll('pattern')].map(
-      (pattern) => pattern.id,
-    );
-    expect(new Set(ids).size).toBe(ids.length);
-    for (const bar of root.querySelectorAll('.category-chart-bar')) {
-      const id = /^url\(#(.+)\)$/.exec(bar.getAttribute('fill'))?.[1];
-      if (id) expect(root.querySelector(`[id="${id}"]`)).not.toBeNull();
-    }
-    const tableRows = (section) =>
-      [...section.querySelectorAll('tbody tr')].map((row) =>
-        [...row.children].map((cell) => cell.textContent),
-      );
-    expect(tableRows(repair)).toEqual([
-      ['Bache', '6 h', '17 h', '4'],
-      ['Alcantarilla abierta', 'Sin datos', 'Sin datos', '0'],
-      ['Luminaria dañada', '0 h', '0 h', '1'],
-    ]);
-    expect(tableRows(frequency)[0]).toEqual(['Bache', '8', '4', '3', '1']);
-    for (const section of [repair, frequency]) {
-      const details = section.querySelector('details');
-      expect(details.open).toBe(false);
-      expect(details.querySelector('summary').textContent).toBe('Ver tabla');
-      details.querySelector('summary').click();
-      expect(details.open).toBe(true);
-      expect(section.querySelector('th[scope="row"]')).not.toBeNull();
-      expect(
-        section.querySelectorAll('th[scope="col"]').length,
-      ).toBeGreaterThan(3);
-      const point = section.querySelector('[tabindex="0"]');
-      const tooltip = section.querySelector('[role="tooltip"]');
-      point.focus();
-      expect(document.activeElement).toBe(point);
-      expect(tooltip.hidden).toBe(false);
-      expect(point.getAttribute('aria-describedby')).toBe(tooltip.id);
-      expect(tooltip.textContent).toContain('Bache');
-      expect(tooltip.textContent).toContain(
-        section === repair ? '17 h' : 'Cerrados: 1',
-      );
-      point.dispatchEvent(
-        new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
-      );
-      expect(tooltip.hidden).toBe(true);
-      point.blur();
-      const row = point.closest('.category-chart-row');
-      row.dispatchEvent(new window.Event('pointerenter'));
-      expect(tooltip.hidden).toBe(false);
-      row.dispatchEvent(new window.Event('pointerleave'));
-      expect(tooltip.hidden).toBe(true);
-    }
-    // The existing detailed category/group table remains available on demand.
-    const detailed = root.querySelector('.category-group-detail');
-    detailed.open = true;
-    detailed.dispatchEvent(new window.Event('toggle'));
-    await flushAll();
-    expect(api.getStats).toHaveBeenCalledTimes(8);
-    expect(root.querySelectorAll('.category-groups tbody tr')).toHaveLength(6);
-  });
-  it('shows empty charts and never turns absent repair samples into zero', async () => {
-    const root = document.createElement('section');
-    const api = {
-      getStats: vi.fn().mockResolvedValue(
-        municipalStats({
-          por_categoria: [],
-          top_categorias: [],
-        }),
-      ),
-      getCsvUrl: vi.fn(() => '/api/reports.csv'),
-    };
-    page = createDashboard(root, { api, filters: {} });
-    await flushAll();
-    expect(root.querySelector('.category-repair').textContent).toContain(
-      'No hay reportes por categoría',
-    );
-    expect(root.querySelector('.category-frequency').textContent).toContain(
-      'No hay reportes por categoría',
-    );
-    expect(root.querySelectorAll('.category-charts svg')).toHaveLength(0);
-    expect(api.getStats).toHaveBeenCalledTimes(2);
-  });
 });

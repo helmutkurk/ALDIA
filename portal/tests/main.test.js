@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPortal } from '../src/main.js';
+import { periodDates } from '../src/dashboard.js';
 import { report } from './fixtures.js';
 
 let app;
@@ -183,6 +184,7 @@ describe('page coordination', () => {
       category: 'pothole',
       status: 'verified',
       resolution: 'fixed',
+      ...periodDates(30).current,
       include_old: true,
     };
     expect(api.getStats).toHaveBeenCalledWith(filters, {

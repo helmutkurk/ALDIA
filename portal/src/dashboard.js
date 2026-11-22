@@ -1,102 +1,239 @@
 import { CATEGORIES } from './categories.js';
-import { RESOLUTIONS, STATUSES, t } from './i18n.js';
+import { RESOLUTIONS, STATUSES, t, ui } from './i18n.js';
 import { element } from './dom.js';
 import { filtersHash } from './filters.js';
-import { metricCards } from './dashboard-metrics.js';
-import { allTimeSection, lastWeekSection } from './dashboard-trends.js';
 import { categoryTable } from './dashboard-distribution.js';
-import { recentActivity } from './dashboard-recent.js';
-import { categoryCharts } from './category-charts.js';
 import { createCsvExport } from './csv-export.js';
+import {
+  agesCard,
+  frequencyCard,
+  kpiCards,
+  repairCard,
+  timesCard,
+  trendCard,
+} from './dashboard-panel.js';
 
 const groups = Object.keys(t.dash.groups);
-/** Filtered municipal statistics. Calculations stay on the API, never on a list page.
- * @param {HTMLElement} root
- * @param {{api: ReturnType<import('./api.js').createApiClient>, filters: import('./api.js').ReportQuery}} options
- */
-export function createDashboard(root, { api, filters }) {
-  // Without explicit dates the dashboard covers the full history, including old reports.
-  filters = {
-    ...filters,
-    ...(!filters.created_from && !filters.created_to
-      ? { include_old: true }
-      : {}),
+const PERIODS = Object.freeze([
+  { id: '30', days: 30 },
+  { id: '90', days: 90 },
+  { id: 'all', days: 0 },
+]);
+
+/** Today's date in the municipality's timezone (not the staff device timezone). */
+export function guatemalaToday(now = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Guatemala',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const part = (type) => parts.find((item) => item.type === type).value;
+  return `${part('year')}-${part('month')}-${part('day')}`;
+}
+const shift = (day, delta) => {
+  const date = new Date(`${day}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + delta);
+  return date.toISOString().slice(0, 10);
+};
+/** Inclusive window of `days` calendar days ending today, and the same-length window before it. */
+export function periodDates(days, now = new Date()) {
+  const end = guatemalaToday(now);
+  const start = shift(end, -(days - 1));
+  return {
+    current: { created_from: start, created_to: end },
+    previous: {
+      created_from: shift(start, -days),
+      created_to: shift(start, -1),
+    },
   };
+}
+
+/** Filtered municipal statistics (mockup "Panel2"). Calculations stay on the API.
+ * Filters with their own dates are kept as they are; otherwise the period buttons decide.
+ * @param {HTMLElement} root
+ * @param {{api: ReturnType<import('./api.js').createApiClient>, filters: import('./api.js').ReportQuery, now?: () => Date}} options
+ */
+export function createDashboard(
+  root,
+  { api, filters, now = () => new Date() },
+) {
+  const custom = Boolean(filters.created_from || filters.created_to);
+  const base = { ...filters };
+  delete base.include_old;
+  if (!custom) {
+    delete base.created_from;
+    delete base.created_to;
+  }
+  let period = custom ? 'custom' : '30';
   let controller;
   let generation = 0;
-  const csvExport = createCsvExport({ api, filters });
+  let csvExport;
   const visibleGroups = filters.state_group ? [filters.state_group] : groups;
   root.classList.add('page--dashboard');
+
+  /** Request scope for the selected period, and the previous one for the change figures. */
+  function scopes() {
+    if (period === 'custom') return { current: { ...filters }, previous: null };
+    if (period === 'all')
+      return { current: { ...base, include_old: true }, previous: null };
+    const days = PERIODS.find((item) => item.id === period).days;
+    const dates = periodDates(days, now());
+    return {
+      current: { ...base, ...dates.current, include_old: true },
+      previous: { ...base, ...dates.previous, include_old: true },
+    };
+  }
+
   const back = element('a', 'back-link', t.backToMap);
   back.href = filtersHash('#/', filters);
-  const title = element('h1', '', t.dashboard);
+  const title = element('h1', '', ui.stats.title);
   title.tabIndex = -1;
-  const scope = element('p', 'dash-scope', t.dashboardScope);
+  const scope = element('p', 'dash-scope', ui.stats.scope);
+  const titles = element('div', 'dash-titles');
+  titles.append(back, title, scope);
+  const tools = element('div', 'dash-tools');
+  const periodGroup = element('div', 'stat-periods');
+  periodGroup.setAttribute('role', 'group');
+  periodGroup.setAttribute('aria-label', ui.stats.period);
+  const periodButtons = PERIODS.map(({ id }) => {
+    const button = element('button', '', ui.stats.periods[id]);
+    button.type = 'button';
+    button.addEventListener('click', () => {
+      if (period === id) return;
+      period = id;
+      load();
+    });
+    periodGroup.append(button);
+    return { id, button };
+  });
+  const exportSlot = element('div', 'dash-export');
+  tools.append(periodGroup, exportSlot);
   const band = element('div', 'dash-band');
-  band.append(back, title, scope);
+  band.append(titles, tools);
   const body = element('div', 'dash-body');
-  /** Every link uses the same scope and replaces only its named dimension.
-   * @param {string} text @param {object} patch
-   */
+
+  /** Every link uses the same scope and replaces only its named dimension. */
   function listLink(text, patch = {}) {
     const link = element('a', '', text);
     link.href = filtersHash('#/', { ...filters, ...patch, offset: 0 });
     return link;
   }
-  /** @param {string} heading @param {{id: string, label: string}[]} entries @param {Object<string, number>} counts @param {number} total @param {string} dimension */
+  /** Legacy (v0.1) API: plain count bars. */
   function bars(heading, entries, counts, total, dimension) {
     const section = element('section', 'bar-section');
     section.append(element('h2', '', heading));
     const list = element('ul', 'bar-list');
     for (const { id, label } of entries) {
-      const count = counts[id] ?? 0;
+      const value = counts[id] ?? 0;
       const row = element('li');
-      const link = listLink(`${label}: ${count}`, { [dimension]: id });
+      const link = listLink(`${label}: ${value}`, { [dimension]: id });
       link.className = 'bar-label';
-      const bar = document.createElement('meter');
-      bar.min = 0;
-      bar.max = Math.max(total, 1);
-      bar.value = count;
-      bar.setAttribute('aria-label', `${label}: ${count}`);
-      bar.textContent = String(count);
-      row.append(link, bar);
+      const meter = document.createElement('meter');
+      meter.min = 0;
+      meter.max = Math.max(total, 1);
+      meter.value = value;
+      meter.setAttribute('aria-label', `${label}: ${value}`);
+      meter.textContent = String(value);
+      row.append(link, meter);
       list.append(row);
     }
     section.append(list);
-    section.append(
-      element(
-        'p',
-        'muted chart-note',
-        dimension === 'category'
-          ? 'Tipos de problemas con más reportes; ayuda a priorizar los recursos municipales.'
-          : 'Cantidad de reportes en cada estado; permite ver dónde se acumula el trabajo.',
-      ),
-    );
     return section;
   }
+
+  function crossTab(stats, signal, isCurrent, requestScope) {
+    const card = element('article', 'stat-card stat-cross');
+    const head = element('div', 'stat-card-head');
+    const heading = element('div');
+    heading.append(
+      element('h2', '', ui.stats.crossTitle),
+      element('p', 'stat-card-sub', ui.stats.crossSub),
+    );
+    head.append(heading);
+    const details = element('details', 'category-group-detail');
+    const cross = element('div');
+    details.append(element('summary', '', t.dash.seeTable), cross);
+    card.append(
+      head,
+      details,
+      element('p', 'muted stat-zone-note', t.dash.zoneLimits),
+    );
+    let loaded = false;
+    async function loadRows() {
+      const categories = requestScope.category
+        ? CATEGORIES.filter(({ id }) => id === requestScope.category)
+        : CATEGORIES;
+      try {
+        const rows = await Promise.all(
+          categories.map(async (category) => ({
+            category,
+            stats: requestScope.category
+              ? stats
+              : await api.getStats(
+                  { ...requestScope, category: category.id },
+                  { signal },
+                ),
+          })),
+        );
+        if (!isCurrent()) return;
+        cross.replaceChildren(categoryTable(rows, visibleGroups, listLink));
+      } catch (error) {
+        if (!isCurrent() || error.name === 'AbortError') return;
+        const retry = element('button', 'retry-button', t.retry);
+        retry.type = 'button';
+        retry.addEventListener('click', loadRows);
+        cross.replaceChildren(
+          element('p', 'error-message', t.dash.crossError),
+          retry,
+        );
+      }
+    }
+    details.addEventListener('toggle', () => {
+      if (isCurrent() && details.open && !loaded) {
+        loaded = true;
+        loadRows();
+      }
+    });
+    return card;
+  }
+
   async function load() {
     controller?.abort();
     controller = new AbortController();
+    const { signal } = controller;
     const current = ++generation;
+    const isCurrent = () => current === generation;
+    for (const { id, button } of periodButtons)
+      button.setAttribute('aria-pressed', String(id === period));
+    const { current: requestScope, previous: previousScope } = scopes();
+    csvExport?.destroy();
+    csvExport = createCsvExport({ api, filters: requestScope });
+    exportSlot.replaceChildren(csvExport.render({ signal, isCurrent }));
     const loading = element('p', '', t.dashboardLoading);
     loading.setAttribute('role', 'status');
     body.replaceChildren(loading);
     root.replaceChildren(band, body);
     root.setAttribute('aria-busy', 'true');
     try {
-      const stats = await api.getStats(filters, { signal: controller.signal });
-      if (current !== generation) return;
-      const exportBox = csvExport.render({
-        signal: controller.signal,
-        isCurrent: () => current === generation,
-      });
-      body.replaceChildren(
-        element('p', 'dashboard-total', t.totalReports(stats.total)),
+      const [stats, previous] = await Promise.all([
+        api.getStats(requestScope, { signal }),
+        previousScope
+          ? api.getStats(previousScope, { signal }).catch((error) => {
+              if (error.name === 'AbortError') throw error;
+              return null; // Change figures are optional; the page still renders.
+            })
+          : Promise.resolve(null),
+      ]);
+      if (!isCurrent()) return;
+      const total = element(
+        'p',
+        'dashboard-total',
+        t.totalReports(stats.total),
       );
-      root.replaceChildren(band, body);
       if (stats.recibidos === undefined) {
-        body.append(exportBox);
-        body.append(
+        body.replaceChildren(
+          total,
           bars(
             t.byCategory,
             CATEGORIES,
@@ -120,135 +257,26 @@ export function createDashboard(root, { api, filters }) {
           ),
         );
       } else {
-        const zone = element('section', 'zone-box dash-block');
-        const change = element('a', 'zone-link', t.dash.zoneChange);
-        change.href = filtersHash('#/', filters);
-        zone.append(
-          element('h2', '', t.dash.zone),
-          element('p', 'muted', t.dashboardScope),
-          change,
+        total.classList.add('sr-only');
+        const grid = element('section', 'stat-grid-cards');
+        grid.append(
+          repairCard(stats.por_categoria),
+          frequencyCard(stats.por_categoria ?? fromTop(stats), listLink),
+          agesCard(stats.antiguedad_abiertos),
+          timesCard(stats),
+          crossTab(stats, signal, isCurrent, requestScope),
         );
-        const side = element('div', 'dash-side');
-        side.append(zone, exportBox);
-        const pair = element('div', 'dash-pair');
-        pair.append(
-          stats.por_categoria
-            ? recentActivity({ api, filters, signal: controller.signal })
-            : lastWeekSection(stats.weekly),
-          side,
+        body.replaceChildren(
+          total,
+          kpiCards(stats, previous, Boolean(previousScope)),
+          trendCard(stats),
+          grid,
+          element('p', 'stat-note', t.dash.metricsNote),
         );
-        const topCounts = stats.top_categorias
-          ? Object.fromEntries(
-              stats.top_categorias.map((row) => [row.category, row.total]),
-            )
-          : stats.by_category;
-        const top = Object.entries(topCounts)
-          .filter(([, count]) => count > 0)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 5)
-          .map(([id]) => CATEGORIES.find((category) => category.id === id))
-          .filter(Boolean);
-        const topSection = top.length
-          ? bars(t.dash.topCategories, top, topCounts, stats.total, 'category')
-          : element('section', 'bar-section');
-        if (!top.length)
-          topSection.append(
-            element('h2', '', t.dash.topCategories),
-            element('p', 'muted', t.dash.noCategories),
-          );
-        topSection.classList.add('dash-block', 'top-categories');
-        const ages = element('section', 'age-buckets dash-block');
-        ages.append(element('h2', '', t.dash.ages));
-        const ageList = element('ul', 'age-list');
-        for (const bucket of ['0-2', '3-7', '8-30', '>30'])
-          ageList.append(
-            element(
-              'li',
-              '',
-              `${bucket} ${t.dash.days}: ${stats.antiguedad_abiertos[bucket] ?? 0}`,
-            ),
-          );
-        ages.append(ageList);
-        const indicators = element('section', 'dash-block');
-        indicators.append(
-          element('h2', '', t.dash.indicators),
-          metricCards(stats, false, listLink),
-          element('p', 'muted', t.dash.metricsNote),
-        );
-        const detail = element('div', 'dash-pair');
-        detail.append(topSection, ages);
-        const groupBars = bars(
-          t.byResolution,
-          visibleGroups.map((id) => ({ id, label: t.dash.groups[id] })),
-          stats.by_state_group,
-          stats.total,
-          'state_group',
-        );
-        groupBars.classList.add('dash-block');
-        body.append(
-          allTimeSection(stats),
-          metricCards(stats, true, listLink),
-          pair,
-          detail,
-          ...(stats.por_categoria ? [categoryCharts(stats.por_categoria)] : []),
-          indicators,
-          groupBars,
-          element('p', 'muted', t.dash.filterLimits),
-          element('p', 'muted', t.dash.zoneLimits),
-        );
-        const cross = element('div');
-        async function loadCategoryGroups() {
-          const categories = filters.category
-            ? CATEGORIES.filter(({ id }) => id === filters.category)
-            : CATEGORIES;
-          try {
-            const rows = await Promise.all(
-              categories.map(async (category) => ({
-                category,
-                stats: filters.category
-                  ? stats
-                  : await api.getStats(
-                      { ...filters, category: category.id },
-                      { signal: controller.signal },
-                    ),
-              })),
-            );
-            if (current !== generation) return;
-            cross.replaceChildren(categoryTable(rows, visibleGroups, listLink));
-          } catch (error) {
-            if (current !== generation || error.name === 'AbortError') return;
-            const retry = element('button', 'retry-button', t.retry);
-            retry.type = 'button';
-            retry.addEventListener('click', load);
-            cross.replaceChildren(
-              element('p', 'error-message', t.dash.crossError),
-              retry,
-            );
-          }
-        }
-        if (stats.por_categoria) {
-          // Preserve the detailed v0.2 cross-tab without six eager stats calls.
-          const details = element(
-            'details',
-            'category-group-detail dash-block',
-          );
-          details.append(element('summary', '', t.dash.categoryGroups), cross);
-          let loaded = false;
-          details.addEventListener('toggle', () => {
-            if (current === generation && details.open && !loaded) {
-              loaded = true;
-              loadCategoryGroups();
-            }
-          });
-          body.append(details);
-        } else {
-          body.append(cross);
-          await loadCategoryGroups();
-        }
       }
       title.focus({ preventScroll: true });
     } catch (error) {
-      if (current !== generation || error.name === 'AbortError') return;
+      if (!isCurrent() || error.name === 'AbortError') return;
       const message = element('p', 'error-message', t.dashboardError);
       message.setAttribute('role', 'alert');
       const retry = element('button', 'retry-button', t.retry);
@@ -257,7 +285,7 @@ export function createDashboard(root, { api, filters }) {
       body.replaceChildren(message, retry);
       root.replaceChildren(band, body);
     } finally {
-      if (current === generation) root.setAttribute('aria-busy', 'false');
+      if (isCurrent()) root.setAttribute('aria-busy', 'false');
     }
   }
   load();
@@ -265,10 +293,18 @@ export function createDashboard(root, { api, filters }) {
     destroy() {
       generation++;
       controller?.abort();
-      csvExport.destroy();
+      csvExport?.destroy();
       root.replaceChildren();
       root.classList.remove('page--dashboard');
       root.removeAttribute('aria-busy');
     },
   };
+}
+
+/** Older v0.2 responses have no per-category states: show totals only. */
+function fromTop(stats) {
+  return Object.entries(stats.by_category ?? {}).map(([category, total]) => ({
+    category,
+    total,
+  }));
 }
