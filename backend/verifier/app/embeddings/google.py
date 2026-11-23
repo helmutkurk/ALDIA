@@ -41,7 +41,7 @@ class GoogleGeminiEmbedder:
         *,
         model: str = DEFAULT_MODEL,
         dimension: int = 1024,
-        timeout: float = 10.0,
+        timeout: float = 6.0,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         if not 128 <= dimension <= 3072:

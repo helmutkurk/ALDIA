@@ -25,7 +25,8 @@ class Settings(BaseSettings):
     embedding_dimension: int = Field(default=1024, ge=128, le=3072)
     embedding_top_k: int = Field(default=1, ge=1, le=7)
     embedding_min_similarity: float = Field(default=0.0, ge=-1, le=1)
-    embedding_timeout_seconds: float = Field(default=10.0, gt=0, le=60)
+    # Below the API's 10 s verifier timeout, so an outage still answers 503 in time.
+    embedding_timeout_seconds: float = Field(default=6.0, gt=0, le=60)
     # Provider keys under their usual names; never logged or returned.
     aws_bearer_token_bedrock: SecretStr | None = None
     gemini_api_key: SecretStr | None = None

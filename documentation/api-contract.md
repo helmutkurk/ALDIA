@@ -473,7 +473,7 @@ and the `category` codes above are new. Decision and measurements:
 | `EMBEDDING_DIMENSION` | `1024` | Vector size; Amazon accepts 256, 384, 1024, 3072; Google 128–3072. |
 | `EMBEDDING_TOP_K` | `1` | The reported category must rank among the best `k` labels (the "no problem" label competes). |
 | `EMBEDDING_MIN_SIMILARITY` | `0.0` | Minimum cosine similarity of the reported category. Calibrate per provider. |
-| `EMBEDDING_TIMEOUT_SECONDS` | `10` | Timeout per provider request. |
+| `EMBEDDING_TIMEOUT_SECONDS` | `6` | Timeout per provider request; keep it below the API's `VERIFIER_TIMEOUT_SECONDS` (10) so an outage answers `503` before the API gives up. |
 
 The verifier sends the provider a re-encoded JPEG of at most 512 px without metadata, never coordinates or
 the note. Category texts are embedded once at startup.
