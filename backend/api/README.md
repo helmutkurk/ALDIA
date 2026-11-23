@@ -163,9 +163,13 @@ Never pass it in argv. The CLI rejects duplicates and passwords shorter than 12 
   existing metadata-stripped photo endpoint. Haversine distance in Python follows
   a SQL bounding-box prefilter, including poles and antimeridian wrap.
 - `GET /api/reports/clusters?bbox=&zoom=`: a globally anchored degree grid of
-  width `360 / 2**zoom`, single reports at zoom 17–20. Returns at most 500
+  width `360 / 2**(zoom+4)`, single reports at zoom 15–20. Returns at most 500
   clusters with centroids, counts and at most five IDs, plus the full matching
-  report total. Payloads contain no photos.
+  report total. One-report clusters also carry `category`, `state` and
+  `state_group` (v0.6). Payloads contain no photos.
+- `GET /api/reports?q=`: case- and accent-insensitive text search over category
+  label, citizen state label and note; every word must match (v0.6, migration
+  `0006` adds the folded `note_search` column).
 - `GET /api/queue?tab=review|rejected`: requires staff credentials. Review selects
   unassigned `nuevo` cases; rejected selects `rechazado_verificador`. Oldest
   verifier answers come first; items include `age_hours`.
