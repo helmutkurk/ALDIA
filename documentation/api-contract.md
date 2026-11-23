@@ -455,3 +455,27 @@ key configuration returns `503 citizen_unavailable` from verification. See
 - `thumbnail_url` is `/api/reports/{id}/thumbnail` in every nearby item (`photo_url` keeps pointing to the full photo).
 - `GET /api/reports/clusters` uses a finer grid (cell = 360 / 2^(zoom+4) degrees, about 600 m at zoom 12 and 150 m at
   zoom 14) and returns single reports from zoom >= 15 (relaxed from 17). Max 500 items.
+
+## v0.6 additions: Explorar search and pin fields
+
+Additive to v0.1–v0.5; requested by the app (Explorar). Older clients are not affected.
+
+### Text search on `GET /api/reports`
+
+- New optional query parameter `q` (at most 100 characters; blank means no filter). Each word of `q` must match at
+  least one of: the category label (`GET /api/categories`), the citizen state label, or the report's `note`.
+  Matching is case- and accent-insensitive substring matching (`"revision"` finds *En revisión*, `"danada"` finds
+  *Luminaria dañada*, `%` and `_` are literal). Up to eight words are used.
+- Citizen state labels are the app's wording (`app/lib/core/citizen_states.dart`, UX decision 4), mirrored in
+  `backend/api/app/state_machine.py` as `CITIZEN_STATE_LABELS`; a test keeps both lists equal.
+- `q` combines with every other list filter (`bbox`, `category`, `state`, `state_group`, dates, `sort`) and with
+  `limit`/`offset`; `total` counts all matches. Hidden reports stay hidden without a staff session.
+- `GET /api/reports/clusters`, stats and CSV do not accept `q`.
+- Storage: migration `0006` adds `reports.note_search`, a lowercase copy of `note` without accents, filled on every
+  note write and backfilled for existing rows. It is never returned by the API.
+
+### Pin fields on one-report clusters
+
+- In `GET /api/reports/clusters`, every cluster with `count == 1` also carries `category`, `state` and `state_group`
+  of its report (always the case from zoom 15, where each item is one report). Clusters with `count > 1` keep exactly
+  `lat`, `lon`, `count`, `ids`.

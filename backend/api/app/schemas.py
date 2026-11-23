@@ -213,8 +213,14 @@ class ReadFilters(StrictModel):
 
 
 class ReportFilters(ReadFilters):
+    q: Annotated[str | None, Field(max_length=100)] = None
     limit: Annotated[int, Field(ge=1, le=100)] = 100
     offset: Annotated[int, Field(ge=0)] = 0
+
+    @field_validator("q", mode="after")
+    @classmethod
+    def blank_query(cls, value: str | None) -> str | None:
+        return value.strip() or None if value is not None else None
 
     @field_validator("limit", "offset", mode="before")
     @classmethod
@@ -309,6 +315,10 @@ class Cluster(StrictModel):
     lon: float
     count: int
     ids: list[UUID]
+    # Only on one-report clusters (count == 1), so clients can draw a state pin.
+    category: str | None = None
+    state: State | None = None
+    state_group: StateGroup | None = None
 
 
 class ClustersOut(StrictModel):
