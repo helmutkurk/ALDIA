@@ -134,6 +134,8 @@ def test_model_ids_with_url_syntax_are_rejected(model: str) -> None:
     [
         ({**AMAZON, "aws_bearer_token_bedrock": ""}, "AWS_BEARER_TOKEN_BEDROCK"),
         ({**GOOGLE, "gemini_api_key": ""}, "GEMINI_API_KEY"),
+        ({**AMAZON, "aws_bearer_token_bedrock": "   "}, "AWS_BEARER_TOKEN_BEDROCK"),
+        ({**GOOGLE, "gemini_api_key": " \t\n"}, "GEMINI_API_KEY"),
         (
             {"verifier_mode": "model", "embedding_provider": "amazon"},
             "AWS_BEARER_TOKEN_BEDROCK",
@@ -192,14 +194,6 @@ def test_settings_are_read_from_the_usual_environment_names(
     assert config.gemini_api_key.get_secret_value() == KEY
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Bug: model-level validators report the whole input dict as input_value, "
-        "so a ValidationError (startup log) prints the raw provider key; "
-        "Settings needs hide_input_in_errors=True."
-    ),
-)
 @pytest.mark.parametrize(
     "settings",
     [

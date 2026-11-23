@@ -1,12 +1,13 @@
 from typing import Literal, Self
 
-from pydantic import Field, SecretStr, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    # hide_input_in_errors: a failed startup must never print a provider key.
     model_config = SettingsConfigDict(
-        env_file=None, extra="forbid", allow_inf_nan=False
+        env_file=None, extra="forbid", allow_inf_nan=False, hide_input_in_errors=True
     )
 
     # Keep the old deployment value as an alias, never as a response mode.
@@ -31,6 +32,14 @@ class Settings(BaseSettings):
     aws_bearer_token_bedrock: SecretStr | None = None
     gemini_api_key: SecretStr | None = None
 
+    @field_validator("embedding_model")
+    @classmethod
+    def model_is_one_path_segment(cls, value: str | None) -> str | None:
+        # "." or ".." would be collapsed by the HTTP client and change the path.
+        if value is not None and set(value) == {"."}:
+            raise ValueError("EMBEDDING_MODEL must name a model")
+        return value
+
     @model_validator(mode="after")
     def ordered_exposure(self) -> Self:
         if self.exposure_min_mean > self.exposure_max_mean:
@@ -48,7 +57,7 @@ class Settings(BaseSettings):
             if self.embedding_provider == "amazon"
             else self.gemini_api_key
         )
-        if key is None or not key.get_secret_value():
+        if key is None or not key.get_secret_value().strip():
             name = (
                 "AWS_BEARER_TOKEN_BEDROCK"
                 if self.embedding_provider == "amazon"

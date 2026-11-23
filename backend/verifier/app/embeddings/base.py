@@ -47,4 +47,10 @@ def float_vector(value: object) -> Vector:
         isinstance(item, int | float) and not isinstance(item, bool) for item in value
     ):
         raise EmbeddingUnavailable("Embedding provider returned a non-numeric vector")
-    return [float(item) for item in value]
+    try:
+        vector = [float(item) for item in value]
+    except OverflowError as exc:
+        raise EmbeddingUnavailable("Embedding provider returned a huge number") from exc
+    if not all(math.isfinite(item) for item in vector):
+        raise EmbeddingUnavailable("Embedding provider returned a non-finite vector")
+    return vector

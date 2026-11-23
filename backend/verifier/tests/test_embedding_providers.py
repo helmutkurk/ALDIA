@@ -245,14 +245,6 @@ def test_amazon_encodes_a_custom_model_id_into_one_path_segment() -> None:
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Bug: EMBEDDING_MODEL '.' or '..' passes the Settings regex, quote() keeps "
-        "dots, and httpx removes dot segments, so the request goes to /model/invoke "
-        "or /invoke instead of /model/<id>/invoke."
-    ),
-)
 @pytest.mark.parametrize("model", [".", ".."])
 def test_dot_segment_model_ids_cannot_change_the_amazon_path(model: str) -> None:
     seen: Seen = []
@@ -278,14 +270,6 @@ def test_dot_segment_model_ids_cannot_change_the_amazon_path(model: str) -> None
     assert len(segments) == 4
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Bug: float_vector() calls float() on JSON integers; an integer beyond the "
-        "float range raises OverflowError, which neither provider wraps, so /verify "
-        "answers 500 internal_error instead of 503 classifier_unavailable."
-    ),
-)
 @pytest.mark.parametrize(
     ("make", "content"),
     [
