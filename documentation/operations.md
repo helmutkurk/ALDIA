@@ -137,6 +137,33 @@ PY
 
 Archive the photo directory during the same stopped-write window.
 
+### Docker stack: `make backup`
+
+For the `docker-compose.yml` stack, `scripts/backup.sh` runs the steps above in one
+window: it stops `api`, writes `database.dump` (`pg_dump --format=custom` inside the
+`db` service) and `photos.tar` (the `photos` volume, read-only, as UID 10001; cached
+`*.thumb.jpg` thumbnails are left out and regenerate on use), then `photos.sha256`,
+`manifest.txt` and `SHA256SUMS`, and starts `api` again, also on failure. The manifest
+holds the fields listed above plus `reports_without_photo` and `photos_without_report`
+(counts only; nothing is deleted). Files are `0600` in a new `<UTC timestamp>` folder;
+the target must be outside the repo. Encryption and the off-host copy stay with the
+operator.
+
+```sh
+make backup BACKUP_DIR=/srv/aldia-backups
+make restore-check BACKUP=/srv/aldia-backups/<timestamp>
+```
+
+`scripts/restore-check.sh` is the timed drill below, steps 1 to 5, in throwaway
+containers on an internal Docker network (no published ports, random throwaway
+database password): checksums, archive entries limited to `<uuid>.jpg`, `pg_restore`
+into an empty PostgreSQL 17, Alembic revision and counts against the manifest, staff
+and citizen sessions deleted, every photo hash after extraction (`0700`/`0600`, UID
+10001), rows against files in both directions, and a restored API with a stub
+verifier that must answer `/api/health` with 200 and serve three photos byte for byte.
+It prints the elapsed time and removes everything. It needs the `api` and `verifier`
+images (`docker compose build`). Step 6 (a write and restart) stays manual.
+
 ## Restore drill (isolated environment)
 
 1. Provision an empty PostgreSQL database of a compatible version, a private empty
@@ -174,6 +201,24 @@ Archive the photo directory during the same stopped-write window.
    review. Drill before a pilot and monthly thereafter; a backup is unproven
    until restored. Production cutover needs an agreed maintenance window and a
    fresh consistent recovery point.
+
+## Recorded backup and restore check (2026-11-23)
+
+`make backup` and `make restore-check` against a separate compose project
+(PostgreSQL 17.12, synthetic seed data, local Docker Desktop 4.100.1):
+
+- 62 reports, 265 events, 62 photos (5 cached thumbnails left out): backup in 3 s,
+  restore drill passed in 8 s (2 MiB); the API was back up after the backup.
+- With one photo file removed and one extra file without a report: the backup warned
+  (1 and 1), the drill reproduced the same counts and passed; its photo sample skips
+  reports without a file.
+- With 3,000 extra photos (109 MiB): backup 7 s, drill 10 s.
+- One flipped byte in `photos.tar` failed the drill at `SHA256SUMS`; a target inside
+  the repo was refused.
+
+Measured on a laptop with local volumes; repeat on the pilot host with its real data
+size to set the RTO. Not covered: encryption, off-host copies, retention and a
+scheduled run.
 
 ## Data-protection note (engineering proposal)
 
