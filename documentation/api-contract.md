@@ -81,8 +81,10 @@ auth (citizen device, government portal login) is an open decision (`documentati
 
 ## Verifier API (`backend/verifier`)
 
-`GET /health` returns `{"status": "ok", "mode": "heuristic"}` without a model.
-`VERIFIER_MODE=model` fails startup with an explicit `NotImplementedError` until Lorenz integrates a model.
+`GET /health` returns `{"status": "ok", "mode": "heuristic"}`, or `"mode": "model"` in model mode.
+`VERIFIER_MODE=model` checks the category with an external embedding provider (see "Model mode" below); it
+fails startup when the provider, its key or the first provider call is missing or broken. In model mode a
+provider outage during `/verify` answers `503 classifier_unavailable`, so the API keeps the report pending.
 The legacy configuration value `stub` is accepted as an alias for `heuristic`; responses never use `mode: "stub"`.
 
 `POST /verify` (`multipart/form-data`: `photo`, `category`, `latitude`, `longitude`, `captured_at`) returns
@@ -121,13 +123,13 @@ Overall `passed` is the conjunction of the hard checks; `screen_photo` always pa
 | `exif_time` | EXIF DateTimeOriginal age must be in [-60, `MAX_AGE_SECONDS`] and within ±120 s of submitted `captured_at` (`exif_time_ok`, `exif_time_outside`, `exif_time_mismatch`, `exif_time_invalid`). OffsetTimeOriginal is honored; absent offset is explicitly interpreted as UTC because camera EXIF often has no timezone. Missing DateTimeOriginal passes as `exif_missing`, detail exactly `sin EXIF`; malformed present metadata fails. |
 | `exif_gps` | Present EXIF GPS must parse as valid DMS coordinates and be <= 150 m from the submitted point by haversine (`exif_gps_ok`, `exif_gps_mismatch`, `exif_gps_invalid`); detail includes distance, never coordinates. Missing GPS passes as `exif_missing`, detail exactly `sin EXIF`. |
 | `screen_photo` | **Soft** periodic-pattern hint using FFT-free autocorrelation of second differences of row/column mean luminance on an at-most-128x128 downscale. A strong local correlation peak produces `possible_screen` with an explanation, otherwise `screen_clear`; both have `passed: true`. The API may route the hint to manual review later; no routing is added here. |
-| `category` | Placeholder accepts supported category IDs with `category_stub`, detail exactly `no clasificado (sin modelo)`. Real category recognition requires Lorenz's model. |
+| `category` | Heuristic mode: placeholder accepts supported category IDs with `category_stub`, detail exactly `no clasificado (sin modelo)`. Model mode: zero-shot comparison of the photo with texts per category (`category_match`, `category_mismatch` with detail `la foto parece mostrar: <label>`, `category_no_problem`, `category_low_similarity`). |
 
 Heuristic thresholds (process environment, validated in `backend/verifier/app/config.py`):
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `VERIFIER_MODE` | `heuristic` | `heuristic`, legacy alias `stub`, or explicit unimplemented `model`. |
+| `VERIFIER_MODE` | `heuristic` | `heuristic`, legacy alias `stub`, or `model` (embedding category check). |
 | `MAX_AGE_SECONDS` | `600` | Maximum age for submitted and EXIF times, seconds. |
 | `SHARPNESS_MIN` | `80` | Minimum Laplacian variance after downscaling. |
 | `EXPOSURE_MIN_MEAN` | `12` | Minimum mean luminance, 0–255. |
@@ -455,3 +457,23 @@ key configuration returns `503 citizen_unavailable` from verification. See
 - `thumbnail_url` is `/api/reports/{id}/thumbnail` in every nearby item (`photo_url` keeps pointing to the full photo).
 - `GET /api/reports/clusters` uses a finer grid (cell = 360 / 2^(zoom+4) degrees, about 600 m at zoom 12 and 150 m at
   zoom 14) and returns single reports from zoom >= 15 (relaxed from 17). Max 500 items.
+
+## Verifier model mode (embedding category check)
+
+Internal to `backend/verifier`; the `/verify` request and response shapes are unchanged, only `mode: "model"`
+and the `category` codes above are new. Decision and measurements:
+[decisions/verifier-embeddings.md](decisions/verifier-embeddings.md).
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `EMBEDDING_PROVIDER` | none | `google` (Gemini Embedding 2, Gemini API) or `amazon` (Nova 2 Multimodal Embeddings, Bedrock). Required in model mode. |
+| `GEMINI_API_KEY` / `AWS_BEARER_TOKEN_BEDROCK` | none | Key of the chosen provider, from the process environment only; never logged or returned. |
+| `EMBEDDING_MODEL` | provider default | `gemini-embedding-2` or `amazon.nova-2-multimodal-embeddings-v1:0`. |
+| `EMBEDDING_REGION` | `us-east-1` | Bedrock region (Amazon only). |
+| `EMBEDDING_DIMENSION` | `1024` | Vector size; Amazon accepts 256, 384, 1024, 3072; Google 128–3072. |
+| `EMBEDDING_TOP_K` | `1` | The reported category must rank among the best `k` labels (the "no problem" label competes). |
+| `EMBEDDING_MIN_SIMILARITY` | `0.0` | Minimum cosine similarity of the reported category. Calibrate per provider. |
+| `EMBEDDING_TIMEOUT_SECONDS` | `10` | Timeout per provider request. |
+
+The verifier sends the provider a re-encoded JPEG of at most 512 px without metadata, never coordinates or
+the note. Category texts are embedded once at startup.

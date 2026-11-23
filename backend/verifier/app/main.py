@@ -1,6 +1,9 @@
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import datetime
 
+import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -10,7 +13,9 @@ from starlette.datastructures import UploadFile
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.checks import Classifier, StubClassifier, VerifyInput, VerifyResult, verify
+from app.checks.embedding_classifier import EmbeddingClassifier
 from app.config import Settings
+from app.embeddings import EmbeddingUnavailable, build_embedder
 from app.middleware import UploadLimitMiddleware
 
 logger = logging.getLogger(__name__)
@@ -24,16 +29,33 @@ def error(status: int, code: str, message: str) -> JSONResponse:
     )
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    *,
+    embedding_transport: httpx.BaseTransport | None = None,
+) -> FastAPI:
     config = settings or Settings()
-    if config.verifier_mode == "model":
-        raise NotImplementedError(
-            "VERIFIER_MODE=model requires a trained model: "
-            "implement Classifier.classify "
-            "and load the classifier in app/main.py; see training/README.md."
-        )
+    mode = "model" if config.verifier_mode == "model" else "heuristic"
     classifier: Classifier = StubClassifier()
-    app = FastAPI(title="Aldia verifier", debug=False)
+    embedder = None
+    if mode == "model":
+        embedder = build_embedder(config, embedding_transport)
+        classifier = EmbeddingClassifier(
+            embedder,
+            top_k=config.embedding_top_k,
+            min_similarity=config.embedding_min_similarity,
+        )
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        if isinstance(classifier, EmbeddingClassifier):
+            # Fail startup clearly instead of serving unverifiable categories.
+            await run_in_threadpool(classifier.warm_up)
+        yield
+        if embedder is not None:
+            embedder.close()
+
+    app = FastAPI(title="Aldia verifier", debug=False, lifespan=lifespan)
     app.add_middleware(UploadLimitMiddleware, max_upload_bytes=MAX_IMAGE_BYTES)
 
     @app.exception_handler(RequestValidationError)
@@ -51,6 +73,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             response.headers.update(exc.headers)
         return response
 
+    @app.exception_handler(EmbeddingUnavailable)
+    async def classifier_unavailable(
+        _request: Request, _exc: EmbeddingUnavailable
+    ) -> JSONResponse:
+        # The API keeps the report pending on any non-2xx answer.
+        logger.warning("Embedding provider unavailable; category not verified")
+        return error(503, "classifier_unavailable", "Verificación no disponible.")
+
     @app.exception_handler(Exception)
     async def unexpected_error(_request: Request, _exc: Exception) -> JSONResponse:
         logger.error("Verifier request failed")
@@ -58,7 +88,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/health")
     def health() -> dict[str, str]:
-        return {"status": "ok", "mode": "heuristic"}
+        return {"status": "ok", "mode": mode}
 
     @app.post("/verify", response_model=VerifyResult)
     async def verify_photo(request: Request) -> VerifyResult:
