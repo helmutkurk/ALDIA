@@ -211,3 +211,24 @@ OpenAPI response examples were checked over HTTP. The Server banner was absent
 and JSON request records contained only their documented allowlist. Temporary
 services/data were removed. PostgreSQL restore, container behavior and browser
 walkthrough remain unverified; this check does not establish a production RTO.
+
+## Recorded PostgreSQL check (2026-11-23)
+
+First run on PostgreSQL (17.12, `postgres:17-alpine`, local Docker, synthetic data only):
+
+- Alembic `upgrade head` to `0006`, `downgrade base` (only an empty `alembic_version`
+  remained) and `upgrade head` again: all nine tables back, `reports.note_search` as `text`.
+- `make seed` equivalent twice: 62 reports and 265 events, second run idempotent,
+  `note_search` filled for every report.
+- API and heuristic verifier against it: health `ok`; list, accent-insensitive search
+  (`q`), search combined with `bbox`/`state_group`, clusters with pin fields at zoom 16,
+  stats, CSV, Open311 and categories answered; a new report with a JPEG was verified,
+  a retry with the same `Idempotency-Key` returned the same report (200).
+- Full API test suite with `TEST_POSTGRES_URL`: 448 passed. One test wrote `0` into a
+  boolean column with raw SQL (accepted by SQLite only) and now binds `False`.
+- Backup drill: `pg_dump --format=custom`, `pg_restore --no-owner --no-acl` into an empty
+  database; row counts of all tables, the Alembic revision and an MD5 over report ids,
+  states and `note_search` matched.
+
+Not covered: replicas or connection pools under load, PostgreSQL versions other than 17,
+TLS to the database, the photo volume together with the dump, and a timed restore (RTO).

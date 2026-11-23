@@ -1,7 +1,7 @@
 import importlib.util
 import sys
 from collections import Counter
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType
@@ -32,8 +32,10 @@ def seed_module() -> Iterator[ModuleType]:
 
 
 @pytest.fixture
-def env(tmp_path: Path) -> Iterator[tuple[Database, PhotoStorage]]:
-    database = Database(f"sqlite:///{tmp_path / 'seed.db'}")
+def env(
+    tmp_path: Path, database_url: Callable[[str], str]
+) -> Iterator[tuple[Database, PhotoStorage]]:
+    database = Database(database_url("seed"))
     Base.metadata.create_all(database.engine)
     yield database, PhotoStorage(tmp_path / "photos")
     database.engine.dispose()

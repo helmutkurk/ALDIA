@@ -1,4 +1,4 @@
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
@@ -62,9 +62,9 @@ def fake_verifier(request: httpx.Request) -> httpx.Response:
 
 
 @pytest.fixture
-def client(tmp_path: Path) -> Iterator[TestClient]:
+def client(tmp_path: Path, database_url: Callable[[str], str]) -> Iterator[TestClient]:
     settings = Settings(
-        database_url=f"sqlite:///{tmp_path / 'test.db'}",
+        database_url=database_url("test"),
         photo_dir=tmp_path / "photos",
         cors_origins="http://localhost:5173",
     )
@@ -397,13 +397,15 @@ def test_unsupported_origin(client: TestClient) -> None:
     assert "access-control-allow-origin" not in response.headers
 
 
-def test_migration_round_trip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_migration_round_trip(
+    monkeypatch: pytest.MonkeyPatch, database_url: Callable[[str], str]
+) -> None:
     from alembic.config import Config
     from sqlalchemy import create_engine, inspect
 
     from alembic import command
 
-    url = f"sqlite:///{tmp_path / 'migration.db'}"
+    url = database_url("migration")
     monkeypatch.setenv("DATABASE_URL", url)
     config = Config("alembic.ini")
     command.upgrade(config, "head")
@@ -815,7 +817,9 @@ def test_export_caps(client: TestClient) -> None:
 
 
 def test_resolution_migration_existing_rows(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    database_url: Callable[[str], str],
 ) -> None:
     from alembic.config import Config
     from sqlalchemy import create_engine, text
@@ -823,7 +827,7 @@ def test_resolution_migration_existing_rows(
 
     from alembic import command
 
-    url = f"sqlite:///{tmp_path / 'upgrade.db'}"
+    url = database_url("upgrade")
     monkeypatch.setenv("DATABASE_URL", url)
     config = Config("alembic.ini")
     command.upgrade(config, "0001")

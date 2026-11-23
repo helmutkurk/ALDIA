@@ -38,7 +38,9 @@ Argon2 parameters, Secure/HttpOnly/SameSite flags, rotation/expiry/revocation, f
 lockout, login limiting, double-submit CSRF, operator/supervisor/admin permissions, CLI
 password input and dev-only fallback/accounts. Portal auth tests cover form submission,
 logout/restoration, 401 invalidation, CSRF headers, Spanish errors and role gating.
-Live browser and PostgreSQL deployment validation remain separate from these SQLite/jsdom checks.
+Live browser validation remains separate from these SQLite/jsdom checks. The API suite also runs
+against PostgreSQL on demand (verified 2026-11-23 with PostgreSQL 17.12: 448 passed); see
+[the API README](../backend/api/README.md#verify).
 
 ## 2. Run the full stack locally
 

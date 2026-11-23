@@ -289,7 +289,19 @@ uv run pytest
 ```
 
 `make test`, `make lint` (including strict mypy), and `make fmt` are also available.
-Tests use temporary SQLite databases, synthetic in-memory images and an httpx
+
+The same suite runs against PostgreSQL when `TEST_POSTGRES_URL` points to the admin
+database of a disposable server; each test gets a fresh database that is dropped
+afterwards (`tests/conftest.py`). Never point it at a server with real data:
+
+```sh
+docker run -d --name aldia-pg-test -e POSTGRES_USER=aldia -e POSTGRES_PASSWORD=test-only \
+  -p 127.0.0.1:55432:5432 postgres:17-alpine
+TEST_POSTGRES_URL=postgresql+psycopg://aldia:test-only@127.0.0.1:55432/postgres uv run pytest
+docker rm -f aldia-pg-test
+```
+
+Without the variable, tests use temporary SQLite databases, synthetic in-memory images and an httpx
 fake verifier; they do not read local environment files or personal photos.
 They cover the public contract, validation, metadata removal, duplicates, failed
 verifier calls, upload limits, persistence failure cleanup and migration drift.
