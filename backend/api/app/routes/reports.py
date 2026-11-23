@@ -33,6 +33,7 @@ from app.state_machine import (
     resolution_for,
     validate_transition,
 )
+from app.text_search import with_text_search
 
 router = APIRouter(prefix="/api/reports")
 
@@ -103,7 +104,10 @@ def list_reports(
     rows, total = page(
         session,
         ordered_query(
-            report_query(filters, include_hidden=role is not None), filters.sort
+            with_text_search(
+                report_query(filters, include_hidden=role is not None), filters.q
+            ),
+            filters.sort,
         ),
         filters.limit,
         filters.offset,

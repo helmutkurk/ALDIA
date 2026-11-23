@@ -31,6 +31,21 @@ STATE_GROUPS: dict[str, str] = {
     "duplicado": "closed",
     "oculto": "hidden",
 }
+# Citizen wording, mirrored from app/lib/core/citizen_states.dart (UX decision 4);
+# used by the public text search. Staff screens keep the official state words.
+CITIZEN_STATE_LABELS: dict[str, str] = {
+    "pendiente_verificacion": "En verificación",
+    "rechazado_verificador": "Falta ajustar la foto",
+    "nuevo": "Recibido",
+    "en_revision": "En revisión",
+    "programado": "Programado",
+    "en_proceso": "En proceso",
+    "resuelto": "Resuelto",
+    "no_procede": "Cerrado",
+    "fuera_de_competencia": "Corresponde a otra entidad",
+    "duplicado": "Ya estaba reportado",
+    "oculto": "No disponible",
+}
 OPEN_STATES = ("nuevo", "en_revision", "programado", "en_proceso")
 _FLOW = (*OPEN_STATES, "resuelto")
 

@@ -2,7 +2,7 @@
 
 import math
 from datetime import UTC, datetime, timedelta
-from typing import Annotated
+from typing import Annotated, TypedDict, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Query
@@ -26,7 +26,7 @@ from app.schemas import (
 )
 from app.serialization import serialize, utc
 from app.services.duplicates import EARTH_RADIUS_METRES, distance_metres
-from app.state_machine import OPEN_STATES
+from app.state_machine import OPEN_STATES, STATE_GROUPS, State, StateGroup
 
 router = APIRouter(prefix="/api")
 
@@ -119,7 +119,43 @@ def report_nearby(
     )
 
 
-@router.get("/reports/clusters", response_model=ClustersOut)
+class PinFields(TypedDict):
+    category: str
+    state: State
+    state_group: StateGroup
+
+
+def single_pin(report: Report) -> PinFields:
+    """Pin fields for a one-report cluster; larger clusters omit them."""
+    return PinFields(
+        category=report.category,
+        state=cast(State, report.state),
+        state_group=cast(StateGroup, STATE_GROUPS[report.state]),
+    )
+
+
+def cluster_of(rows: list[Report]) -> Cluster:
+    if len(rows) == 1:
+        # Pin fields are set only here, so exclude_unset omits them on groups.
+        report = rows[0]
+        return Cluster(
+            lat=report.latitude,
+            lon=report.longitude,
+            count=1,
+            ids=[report.id],
+            **single_pin(report),
+        )
+    return Cluster(
+        lat=sum(r.latitude for r in rows) / len(rows),
+        lon=sum(r.longitude for r in rows) / len(rows),
+        count=len(rows),
+        ids=[r.id for r in rows[:5]],
+    )
+
+
+@router.get(
+    "/reports/clusters", response_model=ClustersOut, response_model_exclude_unset=True
+)
 def clusters(
     filters: Annotated[ClusterFilters, Query()], session: SessionDep
 ) -> ClustersOut:
@@ -138,15 +174,7 @@ def clusters(
             )
         )
         cells.setdefault(key, []).append(report)
-    result = [
-        Cluster(
-            lat=sum(r.latitude for r in rows) / len(rows),
-            lon=sum(r.longitude for r in rows) / len(rows),
-            count=len(rows),
-            ids=[r.id for r in rows[:5]],
-        )
-        for rows in cells.values()
-    ]
+    result = [cluster_of(rows) for rows in cells.values()]
     return ClustersOut(clusters=result[:500], total=total)
 
 

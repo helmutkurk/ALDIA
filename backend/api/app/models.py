@@ -11,11 +11,13 @@ from sqlalchemy import (
     Index,
     Integer,
     String,
+    Text,
     Uuid,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, validates
 
 from app.db import Base
+from app.text_fold import fold
 
 
 class Report(Base):
@@ -53,6 +55,8 @@ class Report(Base):
         String(16), default="open", server_default="open"
     )
     note: Mapped[str | None] = mapped_column(String(280))
+    # Folded copy of `note` (lowercase, no accents) for text search; never serialized.
+    note_search: Mapped[str | None] = mapped_column(Text)
     phash: Mapped[str | None] = mapped_column(String(16))
     verification: Mapped[dict[str, object] | None] = mapped_column(
         JSON(none_as_null=True)
@@ -77,6 +81,11 @@ class Report(Base):
         String(64), ForeignKey("citizens.id"), index=True
     )
     citizen_alias: Mapped[str | None] = mapped_column(String(60))
+
+    @validates("note")
+    def _keep_note_search(self, _key: str, note: str | None) -> str | None:
+        self.note_search = fold(note) if note else None
+        return note
 
 
 class ReportEvent(Base):

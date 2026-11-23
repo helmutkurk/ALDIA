@@ -254,8 +254,11 @@ def test_clusters_bbox_edges_and_cap(client: TestClient) -> None:
     assert all(cluster["count"] == 1 for cluster in high["clusters"])
     assert sum(cluster["count"] for cluster in low["clusters"]) == 503
     assert all(len(cluster["ids"]) <= 5 for cluster in low["clusters"])
+    base = {"lat", "lon", "count", "ids"}
+    pin = {"category", "state", "state_group"}
     assert all(
-        set(cluster) == {"lat", "lon", "count", "ids"} for cluster in low["clusters"]
+        set(cluster) == (base | pin if cluster["count"] == 1 else base)
+        for cluster in low["clusters"]
     )
 
 

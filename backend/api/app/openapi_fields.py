@@ -81,6 +81,11 @@ FIELD_DOCS: dict[str, tuple[str, object]] = {
         "Día final de creación, inclusive, en America/Guatemala.",
         "2026-11-20",
     ),
+    "q": (
+        "Texto a buscar en categoría, estado y nota, sin distinguir mayúsculas ni "
+        "acentos; cada palabra debe coincidir (máx. 100 caracteres).",
+        "bache",
+    ),
     "limit": ("Número máximo de reportes por página (1–100).", 100),
     "offset": ("Número de reportes que se omiten para paginar.", 0),
     "username": ("Nombre de usuario del personal municipal.", "operador_demo"),
