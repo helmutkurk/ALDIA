@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:aldia_app/core/strings.dart';
+import 'package:aldia_app/core/theme.dart';
 import 'package:aldia_app/data/report_repository.dart';
+import 'package:aldia_app/features/drafts/draft_record.dart';
+import 'package:aldia_app/features/drafts/draft_store.dart';
 import 'package:aldia_app/features/report/report_flow_screen.dart';
-import 'package:aldia_app/services/location_service.dart';
 import 'package:aldia_app/services/geocoder_service.dart';
+import 'package:aldia_app/services/location_service.dart';
 import 'package:aldia_app/services/photo_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -11,12 +16,31 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
 import '../support/fakes.dart';
+import '../support/memory_draft_store.dart';
 import '../support/offline_tiles.dart';
+
+class _PendingReadStore extends MemoryDraftStore {
+  final Completer<CapturedPhoto?> read = Completer<CapturedPhoto?>();
+  int saves = 0;
+
+  @override
+  Future<CapturedPhoto?> readPhoto(DraftRecord draft) => read.future;
+
+  @override
+  Future<void> save(DraftRecord draft) async {
+    saves++;
+    await super.save(draft);
+  }
+}
 
 Widget host(
   ReportRepository repository, {
   double textScale = 1,
   GeocoderService? geocoder,
+  DraftStore? drafts,
+  DraftRecord? draft,
+  ThemeData? theme,
+  bool disableAnimations = false,
 }) => MultiProvider(
   providers: [
     Provider<ReportRepository>.value(value: repository),
@@ -24,15 +48,19 @@ Widget host(
       value: FakeLocation(const LatLng(14.61, -90.52)),
     ),
     Provider<PhotoService>.value(value: FakePhotos()),
+    Provider<DraftStore?>.value(value: drafts),
     Provider<GeocoderService?>.value(value: geocoder ?? FakeGeocoder()),
     Provider<TileProvider>.value(value: OfflineTileProvider()),
   ],
   child: MaterialApp(
+    theme: theme,
     home: Builder(
       builder: (context) => MediaQuery(
-        data: MediaQuery.of(context)
-            .copyWith(textScaler: TextScaler.linear(textScale)),
-        child: const ReportFlowScreen(),
+        data: MediaQuery.of(context).copyWith(
+          textScaler: TextScaler.linear(textScale),
+          disableAnimations: disableAnimations,
+        ),
+        child: ReportFlowScreen(draft: draft),
       ),
     ),
   ),
@@ -108,25 +136,82 @@ void main() {
     },
   );
 
-  testWidgets('wizard works at text scale 2.0 without overflow on every step', (
+  testWidgets('wizard works at text scale 2.0 in light and dark themes', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(360, 740);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(host(fakeRepository(), textScale: 2));
-    await tester.pumpAndSettle();
 
-    await advanceToReview(tester);
+    for (final theme in [buildTheme(), buildDarkTheme()]) {
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpWidget(
+        host(fakeRepository(), textScale: 2, theme: theme),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .getSize(find.widgetWithText(FilledButton, S.confirmLocation).first)
+            .height,
+        greaterThanOrEqualTo(48),
+      );
 
-    await reveal(tester, S.send);
-    await tester.scrollUntilVisible(
-      find.textContaining('KB'),
-      150,
-      scrollable: find.byType(Scrollable).first,
-    );
-    expect(find.textContaining('KB'), findsOneWidget);
-    expect(tester.takeException(), isNull);
+      await tapText(tester, S.useMyLocation);
+      await tapText(tester, S.confirmLocation);
+      final nextForward = find.widgetWithText(FilledButton, S.next);
+      final nextBack = find.widgetWithText(TextButton, S.back);
+      expect(nextForward, findsOneWidget);
+      expect(nextBack, findsOneWidget);
+      expect(tester.getSize(nextForward).height, greaterThanOrEqualTo(48));
+      expect(tester.getSize(nextBack).height, greaterThanOrEqualTo(48));
+      expect(
+        tester.getTopLeft(nextForward).dy,
+        lessThan(tester.getTopLeft(nextBack).dy),
+      );
+      await tapText(tester, 'Bache');
+      await tapText(tester, S.next);
+      final photoForward = find.widgetWithText(FilledButton, S.usePhoto);
+      final photoBack = find.widgetWithText(TextButton, S.back);
+      expect(photoForward, findsOneWidget);
+      expect(photoBack, findsOneWidget);
+      expect(tester.getSize(photoForward).height, greaterThanOrEqualTo(48));
+      expect(tester.getSize(photoBack).height, greaterThanOrEqualTo(48));
+      expect(
+        tester.getTopLeft(photoForward).dy,
+        lessThan(tester.getTopLeft(photoBack).dy),
+      );
+      expect(
+        tester.getSize(find.widgetWithText(FilledButton, S.takePhoto)).height,
+        greaterThanOrEqualTo(48),
+      );
+      await tapText(tester, S.takePhoto);
+      await tapText(tester, S.usePhoto);
+      expect(find.widgetWithText(FilledButton, S.next), findsOneWidget);
+      expect(find.widgetWithText(TextButton, S.back), findsOneWidget);
+      await tapText(tester, S.next);
+      expect(find.widgetWithText(FilledButton, S.send), findsOneWidget);
+      expect(find.widgetWithText(TextButton, S.back), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.textContaining('KB'),
+        150,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.textContaining('KB'), findsOneWidget);
+      for (final label in [
+        '${S.edit}: ${S.stepLocation}',
+        '${S.edit}: ${S.stepCategory}',
+        '${S.edit}: ${S.stepNote}',
+      ]) {
+        final edit = find.text(label);
+        await tester.ensureVisible(edit);
+        final button = find.ancestor(
+          of: edit,
+          matching: find.byType(TextButton),
+        );
+        expect(tester.getSize(button).height, greaterThanOrEqualTo(48));
+      }
+      expect(tester.takeException(), isNull);
+    }
   });
 
   testWidgets('tap targets are at least 48 dp tall on the photo step', (
@@ -135,9 +220,7 @@ void main() {
     await tester.pumpWidget(host(fakeRepository()));
     await tester.pumpAndSettle();
     await advanceToPhoto(tester);
-    final size = tester.getSize(
-      find.widgetWithText(OutlinedButton, S.takePhoto),
-    );
+    final size = tester.getSize(find.widgetWithText(FilledButton, S.takePhoto));
     expect(size.height, greaterThanOrEqualTo(48));
     expect(
       tester.getSize(find.widgetWithText(FilledButton, S.usePhoto)).height,
@@ -157,6 +240,36 @@ void main() {
     );
     handle.dispose();
   });
+
+  testWidgets(
+    'draft restoration blocks editing until the photo read finishes',
+    (tester) async {
+      final store = _PendingReadStore();
+      final draft = DraftRecord(
+        id: 'draft-id',
+        step: 'location',
+        position: const LatLng(12, 13),
+        placeLabel: 'Lugar recuperado',
+        locationConfirmed: true,
+        createdAt: DateTime.utc(2026),
+      );
+      await tester.pumpWidget(
+        host(fakeRepository(), drafts: store, draft: draft),
+      );
+      await tester.pump();
+      expect(find.text('Recuperando borrador…'), findsOneWidget);
+      expect(find.byType(TextField), findsNothing);
+      expect(find.text('Lugar recuperado'), findsNothing);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump();
+      expect(store.saves, 0);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      store.read.complete(null);
+      await tester.pumpAndSettle();
+      expect(find.text('Lugar recuperado'), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'a rejected result explains each failed check and offers the fixes',
@@ -214,4 +327,18 @@ void main() {
       expect(find.text(S.pendingHelp), findsOneWidget);
     },
   );
+
+  testWidgets('the location step shows the address, never coordinates', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 3000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(host(fakeRepository()));
+    await tester.pumpAndSettle();
+    await tapText(tester, S.useMyLocation);
+    expect(find.text('6a. Avenida, Zona 1, Guatemala'), findsWidgets);
+    expect(find.byType(TextField), findsOneWidget); // address search only
+    expect(find.textContaining(RegExp(r'-?\d+\.\d{3,}')), findsNothing);
+  });
 }

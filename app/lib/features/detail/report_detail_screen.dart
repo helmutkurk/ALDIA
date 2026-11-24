@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:image_fade/image_fade.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/categories.dart';
@@ -11,8 +10,9 @@ import '../../core/strings.dart';
 import '../../core/text_x.dart';
 import '../../data/report.dart';
 import '../../data/report_repository.dart';
+import '../../core/theme.dart';
 import '../../services/haptics.dart';
-import '../../widgets/bottom_padding.dart';
+import '../../widgets/report_photo.dart';
 import '../../widgets/report_tile.dart';
 import '../../widgets/routes.dart';
 import '../../widgets/status_chips.dart';
@@ -60,11 +60,17 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         future: _detail,
         builder: (context, snapshot) {
           final report = snapshot.data ?? widget.report;
-          return _DetailBody(
-            report: report,
-            nearby: _nearby,
-            loadFailed: snapshot.hasError,
-            onRetry: _reload,
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 680),
+              child: _DetailBody(
+                report: report,
+                nearby: _nearby,
+                loadFailed: snapshot.hasError,
+                loading: snapshot.connectionState != ConnectionState.done,
+                onRetry: _reload,
+              ),
+            ),
           );
         },
       ),
@@ -77,12 +83,14 @@ class _DetailBody extends StatelessWidget {
     required this.report,
     required this.nearby,
     required this.loadFailed,
+    required this.loading,
     required this.onRetry,
   });
 
   final Report report;
   final Future<List<Report>> nearby;
   final bool loadFailed;
+  final bool loading;
   final VoidCallback onRetry;
 
   @override
@@ -92,67 +100,108 @@ class _DetailBody extends StatelessWidget {
     final state = citizenStateFor(report.citizenState);
     final events = report.events.where((e) => e.toState != null).toList();
     return ListView(
-      padding: const EdgeInsets.all(16)
-          .copyWith(bottom: BottomPadding.of(context)),
+      padding: EdgeInsets.fromLTRB(
+        MediaQuery.sizeOf(context).width < 600 ? AldiaSpace.l : AldiaSpace.xl,
+        AldiaSpace.l,
+        MediaQuery.sizeOf(context).width < 600 ? AldiaSpace.l : AldiaSpace.xl,
+        AldiaSpace.xl + MediaQuery.viewPaddingOf(context).bottom,
+      ),
       children: [
+        if (loading) ...[
+          Semantics(
+            label: 'Actualizando reporte',
+            child: const LinearProgressIndicator(),
+          ),
+          const SizedBox(height: 8),
+        ],
+        if (loadFailed) ...[
+          Semantics(
+            liveRegion: true,
+            child: const Text(
+              'No se pudo actualizar el reporte. Se muestran los últimos datos disponibles.',
+            ),
+          ),
+          TextButton(onPressed: onRetry, child: const Text(S.retry)),
+        ],
         Semantics(
           header: true,
           child: Text(category.label, style: theme.textTheme.headlineSmall),
         ),
-        const SizedBox(height: 12),
-        AspectRatio(
-          aspectRatio: 4 / 3,
-          child: Semantics(
-            image: true,
-            label: S.photoLabel(category.label, state.label),
-            child: ExcludeSemantics(
-              child: ImageFade(
-                image: NetworkImage(
-                  context.read<ReportRepository>().photoUrl(report),
-                ),
+        const SizedBox(height: AldiaSpace.l),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: ColoredBox(
+            color: theme.colorScheme.surfaceContainerLow,
+            child: AspectRatio(
+              aspectRatio: 4 / 3,
+              child: ReportPhoto(
+                url: context.read<ReportRepository>().photoUrl(report),
                 fit: BoxFit.contain,
-                placeholder: ColoredBox(
-                  color: theme.colorScheme.surfaceContainerHighest,
-                ),
-                errorBuilder: (context, exception) => ColoredBox(
-                  color: theme.colorScheme.surfaceContainerHighest,
-                  child: Icon(
-                    Icons.broken_image,
-                    size: 20,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
+                semanticLabel: S.photoLabel(category.label, state.label),
               ),
             ),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AldiaSpace.l),
         StatusChips(report: report),
-        const SizedBox(height: 8),
-        Text(state.explanation),
-        const SizedBox(height: 8),
-        Text(S.reference(report.id)),
-        Text(report.createdAt.formattedDateTime()),
-        if (report.note.isUsable) Text(report.note!),
-        if (report.publicNote.isUsable) ...[
-          const SizedBox(height: 12),
+        const SizedBox(height: AldiaSpace.m),
+        Text(state.explanation, style: theme.textTheme.bodyLarge),
+        const SizedBox(height: AldiaSpace.l),
+        Text(
+          report.createdAt.formattedDateTime(),
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: AldiaSpace.xs),
+        Text(
+          S.reference(report.id),
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        if (report.note.isUsable) ...[
+          const SizedBox(height: AldiaSpace.xl),
           Semantics(
             header: true,
-            child: Text(S.officialMessage, style: theme.textTheme.titleMedium),
+            child: Text('Descripción', style: theme.textTheme.titleMedium),
           ),
-          Text(report.publicNote!),
+          const SizedBox(height: AldiaSpace.s),
+          Text(report.note!, style: theme.textTheme.bodyLarge),
+        ],
+        if (report.publicNote.isUsable) ...[
+          const SizedBox(height: AldiaSpace.xl),
+          Card(
+            color: theme.colorScheme.surfaceContainerLow,
+            child: Padding(
+              padding: const EdgeInsets.all(AldiaSpace.l),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Semantics(
+                    header: true,
+                    child: Text(
+                      S.officialMessage,
+                      style: theme.textTheme.titleMedium,
+                    ),
+                  ),
+                  const SizedBox(height: AldiaSpace.s),
+                  Text(report.publicNote!, style: theme.textTheme.bodyLarge),
+                ],
+              ),
+            ),
+          ),
         ],
         if (report.duplicateOf != null) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: AldiaSpace.xl),
           _DuplicateHint(duplicateOf: report.duplicateOf!),
         ],
-        const SizedBox(height: 20),
+        const SizedBox(height: AldiaSpace.xxl),
         Semantics(
           header: true,
           child: Text(S.timeline, style: theme.textTheme.titleLarge),
         ),
-        if (loadFailed)
-          TextButton(onPressed: onRetry, child: const Text(S.retry)),
+        const SizedBox(height: AldiaSpace.m),
         for (final event in events) _TimelineEntry(event: event),
         if (events.isEmpty) Text(state.explanation),
         FutureBuilder<List<Report>>(
@@ -163,12 +212,13 @@ class _DetailBody extends StatelessWidget {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 16),
+                const SizedBox(height: AldiaSpace.xxl),
                 Semantics(
                   header: true,
                   child: Text(S.nearbyHint, style: theme.textTheme.titleMedium),
                 ),
-                for (final item in items)
+                const SizedBox(height: AldiaSpace.m),
+                for (final item in items) ...[
                   ReportTile(
                     report: item,
                     onTap: () => AldiaRoute.open<void>(
@@ -176,16 +226,19 @@ class _DetailBody extends StatelessWidget {
                       ReportDetailScreen(report: item),
                     ),
                   ),
+                  const SizedBox(height: AldiaSpace.l),
+                ],
               ],
             );
           },
         ),
         if (report.verification != null) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: AldiaSpace.xxl),
           Semantics(
             header: true,
             child: Text(S.checks, style: theme.textTheme.titleLarge),
           ),
+          const SizedBox(height: AldiaSpace.m),
           ChecksList(
             verification: report.verification!,
             category: category.label,
@@ -204,15 +257,27 @@ class _TimelineEntry extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = citizenStateFor(event.toState);
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: AldiaSpace.m),
       child: Semantics(
         container: true,
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(state.icon),
-            const SizedBox(width: 12),
+            ExcludeSemantics(
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: scheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                alignment: Alignment.center,
+                child: Icon(state.icon, size: 24),
+              ),
+            ),
+            const SizedBox(width: AldiaSpace.m),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -221,8 +286,23 @@ class _TimelineEntry extends StatelessWidget {
                     state.label,
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
-                  if (event.at != null) Text(event.at.formattedDateTime()),
-                  if (event.publicNote.isUsable) Text(event.publicNote!),
+                  if (event.at != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: AldiaSpace.xs),
+                      child: Text(
+                        event.at.formattedDateTime(),
+                        style: Theme.of(context).textTheme.bodySmall
+                            ?.copyWith(color: scheme.onSurfaceVariant),
+                      ),
+                    ),
+                  if (event.publicNote.isUsable)
+                    Padding(
+                      padding: const EdgeInsets.only(top: AldiaSpace.s),
+                      child: Text(
+                        event.publicNote!,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -257,14 +337,14 @@ class _DuplicateHint extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(AldiaSpace.l),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                const Icon(Icons.copy_all),
-                const SizedBox(width: 8),
+                const Icon(Icons.copy_all, size: 24),
+                const SizedBox(width: AldiaSpace.s),
                 Expanded(
                   child: Semantics(
                     header: true,
@@ -276,7 +356,14 @@ class _DuplicateHint extends StatelessWidget {
                 ),
               ],
             ),
-            const Text(S.duplicateHint),
+            const SizedBox(height: AldiaSpace.s),
+            Text(
+              S.duplicateHint,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: AldiaSpace.m),
             TextButton(
               onPressed: () => _open(context),
               child: const Text(S.viewMainReport),

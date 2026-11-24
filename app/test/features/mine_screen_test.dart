@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:aldia_app/core/strings.dart';
 import 'package:aldia_app/features/drafts/draft_record.dart';
 import 'package:aldia_app/features/mine/my_reports_screen.dart';
@@ -16,6 +18,40 @@ DraftRecord _draft(String id) => DraftRecord(
   createdAt: DateTime.now().toUtc(),
   categoryId: 'graffiti',
 );
+
+class _ControlledDraftStore extends MemoryDraftStore {
+  Completer<List<DraftRecord>>? firstLoad;
+  bool failDelete = false;
+  int loads = 0;
+
+  @override
+  Future<List<DraftRecord>> loadAll() async {
+    loads++;
+    if (loads == 1 && firstLoad != null) return firstLoad!.future;
+    return super.loadAll();
+  }
+
+  @override
+  Future<void> delete(String id) async {
+    if (failDelete) throw StateError('storage unavailable');
+    await super.delete(id);
+  }
+}
+
+class _FailingOutbox extends FakeOutbox {
+  _FailingOutbox(super.entries);
+
+  Object? error = StateError('storage unavailable');
+
+  @override
+  Object? get persistenceError => error;
+
+  @override
+  Future<void> retry() async {
+    retries++;
+    throw StateError('storage unavailable');
+  }
+}
 
 void main() {
   testWidgets('empty state invites the first report', (tester) async {
@@ -41,7 +77,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(S.waitingNetwork), findsOneWidget);
-      expect(find.byIcon(Icons.cloud_off), findsOneWidget);
+      expect(find.byIcon(Icons.wifi_off), findsOneWidget);
       await tester.tap(find.text(S.retryNow));
       expect(outbox.retries, 1);
 
@@ -88,12 +124,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final draftY = tester.getTopLeft(find.text(S.savedDrafts)).dy;
-    final sentY = tester.getTopLeft(find.text(S.sentReports)).dy;
+    final draftY = tester.getTopLeft(find.text(S.draftMissingPhoto)).dy;
+    final sentY = tester.getTopLeft(find.text(S.sentReports.toUpperCase())).dy;
     expect(draftY, lessThan(sentY));
     expect(find.textContaining('Resuelto'), findsWidgets);
 
-    await tester.tap(find.text(S.deleteDraft));
+    expect(find.text('${S.unsent.toUpperCase()}  (1)'), findsOneWidget);
+    expect(find.text(S.continueShort), findsOneWidget);
+    await tester.tap(find.text(S.delete));
     await tester.pumpAndSettle();
     expect(find.text(S.deleteDraftQuestion), findsOneWidget);
     expect(drafts.records, isNotEmpty);
@@ -101,4 +139,87 @@ void main() {
     await tester.pumpAndSettle();
     expect(drafts.records, isEmpty);
   });
+  testWidgets('sent cards show no coordinates and mark verified photos', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      harness(
+        home: const MyReportsScreen(),
+        repository: repositoryWith(byId: {detailId: stateJson('en_proceso')}),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Punto:'), findsNothing);
+    expect(find.textContaining('14.'), findsNothing);
+    expect(find.textContaining('Enviado hace'), findsOneWidget);
+    expect(find.byTooltip(S.followReport), findsOneWidget);
+  });
+
+  testWidgets(
+    'slow then failed draft loading never shows a false empty state',
+    (tester) async {
+      final drafts = _ControlledDraftStore()
+        ..firstLoad = Completer<List<DraftRecord>>();
+      await tester.pumpWidget(
+        harness(
+          home: const MyReportsScreen(),
+          repository: repositoryWith(),
+          drafts: drafts,
+        ),
+      );
+      await tester.pump();
+      expect(find.text(S.firstReport), findsNothing);
+
+      drafts.firstLoad!.completeError(StateError('read failed'));
+      await tester.pumpAndSettle();
+      expect(find.text(S.draftsLoadError), findsOneWidget);
+      expect(find.text(S.firstReport), findsNothing);
+
+      await tester.tap(find.text(S.retry));
+      await tester.pumpAndSettle();
+      expect(find.text(S.firstReport), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'failed draft delete retains its card and queue retry is visible',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final drafts = _ControlledDraftStore()..failDelete = true;
+      await drafts.save(_draft('d-error'));
+      final outbox = _FailingOutbox([OutboxEntry(draft: _draft('q-error'))]);
+      await tester.pumpWidget(
+        harness(
+          home: const MyReportsScreen(),
+          repository: repositoryWith(),
+          drafts: drafts,
+          outbox: outbox,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text(S.storageError), findsOneWidget);
+      expect(find.text(S.waitingNetwork), findsOneWidget);
+
+      await tester.tap(find.text(S.delete).last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(S.delete).last);
+      await tester.pumpAndSettle();
+      expect(find.text(S.draftMissingPhoto), findsOneWidget);
+      expect(find.text(S.storageError), findsWidgets);
+
+      // The failed delete is reported in a snackbar, which temporarily covers
+      // the inline queue-persistence retry action.
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pumpAndSettle();
+      final retry = find.widgetWithText(TextButton, S.retry).first;
+      await tester.ensureVisible(retry);
+      await tester.tap(retry);
+      await tester.pumpAndSettle();
+      expect(outbox.retries, 1);
+      expect(find.text(S.storageError), findsWidgets);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

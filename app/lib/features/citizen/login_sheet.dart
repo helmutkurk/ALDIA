@@ -6,6 +6,7 @@ import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 
 import '../../core/config.dart';
 import '../../core/strip_dial_code_formatter.dart';
+import '../../core/theme.dart';
 import '../../services/citizen_auth_service.dart';
 import '../../services/haptics.dart';
 import '../../services/identity_services.dart';
@@ -45,6 +46,7 @@ class _CitizenLoginSheetState extends State<CitizenLoginSheet> {
   final _code = TextEditingController();
   final _alias = TextEditingController();
   // Guatemala: 8 digits in two groups, typed after the fixed +502 prefix.
+  final _aliasFocus = FocusNode();
   final _phoneFormatter = MaskTextInputFormatter(
     mask: '#### ####',
     filter: {'#': RegExp(r'[0-9]')},
@@ -63,6 +65,7 @@ class _CitizenLoginSheetState extends State<CitizenLoginSheet> {
     _phone.dispose();
     _code.dispose();
     _alias.dispose();
+    _aliasFocus.dispose();
     super.dispose();
   }
 
@@ -163,16 +166,24 @@ class _CitizenLoginSheetState extends State<CitizenLoginSheet> {
             widget.standalone
                 ? 'Entra a AlDía'
                 : 'Para recibir avisos de tu reporte, verifica tu número.',
-            style: Theme.of(context).textTheme.titleLarge,
+            style: Theme.of(context).textTheme.headlineSmall,
           ),
         ),
-        const SizedBox(height: 12),
-        Text(
-          widget.standalone
-              ? 'Ingresa tu número de teléfono y te enviaremos un código de 6 dígitos. Tu número nunca será público.'
-              : 'Tu número no será público. El acceso dura 90 días en este dispositivo. Los avisos se consultan en AlDía; las notificaciones push aún no están disponibles.',
+        const SizedBox(height: AldiaSpace.l),
+        Container(
+          padding: const EdgeInsets.all(AldiaSpace.m),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(AldiaRadius.input),
+          ),
+          child: Text(
+            widget.standalone
+                ? 'Ingresa tu número de teléfono y te enviaremos un código de 6 dígitos. Tu número nunca será público.'
+                : 'Tu número no será público. El acceso dura 90 días en este dispositivo. Los avisos se consultan en AlDía; las notificaciones push aún no están disponibles.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AldiaSpace.xl),
         TextField(
           key: const Key('citizen-phone'),
           controller: _phone,
@@ -201,6 +212,7 @@ class _CitizenLoginSheetState extends State<CitizenLoginSheet> {
             enabled: !_busy,
             keyboardType: TextInputType.number,
             textInputAction: TextInputAction.next,
+            onSubmitted: (_) => _aliasFocus.requestFocus(),
             autofillHints: const [AutofillHints.oneTimeCode],
             inputFormatters: [
               FilteringTextInputFormatter.digitsOnly,
@@ -210,8 +222,9 @@ class _CitizenLoginSheetState extends State<CitizenLoginSheet> {
               labelText: 'Código de verificación',
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AldiaSpace.l),
           TextField(
+            focusNode: _aliasFocus,
             controller: _alias,
             enabled: !_busy,
             maxLength: 60,
@@ -238,12 +251,34 @@ class _CitizenLoginSheetState extends State<CitizenLoginSheet> {
         ],
         if (_error != null)
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
+            padding: const EdgeInsets.symmetric(vertical: AldiaSpace.m),
             child: Semantics(
               liveRegion: true,
-              child: Text(
-                _error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              child: Container(
+                padding: const EdgeInsets.all(AldiaSpace.m),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.errorContainer,
+                  borderRadius: BorderRadius.circular(AldiaRadius.input),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      size: 20,
+                      color: Theme.of(context).colorScheme.onErrorContainer,
+                    ),
+                    const SizedBox(width: AldiaSpace.s),
+                    Expanded(
+                      child: Text(
+                        _error!,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onErrorContainer,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

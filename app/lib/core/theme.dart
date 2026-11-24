@@ -63,6 +63,19 @@ class AldiaColors {
   /// Warning banners (amber icon, normal text color).
   static const Color warningContainer = Color(0xFFFFF1D6);
 
+  /// Amber as text (drafts' status line), 6.3:1 on white. [open] is for
+  /// dots only.
+  static const Color draftText = Color(0xFF8A5300);
+
+  /// Neutral icon tile on white cards (drafts).
+  static const Color neutralTile = Color(0xFFF1F3F5);
+
+  /// Dashed outline of unfinished drafts (decorative).
+  static const Color dashed = Color(0xFFB8C0C8);
+
+  /// Scrim behind text laid over photos (white text 9:1 or more).
+  static const Color photoScrim = Color(0xCC1F2933);
+
   // Dark mode keeps the hues, lighter, on dark surfaces.
   static const Color darkBar = Color(0xFF0B2A40);
   static const Color darkBackground = Color(0xFF12181D);
@@ -197,31 +210,111 @@ ThemeData _build(Brightness brightness) {
     surfaceTint: Colors.transparent,
   );
   final base = ThemeData(useMaterial3: true, colorScheme: scheme);
-  final text = base.textTheme;
+  final defaults = base.textTheme;
+  // Explicit sizes and line heights (Helmut's polish pass, PR #20) with the
+  // bold headings of design-direction.md §6.
+  final text = defaults.copyWith(
+    displaySmall: defaults.displaySmall?.copyWith(fontWeight: FontWeight.w800),
+    headlineLarge: defaults.headlineLarge?.copyWith(
+      fontWeight: FontWeight.w700,
+    ),
+    headlineMedium: defaults.headlineMedium?.copyWith(
+      fontSize: 28,
+      height: 34 / 28,
+      fontWeight: FontWeight.w700,
+      letterSpacing: -0.3,
+    ),
+    headlineSmall: defaults.headlineSmall?.copyWith(
+      fontSize: 24,
+      height: 1.25,
+      fontWeight: FontWeight.w700,
+      letterSpacing: -0.2,
+    ),
+    titleLarge: defaults.titleLarge?.copyWith(
+      fontSize: 20,
+      height: 1.3,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0,
+    ),
+    titleMedium: defaults.titleMedium?.copyWith(
+      fontSize: 16,
+      height: 1.5,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 0,
+    ),
+    titleSmall: defaults.titleSmall?.copyWith(
+      fontSize: 14,
+      height: 20 / 14,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 0,
+    ),
+    bodyLarge: defaults.bodyLarge?.copyWith(
+      fontSize: 16,
+      height: 1.5,
+      fontWeight: FontWeight.w400,
+      letterSpacing: 0,
+    ),
+    bodyMedium: defaults.bodyMedium?.copyWith(
+      fontSize: 14,
+      height: 20 / 14,
+      fontWeight: FontWeight.w400,
+      letterSpacing: 0,
+    ),
+    bodySmall: defaults.bodySmall?.copyWith(
+      fontSize: 12,
+      height: 1.5,
+      fontWeight: FontWeight.w400,
+      letterSpacing: 0.1,
+    ),
+    labelLarge: defaults.labelLarge?.copyWith(
+      fontSize: 14,
+      height: 20 / 14,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 0.1,
+    ),
+    labelMedium: defaults.labelMedium?.copyWith(
+      fontSize: 12,
+      height: 16 / 12,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 0.1,
+    ),
+  );
   final linkColor = dark ? AldiaColors.darkPrimary : AldiaColors.primaryDark;
+  // Visible keyboard focus on buttons (2 px ring, 3:1 against what it sits
+  // on); none otherwise. Disabled buttons keep Material's defaults (null).
+  BorderSide? focusRing(Set<WidgetState> states, Color color) =>
+      states.contains(WidgetState.disabled)
+      ? null
+      : states.contains(WidgetState.focused)
+      ? BorderSide(color: color, width: 2)
+      : const BorderSide(color: Colors.transparent);
+  final filledFocusSide = WidgetStateProperty.resolveWith<BorderSide?>(
+    (states) => focusRing(states, scheme.onPrimary),
+  );
+  final textFocusSide = WidgetStateProperty.resolveWith<BorderSide?>(
+    (states) => focusRing(states, scheme.primary),
+  );
+  final outlinedSide = WidgetStateProperty.resolveWith<BorderSide?>(
+    (states) => states.contains(WidgetState.disabled)
+        ? null
+        : BorderSide(
+            color: linkColor,
+            width: states.contains(WidgetState.focused) ? 2.5 : 1.5,
+          ),
+  );
   return base.copyWith(
     scaffoldBackgroundColor: dark
         ? AldiaColors.darkBackground
         : AldiaColors.background,
-    // Material 3 type scale with bold, large headings (design-direction.md §6).
-    textTheme: text.copyWith(
-      displaySmall: text.displaySmall?.copyWith(fontWeight: FontWeight.w800),
-      headlineLarge: text.headlineLarge?.copyWith(fontWeight: FontWeight.w700),
-      headlineMedium: text.headlineMedium?.copyWith(
-        fontWeight: FontWeight.w700,
-      ),
-      headlineSmall: text.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
-      titleLarge: text.titleLarge?.copyWith(fontWeight: FontWeight.w600),
-      titleMedium: text.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-      labelLarge: text.labelLarge?.copyWith(fontWeight: FontWeight.w600),
-      labelMedium: text.labelMedium?.copyWith(fontWeight: FontWeight.w600),
-    ),
+    materialTapTargetSize: MaterialTapTargetSize.padded,
+    visualDensity: VisualDensity.standard,
+    textTheme: text,
     splashFactory: InkRipple.splashFactory,
     focusColor: scheme.primary.withValues(alpha: 0.16),
     // Selection sits behind text, so it gets opacity; cursor and handles are
     // small and stay at full color.
     textSelectionTheme: TextSelectionThemeData(
-      selectionColor: scheme.primary.withValues(alpha: 0.3),
+      selectionColor: scheme.primary.withValues(alpha: 0.25),
       selectionHandleColor: scheme.primary,
       cursorColor: scheme.primary,
     ),
@@ -236,10 +329,7 @@ ThemeData _build(Brightness brightness) {
       elevation: 0,
       centerTitle: false,
       shape: Border(bottom: BorderSide(color: scheme.outlineVariant)),
-      titleTextStyle: text.titleLarge?.copyWith(
-        color: scheme.onSurface,
-        fontWeight: FontWeight.w700,
-      ),
+      titleTextStyle: text.titleLarge?.copyWith(color: scheme.onSurface),
     ),
     tabBarTheme: TabBarThemeData(
       indicatorColor: AldiaColors.accent,
@@ -302,6 +392,7 @@ ThemeData _build(Brightness brightness) {
               letterSpacing: 0.5,
             ),
           ).copyWith(
+            side: filledFocusSide,
             backgroundColor: WidgetStateProperty.resolveWith((states) {
               if (states.contains(WidgetState.disabled)) return null;
               if (states.contains(WidgetState.pressed)) {
@@ -323,24 +414,28 @@ ThemeData _build(Brightness brightness) {
         minimumSize: const Size.fromHeight(52),
         foregroundColor: linkColor,
         shape: const StadiumBorder(),
-        side: BorderSide(color: linkColor, width: 1.5),
         textStyle: text.labelLarge?.copyWith(fontWeight: FontWeight.w700),
-      ),
+      ).copyWith(side: outlinedSide),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         minimumSize: const Size(AldiaSpace.target, AldiaSpace.target),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         foregroundColor: linkColor,
-      ),
+        textStyle: text.labelLarge,
+      ).copyWith(side: textFocusSide),
     ),
     iconButtonTheme: IconButtonThemeData(
       style: IconButton.styleFrom(
         minimumSize: const Size(AldiaSpace.target, AldiaSpace.target),
-      ),
+      ).copyWith(side: textFocusSide),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: scheme.surface,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      helperMaxLines: 3,
+      errorMaxLines: 3,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AldiaRadius.input),
         borderSide: BorderSide(color: scheme.outline),
@@ -356,6 +451,22 @@ ThemeData _build(Brightness brightness) {
           width: 2,
         ),
       ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(AldiaRadius.input),
+        borderSide: BorderSide(color: scheme.error),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(AldiaRadius.input),
+        borderSide: BorderSide(color: scheme.error, width: 2),
+      ),
+    ),
+    listTileTheme: ListTileThemeData(
+      iconColor: scheme.onSurfaceVariant,
+      titleTextStyle: text.titleMedium?.copyWith(color: scheme.onSurface),
+      subtitleTextStyle: text.bodyMedium?.copyWith(
+        color: scheme.onSurfaceVariant,
+      ),
+      horizontalTitleGap: AldiaSpace.m,
     ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,

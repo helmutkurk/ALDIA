@@ -3,6 +3,7 @@ import 'package:aldia_app/features/citizen/login_sheet.dart';
 import 'package:aldia_app/features/citizen/citizen_screens.dart';
 import 'package:aldia_app/services/test_account.dart';
 import 'package:aldia_app/core/strings.dart';
+import 'package:aldia_app/core/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
@@ -221,29 +222,56 @@ void main() {
   ) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
     addTearDown(tester.view.reset);
-    final auth = FakeCitizenAuth();
-    await tester.pumpWidget(
-      MaterialApp(
-        builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context)
-              .copyWith(textScaler: const TextScaler.linear(2)),
-          child: child!,
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    for (final theme in [buildTheme(), buildDarkTheme()]) {
+      final auth = FakeCitizenAuth();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: theme,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: const TextScaler.linear(2)),
+            child: child!,
+          ),
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showCitizenLogin(context, auth),
+                child: const Text('Abrir'),
+              ),
+            ),
+          ),
         ),
-        home: Scaffold(body: CitizenLoginSheet(auth: auth)),
-      ),
-    );
-    await tester.enterText(
-      find.byKey(const Key('citizen-phone')),
-      List.filled(8, '2').join(),
-    );
-    await tester.ensureVisible(find.text('Solicitar código'));
-    await tester.tap(find.text('Solicitar código'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byKey(const Key('citizen-code')));
-    expect(tester.takeException(), isNull);
-    await tester.ensureVisible(find.text('Verificar número'));
-    expect(tester.takeException(), isNull);
-    await tester.pumpWidget(const SizedBox());
+      );
+      await tester.tap(find.text('Abrir'));
+      await tester.pumpAndSettle();
+      // The keyboard appears only after opening the sheet and focusing input.
+      tester.view.viewInsets = const FakeViewPadding(bottom: 260);
+      await tester.pumpAndSettle();
+      final sheetContext = tester.element(find.byType(CitizenLoginSheet));
+      final route = ModalRoute.of(sheetContext)!;
+      expect(route.transitionDuration, Duration.zero);
+      expect(route.reverseTransitionDuration, Duration.zero);
+      await tester.enterText(
+        find.byKey(const Key('citizen-phone')),
+        List.filled(8, '2').join(),
+      );
+      final primaryButton = find.ancestor(
+        of: find.text('Solicitar código'),
+        matching: find.byType(FilledButton),
+      );
+      await tester.ensureVisible(primaryButton);
+      expect(tester.getSize(primaryButton).height, greaterThanOrEqualTo(48));
+      await tester.tap(find.text('Solicitar código'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const Key('citizen-code')));
+      expect(tester.takeException(), isNull);
+      await tester.ensureVisible(find.text('Verificar número'));
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    }
   });
 }

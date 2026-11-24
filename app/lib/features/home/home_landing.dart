@@ -27,17 +27,22 @@ class Landing extends StatelessWidget {
       color: AldiaColors.barOf(context),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 680),
+          constraints: const BoxConstraints(maxWidth: 480),
           child: ListView(
             controller: BottomNavigationReselect.landingScrollController,
             shrinkWrap: true,
-            padding: const EdgeInsets.all(AldiaSpace.xl),
+            padding: EdgeInsets.symmetric(
+              horizontal: MediaQuery.sizeOf(context).width < 600
+                  ? AldiaSpace.l
+                  : AldiaSpace.xl,
+              vertical: AldiaSpace.xl,
+            ),
             children: [
               const ExcludeSemantics(
                 child: Icon(
                   Icons.location_city_outlined,
                   color: onBar,
-                  size: 72,
+                  size: 48,
                 ),
               ),
               const SizedBox(height: AldiaSpace.l),
@@ -49,7 +54,44 @@ class Landing extends StatelessWidget {
                   style: theme.textTheme.headlineMedium?.copyWith(color: onBar),
                 ),
               ),
+              const SizedBox(height: AldiaSpace.m),
+              Text(
+                'Reporta problemas de tu calle con una foto verificada.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyLarge?.copyWith(color: muted),
+              ),
               const SizedBox(height: AldiaSpace.xl),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(AldiaSpace.target, 56),
+                ),
+                onPressed: onReport,
+                icon: const Icon(Icons.add_a_photo_outlined, size: 24),
+                label: const Text('Reportar un problema'),
+              ),
+              const SizedBox(height: AldiaSpace.s),
+              OutlinedButton.icon(
+                style:
+                    OutlinedButton.styleFrom(
+                      minimumSize: const Size(AldiaSpace.target, 56),
+                      backgroundColor: Colors.transparent,
+                      foregroundColor: onBar,
+                      side: const BorderSide(color: onBar),
+                    ).copyWith(
+                      side: WidgetStateProperty.resolveWith((states) {
+                        return BorderSide(
+                          color: onBar,
+                          width: states.contains(WidgetState.focused) ? 2 : 1,
+                        );
+                      }),
+                    ),
+                onPressed: onExplore,
+                icon: const Icon(Icons.explore_outlined),
+                label: const Text('Explorar mi ciudad'),
+              ),
+              const SizedBox(height: AldiaSpace.xxl),
+              const Divider(color: Color(0xFF6B7278), height: 1),
+              const SizedBox(height: AldiaSpace.l),
               FutureBuilder<int?>(
                 future: resolved,
                 builder: (context, snapshot) => Column(
@@ -57,9 +99,10 @@ class Landing extends StatelessWidget {
                     Text(
                       snapshot.data?.humanizedCount() ?? '—',
                       textAlign: TextAlign.center,
-                      style: theme.textTheme.displayLarge?.copyWith(
+                      style: theme.textTheme.headlineSmall?.copyWith(
                         color: onBar,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w700,
+                        fontFeatures: const [FontFeature.tabularFigures()],
                       ),
                     ),
                     Text(
@@ -67,35 +110,10 @@ class Landing extends StatelessWidget {
                           ? 'reportes resueltos'
                           : 'Reportes resueltos: dato no disponible',
                       textAlign: TextAlign.center,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: muted,
-                      ),
+                      style: theme.textTheme.bodyMedium?.copyWith(color: muted),
                     ),
                   ],
                 ),
-              ),
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: AldiaSpace.xl),
-                child: Divider(color: Color(0xFF6B7278)),
-              ),
-              FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(64),
-                  backgroundColor: AldiaColors.surface,
-                  foregroundColor: AldiaColors.text,
-                ),
-                onPressed: onExplore,
-                icon: const Icon(Icons.explore_outlined),
-                label: const Text('Explorar mi ciudad'),
-              ),
-              const SizedBox(height: AldiaSpace.l),
-              FilledButton.icon(
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(64),
-                ),
-                onPressed: onReport,
-                icon: const Icon(Icons.add_a_photo_outlined),
-                label: const Text('Reportar un problema'),
               ),
             ],
           ),
@@ -112,6 +130,7 @@ class DraftBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final category = draft.categoryId == null
         ? null
         : categoryById(draft.categoryId!).label;
@@ -123,19 +142,29 @@ class DraftBanner extends StatelessWidget {
         0,
       ),
       child: Card(
-        color: Theme.of(context).colorScheme.secondaryContainer,
+        color: scheme.primaryContainer,
         child: ListTile(
           minTileHeight: 56,
-          leading: const Icon(Icons.edit_note),
-          title: const Text(S.continueDraft),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: AldiaSpace.l,
+            vertical: AldiaSpace.s,
+          ),
+          leading: Icon(Icons.edit_note, color: scheme.onPrimaryContainer),
+          title: Text(
+            S.continueDraft,
+            style: Theme.of(context).textTheme.titleMedium
+                ?.copyWith(color: scheme.onPrimaryContainer),
+          ),
           subtitle: Text(
             [
               S.draftBannerHelp,
               ?category,
               S.age(draft.createdAt, DateTime.now()),
             ].join(' · '),
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: scheme.onPrimaryContainer),
           ),
-          trailing: const Icon(Icons.chevron_right),
+          trailing: Icon(Icons.chevron_right, color: scheme.onPrimaryContainer),
           onTap: onTap,
         ),
       ),

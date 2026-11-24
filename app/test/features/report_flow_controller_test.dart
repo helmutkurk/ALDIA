@@ -1,15 +1,77 @@
+import 'dart:async';
+
 import 'package:aldia_app/core/strings.dart';
 import 'package:aldia_app/data/report.dart';
 import 'package:aldia_app/features/drafts/draft_record.dart';
 import 'package:aldia_app/features/report/report_flow_controller.dart';
 import 'package:aldia_app/features/report/verification_feedback.dart';
 import 'package:aldia_app/services/location_service.dart';
+import 'package:aldia_app/services/photo_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
 import '../support/fakes.dart';
 import '../support/memory_draft_store.dart';
+
+class _RestorationStore extends MemoryDraftStore {
+  final Completer<CapturedPhoto?> read = Completer<CapturedPhoto?>();
+  bool fail = false;
+  int saves = 0;
+
+  @override
+  Future<CapturedPhoto?> readPhoto(DraftRecord draft) {
+    if (fail) throw StateError('synthetic storage failure');
+    return read.future;
+  }
+
+  @override
+  Future<void> save(DraftRecord draft) async {
+    saves++;
+    await super.save(draft);
+  }
+}
+
+class _DeleteFailStore extends MemoryDraftStore {
+  bool failDelete = true;
+
+  @override
+  Future<void> delete(String id) async {
+    if (failDelete) throw StateError('synthetic delete failure');
+    await super.delete(id);
+  }
+}
+
+class _StaleIntegrityStore extends MemoryDraftStore {
+  final Completer<void> readStarted = Completer<void>();
+  final Completer<CapturedPhoto?> read = Completer<CapturedPhoto?>();
+
+  @override
+  Future<CapturedPhoto?> readPhoto(DraftRecord draft) {
+    if (!readStarted.isCompleted) readStarted.complete();
+    return read.future;
+  }
+}
+
+class _PendingLocation implements LocationService, LocationDiagnostics {
+  final Completer<LocationFix> result = Completer<LocationFix>();
+  @override
+  Future<LatLng?> currentPosition() async => (await result.future).position;
+  @override
+  Future<LocationFix> locate() => result.future;
+  @override
+  Future<void> openSettings() async {}
+}
+
+class _PendingPhotos implements PhotoService {
+  final Completer<CapturedPhoto?> result = Completer<CapturedPhoto?>();
+  int calls = 0;
+  @override
+  Future<CapturedPhoto?> takePhoto() {
+    calls++;
+    return result.future;
+  }
+}
 
 ReportFlowController build({
   MemoryStore? store,
@@ -220,6 +282,47 @@ void main() {
   });
 
   group('drafts', () {
+    test(
+      'restoration is atomic, skips lifecycle saves, and can retry errors',
+      () async {
+        final drafts = _RestorationStore();
+        final record = DraftRecord(
+          id: 'restored-id',
+          step: 'note',
+          position: const LatLng(5, 6),
+          createdAt: DateTime.utc(2026),
+          locationConfirmed: true,
+          categoryId: 'pothole',
+          note: 'persisted note',
+          photoPath: '/photo.jpg',
+        );
+        final c = build(drafts: drafts);
+        final restore = c.restore(record);
+        expect(c.restoring, isTrue);
+        expect(c.note, '');
+        await c.saveDraft();
+        expect(drafts.saves, 0);
+        drafts.read.complete(null);
+        await restore;
+        expect(c.note, 'persisted note');
+        expect(c.step, FlowStep.photo);
+        expect(drafts.saves, 1);
+
+        final retryStore = _RestorationStore()..fail = true;
+        final retry = build(drafts: retryStore);
+        await retry.restore(record);
+        expect(retry.restoreFailed, isTrue);
+        await retry.saveDraft();
+        expect(retryStore.saves, 0);
+        retryStore.fail = false;
+        final retryRestore = retry.restore(record);
+        retryStore.read.complete(null);
+        await retryRestore;
+        expect(retry.restoreFailed, isFalse);
+        expect(retry.note, 'persisted note');
+      },
+    );
+
     test('every step change and edit autosaves the draft', () async {
       final drafts = MemoryDraftStore();
       final c = build(drafts: drafts);
@@ -336,6 +439,97 @@ void main() {
       );
       expect(DraftRecord.fromJson(record.toJson()).id, 'k');
     });
+  });
+
+  test('manual location wins while GPS remains pending', () async {
+    final location = _PendingLocation();
+    final c = build(location: location);
+    final pending = c.useMyLocation();
+    expect(c.locating, isTrue);
+    await c.useMyLocation();
+    c.setPosition(const LatLng(1, 2), label: 'Lugar manual');
+    c.locationIssue = LocationIssue.serviceOff;
+    location.result.complete(const LocationFix(position: LatLng(14, -90)));
+    await pending;
+    expect(c.locating, isFalse);
+    expect(c.position, const LatLng(1, 2));
+    expect(c.placeLabel, 'Lugar manual');
+    expect(c.locationIssue, LocationIssue.serviceOff);
+  });
+
+  test(
+    'camera is single flight and late capture after dispose is discarded',
+    () async {
+      final photos = _PendingPhotos();
+      final drafts = MemoryDraftStore();
+      final c = ReportFlowController(
+        repository: fakeRepository(),
+        location: FakeLocation(null),
+        photos: photos,
+        drafts: drafts,
+      );
+      final first = c.takePhoto();
+      await c.takePhoto();
+      expect(photos.calls, 1);
+      expect(c.takingPhoto, isTrue);
+      c.dispose();
+      photos.result.complete(await FakePhotos().takePhoto());
+      await first;
+      expect(c.photo, isNull);
+      expect(drafts.records, isEmpty);
+      expect(drafts.photos, isEmpty);
+    },
+  );
+
+  test(
+    'follow persistence failure stays recoverable and can be retried',
+    () async {
+      final drafts = _DeleteFailStore();
+      final c = build(drafts: drafts);
+      final report = Report.fromJson(reportJson());
+      await c.follow(report);
+      expect(c.followError, isTrue);
+      expect(c.following, isFalse);
+      expect(c.submitState, SubmitState.editing);
+      drafts.failDelete = false;
+      await c.follow(report);
+      expect(c.followError, isFalse);
+      expect(c.submitState, SubmitState.followed);
+      expect(c.result?.id, report.id);
+    },
+  );
+
+  test('stale integrity read cannot reset a submitted outcome', () async {
+    final drafts = _StaleIntegrityStore();
+    final c = build(drafts: drafts);
+    await c.takePhoto();
+    final photo = c.photo;
+    final integrity = c.checkPhotoIntegrity();
+    await drafts.readStarted.future;
+    c
+      ..submitState = SubmitState.done
+      ..result = Report.fromJson(reportJson());
+    drafts.read.complete(null);
+    await integrity;
+    expect(c.submitState, SubmitState.done);
+    expect(identical(c.photo, photo), isTrue);
+  });
+
+  test('stale integrity read cannot clear a newer captured photo', () async {
+    final drafts = _StaleIntegrityStore();
+    final c = build(drafts: drafts);
+    await c.takePhoto();
+    final firstPhoto = c.photo;
+    final integrity = c.checkPhotoIntegrity();
+    await drafts.readStarted.future;
+    c.retakePhoto();
+    await c.takePhoto();
+    final currentPhoto = c.photo;
+    expect(identical(currentPhoto, firstPhoto), isFalse);
+    drafts.read.complete(null);
+    await integrity;
+    expect(identical(c.photo, currentPhoto), isTrue);
+    expect(c.missingPhoto, isFalse);
   });
 
   group('verifier feedback', () {
