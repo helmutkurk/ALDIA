@@ -25,7 +25,8 @@ cases, report page, triage, statistics).
 4. Landing (mockup "Login2"): the first screen on every load. Staff sign in (same `POST /auth/login`, same
    lockout: 5 failed attempts lock the account for 15 minutes, sessions last up to 12 hours) or continue to the
    public map without an account. A restored cookie session skips it. The portal behind it is `inert` until then.
-   "Modo personal" in the sidebar still opens the split-screen login later.
+   The sidebar has no "Modo personal" or help button: its account block shows "Iniciar sesión" (reopens this
+   screen) or the signed-in user with "Cerrar sesión".
 5. Report page: two-column cards.
 6. Triage (mockup "Triaje2"): table with Foto, Reporte, Antigüedad (red over 3 days, amber over 1 day),
    Verificación, Asignado a (inline assignment) and Acción ("Pasar a revisión" when the move needs no note; every

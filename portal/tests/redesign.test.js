@@ -23,10 +23,32 @@ it('shows the brand, municipality card and nav labels as text next to decorative
   const labels = [...root.querySelectorAll('.site-nav .nav-label')].map(
     (span) => span.textContent,
   );
-  expect(labels).toEqual(['Mapa', 'Triaje', 'Panel', 'Modo personal']);
-  for (const svg of root.querySelectorAll('.site-nav svg, .brand svg')) {
+  expect(labels).toEqual(['Mapa', 'Triaje', 'Panel']);
+  for (const svg of root.querySelectorAll('.site-header svg')) {
     expect(svg.getAttribute('aria-hidden')).toBe('true');
   }
+  expect(root.textContent).not.toContain('Modo personal');
+  expect(root.querySelector('.help-button')).toBeNull();
+});
+
+it('shows "Iniciar sesión" when signed out and the user with "Cerrar sesión" when signed in', () => {
+  const root = document.createElement('header');
+  document.body.append(root);
+  const onStaff = vi.fn();
+  const onLogout = vi.fn();
+  header = createSiteHeader(root, { onStaff, onLogout });
+  const account = root.querySelector('.account-card');
+  expect(account.textContent).toBe('Iniciar sesión');
+  account.querySelector('.staff-link').click();
+  expect(onStaff).toHaveBeenCalledOnce();
+  header.setUser({ username: 'ana.lopez', role: 'operator' });
+  expect(account.querySelector('.account-name').textContent).toBe('ana.lopez');
+  expect(account.querySelector('.account-role').textContent).toBe('Operador');
+  expect(account.querySelector('.account-avatar').textContent).toBe('AN');
+  account.querySelector('.account-logout').click();
+  expect(onLogout).toHaveBeenCalledOnce();
+  header.setUser(null);
+  expect(account.querySelector('.staff-link')).not.toBeNull();
 });
 
 it('summarizes the map area and blanks values it cannot trust', () => {

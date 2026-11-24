@@ -1800,3 +1800,90 @@ body.landing-open {
     align-items: flex-start;
   }
 }
+
+/* Account block in the shell (replaces "Modo personal" and the help button). */
+.account-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--on-bar);
+}
+.account-card .staff-link,
+.account-logout {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 40px;
+  padding: 0 0.7rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--on-bar-muted);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+.account-card .staff-link:hover,
+.account-logout:hover {
+  color: var(--on-bar);
+  background: var(--bar-hover);
+}
+.account-card .staff-link svg {
+  width: 18px;
+  height: 18px;
+}
+.account-avatar {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--brand);
+  color: var(--bar);
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 600;
+}
+.account-who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+.account-name {
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account-role {
+  font-size: 12px;
+  color: #a9bcd0;
+}
+.account-logout {
+  margin-left: auto;
+  min-height: 32px;
+  padding: 0 0.5rem;
+  font-size: 12px;
+}
+@media (min-width: 1001px) {
+  .account-card {
+    margin-top: auto;
+    padding: 0 0.2rem;
+  }
+  .account-card .staff-link {
+    width: 100%;
+    font-size: 1rem;
+  }
+}
+@media (max-width: 700px) {
+  .account-card {
+    display: none;
+    width: 100%;
+    padding: 0.35rem 0 0.5rem;
+  }
+  .site-header.nav-open .account-card {
+    display: flex;
+  }
+}

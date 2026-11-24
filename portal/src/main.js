@@ -150,19 +150,37 @@ export function createPortal({
   panelElement.before(kpiRoot);
   const kpis = createMapKpis(kpiRoot);
   // First screen: staff sign-in, or continue to the public map without an account.
-  const landing = landingElement
-    ? createLanding(landingElement, {
-        api,
-        staff,
-        hide: [headerElement, workspaceElement?.parentElement].filter(Boolean),
-        onClose() {
-          map.invalidateSize?.();
-          headerElement
-            ?.querySelector('a, button')
-            ?.focus({ preventScroll: true });
-        },
-      })
-    : null;
+  // "Iniciar sesión" and "Cerrar sesión" in the sidebar bring it back.
+  let landing = null;
+  function openLanding() {
+    if (!landingElement || landing?.isOpen()) return;
+    landingElement.hidden = false;
+    landing = createLanding(landingElement, {
+      api,
+      staff,
+      hide: [headerElement, workspaceElement?.parentElement].filter(Boolean),
+      onClose() {
+        map.invalidateSize?.();
+        headerElement
+          ?.querySelector('a, button')
+          ?.focus({ preventScroll: true });
+      },
+    });
+  }
+  openLanding();
+  let loggingOut = false;
+  async function logout() {
+    if (loggingOut) return;
+    loggingOut = true;
+    try {
+      if (!staff.getToken?.()) await api.logout?.();
+      staff.clear();
+    } catch (error) {
+      if (error.status === 401) staff.clear();
+    } finally {
+      loggingOut = false;
+    }
+  }
   const toggle = element('button', 'map-toggle', ui.showMap);
   toggle.type = 'button';
   toggle.setAttribute('aria-expanded', 'false');
@@ -178,7 +196,12 @@ export function createPortal({
   panelElement.before(toggle);
   const header = headerElement
     ? createSiteHeader(headerElement, {
+        onLogout: logout,
         onStaff() {
+          if (landingElement) {
+            openLanding();
+            return true;
+          }
           staffRoot.hidden = !staffRoot.hidden;
           const details = staffRoot.querySelector('details');
           if (details) details.open = !staffRoot.hidden;
@@ -293,13 +316,19 @@ export function createPortal({
   }
   if (pageElement && workspaceElement) router = createRouter(renderRoute);
   else scheduleLoad();
+  header?.setUser(staff.getUser?.() ?? null);
   let hadStaff = Boolean(staff.getRole?.() || staff.getToken?.());
   const unsubscribeStaff = staff.subscribe(() => {
     const authenticated = Boolean(staff.getRole?.() || staff.getToken?.());
     if (hadStaff && !authenticated) {
-      staffRoot.hidden = false;
-      staffRoot.querySelector('details').open = true;
+      // A deliberate logout returns to the first screen; an expired session asks to sign in again.
+      if (loggingOut && landingElement) openLanding();
+      else {
+        staffRoot.hidden = false;
+        staffRoot.querySelector('details').open = true;
+      }
     }
+    header?.setUser(staff.getUser?.() ?? null);
     hadStaff = authenticated;
     header?.setStaffOpen(!staffRoot.hidden);
     selection.clear();

@@ -1,13 +1,12 @@
 import { filtersHash } from './filters.js';
-import { createStaffHelp } from './help.js';
 import { ui, t } from './i18n.js';
 
 /** Slim site header shared by every route. Links keep the current map scope.
  * All text is static copy from i18n.js; nothing from the API is rendered here.
  * @param {HTMLElement} root
- * @param {{onStaff: () => void}} options
+ * @param {{onStaff: () => void, onLogout?: () => void}} options
  */
-export function createSiteHeader(root, { onStaff }) {
+export function createSiteHeader(root, { onStaff, onLogout = () => {} }) {
   const brand = document.createElement('a');
   brand.className = 'brand';
   brand.href = '#/';
@@ -61,20 +60,50 @@ export function createSiteHeader(root, { onStaff }) {
     links[name] = link;
     nav.append(link);
   }
+  // Account block (mockup): who is signed in and "Cerrar sesión", or "Iniciar sesión".
+  const account = document.createElement('div');
+  account.className = 'account-card';
   const staff = document.createElement('button');
   staff.type = 'button';
   staff.className = 'staff-link';
-  staff.append(icon('staff'), labelSpan(ui.navStaff));
+  staff.append(icon('staff'), labelSpan(ui.login));
   staff.setAttribute('aria-expanded', 'false');
   staff.setAttribute('aria-controls', 'staff-access');
-  const help = createStaffHelp();
   const enterStaff = () => {
     const open = onStaff();
     staff.setAttribute('aria-expanded', String(open ?? true));
-    if (open !== false) help.introduce();
   };
   staff.addEventListener('click', enterStaff);
-  nav.append(staff, help.button);
+  const logout = document.createElement('button');
+  logout.type = 'button';
+  logout.className = 'account-logout';
+  logout.textContent = ui.logout;
+  logout.addEventListener('click', () => onLogout());
+  /** @param {{username: string, role: string}|null} user */
+  const renderAccount = (user) => {
+    if (!user) {
+      account.replaceChildren(staff);
+      return;
+    }
+    const avatar = document.createElement('span');
+    avatar.className = 'account-avatar';
+    avatar.setAttribute('aria-hidden', 'true');
+    avatar.textContent = user.username
+      .replace(/^dev:/, '')
+      .slice(0, 2)
+      .toUpperCase();
+    const who = document.createElement('span');
+    who.className = 'account-who';
+    const name = document.createElement('span');
+    name.className = 'account-name';
+    name.textContent = user.username;
+    const role = document.createElement('span');
+    role.className = 'account-role';
+    role.textContent = ui[user.role] ?? user.role;
+    who.append(name, role);
+    account.replaceChildren(avatar, who, logout);
+  };
+  renderAccount(null);
   const org = document.createElement('div');
   org.className = 'org-card';
   const orgLabel = document.createElement('span');
@@ -84,11 +113,12 @@ export function createSiteHeader(root, { onStaff }) {
   orgName.className = 'org-name';
   orgName.textContent = t.city;
   org.append(orgLabel, orgName);
-  root.replaceChildren(brand, menu, nav, org, help.guide);
+  root.replaceChildren(brand, menu, nav, account, org);
   return {
     setStaffOpen(open) {
       staff.setAttribute('aria-expanded', String(open));
     },
+    setUser: renderAccount,
     /** @param {object} scope current filters including bbox */
     update(scope) {
       links.map.href = filtersHash('#/', scope);
