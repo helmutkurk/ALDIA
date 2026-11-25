@@ -285,15 +285,58 @@ Open http://localhost:5173 (or :8080 with Docker). Use a recent Chrome or Firefo
 ### 4.3 App on a real Android phone (not executed)
 
 1. Enable Developer options and USB debugging; connect by USB; accept the prompt; `flutter devices` lists the phone.
-2. The API must listen on the LAN: start uvicorn with `--host 0.0.0.0` (without Docker) or change the published port in
-   a local override. Find your IP (`ip -4 addr` on Linux, `ipconfig getifaddr en0` on macOS). Phone and computer must be on
-   the same Wi-Fi, and the computer's firewall must allow port 8000. The app needs no CORS entry (native apps send no
-   `Origin`); a portal opened from another machine does need its origin in `CORS_ORIGINS`.
-3. Run: `cd app && flutter run --dart-define=API_BASE_URL=http://<LAN-IP>:8000/api`. Debug builds allow cleartext HTTP; a
-   **release** build does not (see troubleshooting): use HTTPS for release.
+   In the phone's camera app, turn on location tags (the setting name depends on the manufacturer).
+2. Start the stack (section 2) and seed (2.4). Connect the phone to the API in one of two ways:
+   - **USB (recommended).** The API stays on `127.0.0.1`. Run `adb reverse tcp:8000 tcp:8000` (again after every
+     reconnect), then `cd app && flutter run -d <phone> --dart-define=API_BASE_URL=http://127.0.0.1:8000/api`.
+   - **Wi-Fi.** Start uvicorn with `--host 0.0.0.0` (without Docker) or change the published port in a local override.
+     Find your IP (`ip -4 addr` on Linux, `ipconfig getifaddr en0` on macOS). Phone and computer must be on the same
+     Wi-Fi, and the computer's firewall must allow port 8000. Run
+     `cd app && flutter run -d <phone> --dart-define=API_BASE_URL=http://<LAN-IP>:8000/api`. Do not expose `0.0.0.0`
+     on a public network; use a private Wi-Fi and stop the API afterwards.
+
+   The app needs no CORS entry (native apps send no `Origin`); a portal opened from another machine does need its
+   origin in `CORS_ORIGINS`. Debug builds allow cleartext HTTP; a **release** build does not (see troubleshooting):
+   use HTTPS for release.
+3. **First photo: EXIF check.** Send one report and note its ID. Read the verifier result (`API` as in section 3):
+   `curl -s "$API/reports/<id>" | jq '.verification.checks'` (no login needed). Today `exif_time` and `exif_gps`
+   always show `sin EXIF`: the API removes EXIF before it calls the verifier
+   (`backend/api/app/services/report_creation.py:48-51`). To see what the phone's camera writes, copy the photo from the app's
+   cache in the same session (debug builds only; not executed yet, the file name varies):
+
+   ```bash
+   adb exec-out run-as org.aldia.aldia_app ls -t cache      # newest .jpg first
+   adb exec-out run-as org.aldia.aldia_app cat cache/<file>.jpg > /tmp/aldia-device-photo.jpg
+   exiftool -DateTimeOriginal -OffsetTimeOriginal -GPSLatitude -GPSLongitude /tmp/aldia-device-photo.jpg
+   ```
+
+   Record whether `OffsetTimeOriginal` and the GPS tags are present. If the verifier is ever given the original
+   bytes, a time without `OffsetTimeOriginal` is read as UTC and fails outside UTC with `exif_time_outside`.
+   Delete the copied photo afterwards.
 4. Repeat 4.2 steps 4 to 11 with the real camera and GPS. Extra checks outdoors: **Precisión GPS** under 50 m
-   (otherwise **La precisión supera 50 m. Reintenta el GPS...**), photo taken from the sidewalk, no people in frame.
-5. Do not expose `0.0.0.0` on a public network; use a private Wi-Fi and stop the API afterwards.
+   (otherwise **La precisión supera 50 m. Reintenta el GPS...**), photo taken from the sidewalk, no people or license
+   plates in frame. Photos taken for testing stay on the local machine; never commit them.
+5. **Map on the phone.** Turn Wi-Fi off and use mobile data (with Wi-Fi testing, use USB for the API or skip this
+   step): tiles load, the location dot matches where you stand, clusters split into pins when you zoom in, and the
+   report from step 3 appears on the map.
+6. **Verifier rules that reject real-device reports.** Check these before you report a bug:
+   - `place`: the report point must be inside the broad Guatemala, Colombia or Mexico boxes
+     (`backend/verifier/app/checks/place.py`).
+   - `exif_gps`: the photo's EXIF GPS must be within 150 m of the report point. Do not move the pin far from where
+     you took the photo.
+   - `freshness` / `exif_time`: send within 10 minutes of the capture.
+   - `sharpness` / `exposure`: blurry, very dark or very bright photos fail.
+7. Record the results in the pull request or test notes, not in this file:
+
+   | Field | Value |
+   | --- | --- |
+   | Date, build (commit) | |
+   | Phone model, Android version, camera app | |
+   | Connection (USB / Wi-Fi, mobile data for the map) | |
+   | Step 3 EXIF result (`exif_time` and `exif_gps` details) | |
+   | 4.2 steps 4 to 11: pass/fail per step | |
+   | Step 5 map: pass/fail per check | |
+   | Failures (step number, Spanish message, verifier check code) | |
 
 ### 4.4 App on the iOS simulator and a real iPhone (macOS only, not executed)
 
