@@ -21,8 +21,9 @@ Bootstrap an administrator with `uv run python -m app.cli create-admin --usernam
 It prompts twice without echo; non-interactive usage reads one password line from stdin
 (pipe from a secret manager). Passwords must contain 12–1024 characters and never go in argv.
 
-Open the portal, expand **Modo personal**, enter username/password and use **Iniciar sesión**.
-The server supplies the role. Use **Cerrar sesión** when finished. Accounts expire after
+Open the portal: the sign-in screen comes first. Enter username/password and use **Entrar**, or
+continue to the public map; **Iniciar sesión** at the bottom of the sidebar brings the screen back.
+The server supplies the role. Use **Cerrar sesión** (sidebar, next to your name) when finished. Accounts expire after
 12 hours per session; five failed logins lock an account for 15 minutes.
 
 Production defaults to Secure cookies and disables both demo accounts and token fallback.

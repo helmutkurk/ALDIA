@@ -20,6 +20,29 @@ import { mountPortal } from './mount.js';
 import { createTriage } from './triage.js';
 import { ui, t } from './i18n.js';
 import { loadWorkspace } from './workspace-load.js';
+import { createMapKpis } from './map-kpis.js';
+import { createLanding } from './landing.js';
+
+// Guatemala City and its neighbours. A linked view outside this area, or wider
+// than about one city, opens on the default city view instead.
+const CITY_AREA = { west: -90.85, south: 14.35, east: -90.25, north: 14.95 };
+const MAX_SPAN = 0.6;
+
+/** @param {number[] | undefined} bbox @returns {number[] | undefined} */
+export function cityBounds(bbox) {
+  if (!bbox) return undefined;
+  const [west, south, east, north] = bbox;
+  const lon = (west + east) / 2;
+  const lat = (south + north) / 2;
+  const inside =
+    lon >= CITY_AREA.west &&
+    lon <= CITY_AREA.east &&
+    lat >= CITY_AREA.south &&
+    lat <= CITY_AREA.north;
+  return inside && east - west <= MAX_SPAN && north - south <= MAX_SPAN
+    ? bbox
+    : undefined;
+}
 
 /** Compose the retained workspace and cancellable pages. Factories avoid tiles in tests.
  * @param {object} options
@@ -33,13 +56,13 @@ export function createPortal({
   workspaceElement,
   headerElement,
   locationMapFactory,
+  landingElement,
   staff = createStaffSession(),
 }) {
   api ??= createApiClient({ staff });
   const store = createStore();
-  const { bbox: initialBounds, ...initial } = parseFilters(
-    window.location.hash,
-  );
+  const { bbox: linkedBounds, ...initial } = parseFilters(window.location.hash);
+  const initialBounds = cityBounds(linkedBounds);
   if (Object.keys(initial).length)
     store.setFilters({ category: '', status: '', resolution: '', ...initial });
   let timer, controller, page, returnFocus, router;
@@ -91,6 +114,16 @@ export function createPortal({
         },
         reload: scheduleLoad,
       });
+      // Summary strip: same scope as the list; a failure only blanks the numbers.
+      if (api.getStats && !own.signal.aborted)
+        api
+          .getStats(query(), { signal: own.signal })
+          .then((stats) => {
+            if (current === generation) kpis.render(stats);
+          })
+          .catch(() => {
+            if (current === generation) kpis.render(null);
+          });
     }, 300);
   }
   const map = mapFactory(mapElement, {
@@ -132,6 +165,42 @@ export function createPortal({
   });
   panelElement.querySelector('.panel-header').after(staffRoot);
   panelElement.querySelector('.results').before(side);
+  const kpiRoot = element('section');
+  // Outside the list panel: the panel never contains SVG (see municipal tests).
+  panelElement.before(kpiRoot);
+  const kpis = createMapKpis(kpiRoot);
+  // First screen: staff sign-in, or continue to the public map without an account.
+  // "Iniciar sesión" and "Cerrar sesión" in the sidebar bring it back.
+  let landing = null;
+  function openLanding() {
+    if (!landingElement || landing?.isOpen()) return;
+    landingElement.hidden = false;
+    landing = createLanding(landingElement, {
+      api,
+      staff,
+      hide: [headerElement, workspaceElement?.parentElement].filter(Boolean),
+      onClose() {
+        map.invalidateSize?.();
+        headerElement
+          ?.querySelector('a, button')
+          ?.focus({ preventScroll: true });
+      },
+    });
+  }
+  openLanding();
+  let loggingOut = false;
+  async function logout() {
+    if (loggingOut) return;
+    loggingOut = true;
+    try {
+      if (!staff.getToken?.()) await api.logout?.();
+      staff.clear();
+    } catch (error) {
+      if (error.status === 401) staff.clear();
+    } finally {
+      loggingOut = false;
+    }
+  }
   const toggle = element('button', 'map-toggle', ui.showMap);
   toggle.type = 'button';
   toggle.setAttribute('aria-expanded', 'false');
@@ -147,7 +216,12 @@ export function createPortal({
   panelElement.before(toggle);
   const header = headerElement
     ? createSiteHeader(headerElement, {
+        onLogout: logout,
         onStaff() {
+          if (landingElement) {
+            openLanding();
+            return true;
+          }
           staffRoot.hidden = !staffRoot.hidden;
           const details = staffRoot.querySelector('details');
           if (details) details.open = !staffRoot.hidden;
@@ -164,7 +238,7 @@ export function createPortal({
         },
       })
     : null;
-  const searchRoot = element('div');
+  const searchRoot = element('div', 'search-root');
   panelElement.querySelector('.panel-header').after(searchRoot);
   const search = createPlaceSearch(searchRoot, {
     onSelect: (place) => map.flyToPlace(place),
@@ -262,13 +336,19 @@ export function createPortal({
   }
   if (pageElement && workspaceElement) router = createRouter(renderRoute);
   else scheduleLoad();
+  header?.setUser(staff.getUser?.() ?? null);
   let hadStaff = Boolean(staff.getRole?.() || staff.getToken?.());
   const unsubscribeStaff = staff.subscribe(() => {
     const authenticated = Boolean(staff.getRole?.() || staff.getToken?.());
     if (hadStaff && !authenticated) {
-      staffRoot.hidden = false;
-      staffRoot.querySelector('details').open = true;
+      // A deliberate logout returns to the first screen; an expired session asks to sign in again.
+      if (loggingOut && landingElement) openLanding();
+      else {
+        staffRoot.hidden = false;
+        staffRoot.querySelector('details').open = true;
+      }
     }
+    header?.setUser(staff.getUser?.() ?? null);
     hadStaff = authenticated;
     header?.setStaffOpen(!staffRoot.hidden);
     selection.clear();
@@ -292,6 +372,7 @@ export function createPortal({
       selection.clear();
       unsubscribeStaff();
       unsubscribe();
+      landing?.destroy();
       header?.destroy();
       toggle.remove();
       router?.destroy();

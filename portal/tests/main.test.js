@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPortal } from '../src/main.js';
+import { periodDates } from '../src/dashboard.js';
 import { report } from './fixtures.js';
 
 let app;
@@ -183,6 +184,7 @@ describe('page coordination', () => {
       category: 'pothole',
       status: 'verified',
       resolution: 'fixed',
+      ...periodDates(30).current,
       include_old: true,
     };
     expect(api.getStats).toHaveBeenCalledWith(filters, {
@@ -208,12 +210,15 @@ describe('page coordination', () => {
 });
 
 describe('site header', () => {
-  it('offers the four destinations, keeps the scope and marks the current page', async () => {
+  it('offers the three destinations and the sign-in, keeps the scope and marks the current page', async () => {
     const { headerElement, panelElement } = setup(true);
     const labels = [...headerElement.querySelectorAll('nav a, nav button')].map(
       (node) => node.textContent,
     );
-    expect(labels).toEqual(['Mapa', 'Triaje', 'Panel', 'Modo personal', '?']);
+    expect(labels).toEqual(['Mapa', 'Triaje', 'Panel']);
+    expect(headerElement.querySelector('.account-card').textContent).toBe(
+      'Iniciar sesión',
+    );
     expect(headerElement.querySelector('nav').getAttribute('aria-label')).toBe(
       'Principal',
     );

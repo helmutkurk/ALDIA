@@ -1,38 +1,63 @@
-/* Binding mirror of documentation/design-tokens.md (calm palette, 2026-11-20). */
+/* Portal tokens, following the approved portal mockup (team design canvas, "Versión combinada").
+   Text colors meet 4.5:1 on white; status colors are non-text only and always sit next to the
+   status word. The app uses documentation/design-tokens.md; aligning both is still open. */
 :root {
-  --bar: #3a3f44;
+  /* Shell: navy sidebar. */
+  --bar: #0f2a44;
   --on-bar: #ffffff;
-  --primary: #0f7a99;
-  --primary-dark: #0b6079;
+  --on-bar-muted: #c9d6e3;
+  --bar-hover: rgb(255 255 255 / 6%);
+  --bar-current: rgb(255 255 255 / 10%);
+
+  --primary: #2f6fb0;
+  --primary-dark: #1f5590;
   --on-primary: #ffffff;
-  --accent: #e8731a; /* underlines and highlights only, never text */
+  --primary-container: #f2f7fc;
+  --on-primary-container: #1f5590;
+  --brand: #5aa3db; /* logo and cluster rings; non-text only */
+  --accent: #2f6fb0;
+
   --surface: #ffffff;
-  --background: #f3f4f6;
-  --border: #d9dee3;
-  --text: #1f2933;
-  --text-muted: #52606d;
-  --focus: #0b6079;
+  --background: #f6f7f9;
+  --card: #f9fafb;
+  --border: #e4e7ec;
+  --border-strong: #d0d5dd;
+  --outline: #98a2b3;
+  --text: #101828;
+  --text-muted: #475467;
+  --text-faint: #667085;
+  --focus: #1f5590;
 
   /* Status dots, pins and series; always paired with the status word. */
-  --state-open: #e8731a;
-  --state-work: #3f9a47;
-  --state-resolved: #2d8cd0;
-  --state-closed: #6b7280;
+  --state-open: #dc4c4c;
+  --state-work: #d4702a;
+  --state-resolved: #2e8b57;
+  --state-closed: #858f9e;
   --state-pending: #ffffff;
-  --success: #2e7d32;
-  --danger: #b91c1c;
+  --success: #027a48;
+  --danger: #b42318;
+  --danger-container: #fef3f2;
+  --success-container: #ecfdf3;
+  --warning-container: #fffaeb;
 
-  /* Portal-only layout, spacing scale and data-series tokens. */
+  /* Type: Inter when installed, then the system font (the CSP allows no web fonts). */
+  --font:
+    'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    sans-serif;
+
+  /* Layout, spacing scale and data series. */
   --header-height: 3.5rem;
-  --radius: 0.5rem;
-  --radius-sm: 0.3rem;
+  --sidebar-width: 15rem;
+  --radius-lg: 0.75rem;
+  --radius: 0.625rem;
+  --radius-sm: 0.5rem;
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
   --space-4: 1rem;
   --space-5: 1.5rem;
   --space-6: 2.5rem;
-  --shadow-raised: 0 2px 10px rgb(31 41 51 / 16%);
-  --series-received: var(--primary-dark);
-  --series-resolved: var(--success);
+  --shadow-raised: 0 16px 32px -16px rgb(16 24 40 / 35%);
+  --series-received: #2a6aa6;
+  --series-resolved: #1e7b4c;
 }

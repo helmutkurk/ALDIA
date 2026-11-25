@@ -44,7 +44,10 @@ export function mountPortal(createPortal) {
   }
   region.append(title, help, legend);
   document.title = `${t.appName} · ${t.portalTitle}`;
+  const landingElement = document.createElement('div');
+  document.body.append(landingElement);
   const app = createPortal({
+    landingElement,
     mapElement,
     panelElement,
     workspaceElement: document.querySelector('#around'),
@@ -59,5 +62,6 @@ export function mountPortal(createPortal) {
       title.remove();
       help.remove();
       legend.remove();
+      landingElement.remove();
     });
 }
