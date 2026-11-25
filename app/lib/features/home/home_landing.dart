@@ -61,9 +61,12 @@ class Landing extends StatelessWidget {
                 style: theme.textTheme.bodyLarge?.copyWith(color: muted),
               ),
               const SizedBox(height: AldiaSpace.xl),
+              // Coral key call to action, as in the Figma design.
               FilledButton.icon(
                 style: FilledButton.styleFrom(
                   minimumSize: const Size(AldiaSpace.target, 56),
+                  backgroundColor: AldiaColors.accentOf(context),
+                  foregroundColor: AldiaColors.onAccent,
                 ),
                 onPressed: onReport,
                 icon: const Icon(Icons.add_a_photo_outlined, size: 24),
@@ -123,6 +126,8 @@ class Landing extends StatelessWidget {
   }
 }
 
+/// Draft reminder on Inicio's blue hero: a translucent card on the bar color
+/// with the coral accent, so it reads as part of the page.
 class DraftBanner extends StatelessWidget {
   const DraftBanner({super.key, required this.draft, required this.onTap});
   final DraftRecord draft;
@@ -130,42 +135,98 @@ class DraftBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    const onBar = AldiaColors.onBar;
     final category = draft.categoryId == null
         ? null
         : categoryById(draft.categoryId!).label;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AldiaSpace.l,
-        AldiaSpace.s,
-        AldiaSpace.l,
-        0,
-      ),
-      child: Card(
-        color: scheme.primaryContainer,
-        child: ListTile(
-          minTileHeight: 56,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: AldiaSpace.l,
-            vertical: AldiaSpace.s,
+    final width = MediaQuery.sizeOf(context).width;
+    return ColoredBox(
+      color: AldiaColors.barOf(context),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              width < 600 ? AldiaSpace.l : AldiaSpace.xl,
+              AldiaSpace.s,
+              width < 600 ? AldiaSpace.l : AldiaSpace.xl,
+              0,
+            ),
+            child: Material(
+              // White at 12% on the bar keeps white text above 4.5:1.
+              color: onBar.withValues(alpha: 0.12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AldiaRadius.card),
+                side: BorderSide(color: onBar.withValues(alpha: 0.28)),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                // Announced as one button: title, help and age.
+                onTap: onTap,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 56),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AldiaSpace.l,
+                      vertical: AldiaSpace.m,
+                    ),
+                    child: Row(
+                      children: [
+                        ExcludeSemantics(
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: AldiaColors.accentOf(context),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.edit_note,
+                              color: AldiaColors.onAccent,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: AldiaSpace.m),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                S.continueDraft,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  color: onBar,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                S.draftBannerHelp,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: onBar,
+                                ),
+                              ),
+                              Text(
+                                [
+                                  ?category,
+                                  S.age(draft.createdAt, DateTime.now()),
+                                ].join(' · '),
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: onBar,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: AldiaSpace.s),
+                        const Icon(Icons.chevron_right, color: onBar),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
-          leading: Icon(Icons.edit_note, color: scheme.onPrimaryContainer),
-          title: Text(
-            S.continueDraft,
-            style: Theme.of(context).textTheme.titleMedium
-                ?.copyWith(color: scheme.onPrimaryContainer),
-          ),
-          subtitle: Text(
-            [
-              S.draftBannerHelp,
-              ?category,
-              S.age(draft.createdAt, DateTime.now()),
-            ].join(' · '),
-            style: Theme.of(context).textTheme.bodySmall
-                ?.copyWith(color: scheme.onPrimaryContainer),
-          ),
-          trailing: Icon(Icons.chevron_right, color: scheme.onPrimaryContainer),
-          onTap: onTap,
         ),
       ),
     );
