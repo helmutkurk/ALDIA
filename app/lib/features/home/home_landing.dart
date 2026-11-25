@@ -21,10 +21,11 @@ class Landing extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    const onBar = AldiaColors.onBar;
-    const muted = Color(0xFFD9DEE3);
+    final scheme = theme.colorScheme;
+    final text = scheme.onSurface;
+    final muted = scheme.onSurfaceVariant;
     return ColoredBox(
-      color: AldiaColors.barOf(context),
+      color: scheme.surface,
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 480),
@@ -38,10 +39,10 @@ class Landing extends StatelessWidget {
               vertical: AldiaSpace.xl,
             ),
             children: [
-              const ExcludeSemantics(
+              ExcludeSemantics(
                 child: Icon(
                   Icons.location_city_outlined,
-                  color: onBar,
+                  color: scheme.primary,
                   size: 48,
                 ),
               ),
@@ -51,7 +52,7 @@ class Landing extends StatelessWidget {
                 child: Text(
                   'Tu ciudad, AlDía',
                   textAlign: TextAlign.center,
-                  style: theme.textTheme.headlineMedium?.copyWith(color: onBar),
+                  style: theme.textTheme.headlineMedium?.copyWith(color: text),
                 ),
               ),
               const SizedBox(height: AldiaSpace.m),
@@ -78,12 +79,12 @@ class Landing extends StatelessWidget {
                     OutlinedButton.styleFrom(
                       minimumSize: const Size(AldiaSpace.target, 56),
                       backgroundColor: Colors.transparent,
-                      foregroundColor: onBar,
-                      side: const BorderSide(color: onBar),
+                      foregroundColor: scheme.primary,
+                      side: BorderSide(color: scheme.primary),
                     ).copyWith(
                       side: WidgetStateProperty.resolveWith((states) {
                         return BorderSide(
-                          color: onBar,
+                          color: scheme.primary,
                           width: states.contains(WidgetState.focused) ? 2 : 1,
                         );
                       }),
@@ -93,7 +94,7 @@ class Landing extends StatelessWidget {
                 label: const Text('Explorar mi ciudad'),
               ),
               const SizedBox(height: AldiaSpace.xxl),
-              const Divider(color: Color(0xFF6B7278), height: 1),
+              Divider(color: scheme.outlineVariant, height: 1),
               const SizedBox(height: AldiaSpace.l),
               FutureBuilder<int?>(
                 future: resolved,
@@ -103,7 +104,7 @@ class Landing extends StatelessWidget {
                       snapshot.data?.humanizedCount() ?? '—',
                       textAlign: TextAlign.center,
                       style: theme.textTheme.headlineSmall?.copyWith(
-                        color: onBar,
+                        color: text,
                         fontWeight: FontWeight.w700,
                         fontFeatures: const [FontFeature.tabularFigures()],
                       ),
@@ -126,8 +127,8 @@ class Landing extends StatelessWidget {
   }
 }
 
-/// Draft reminder on Inicio's blue hero: a white card with the coral accent,
-/// so it reads as part of the page.
+/// Draft reminder on Inicio's white hero: a light blue card with the coral
+/// accent, so it stands out from the page.
 class DraftBanner extends StatelessWidget {
   const DraftBanner({super.key, required this.draft, required this.onTap});
   final DraftRecord draft;
@@ -141,8 +142,9 @@ class DraftBanner extends StatelessWidget {
         ? null
         : categoryById(draft.categoryId!).label;
     final width = MediaQuery.sizeOf(context).width;
+    final onCard = scheme.onPrimaryContainer;
     return ColoredBox(
-      color: AldiaColors.barOf(context),
+      color: scheme.surface,
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 480),
@@ -154,7 +156,7 @@ class DraftBanner extends StatelessWidget {
               0,
             ),
             child: Material(
-              color: scheme.surface,
+              color: scheme.primaryContainer,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(AldiaRadius.card),
               ),
@@ -193,7 +195,7 @@ class DraftBanner extends StatelessWidget {
                               Text(
                                 S.continueDraft,
                                 style: theme.textTheme.titleMedium?.copyWith(
-                                  color: scheme.onSurface,
+                                  color: onCard,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -201,7 +203,7 @@ class DraftBanner extends StatelessWidget {
                               Text(
                                 S.draftBannerHelp,
                                 style: theme.textTheme.bodySmall?.copyWith(
-                                  color: scheme.onSurfaceVariant,
+                                  color: onCard,
                                 ),
                               ),
                               Text(
@@ -210,17 +212,14 @@ class DraftBanner extends StatelessWidget {
                                   S.age(draft.createdAt, DateTime.now()),
                                 ].join(' · '),
                                 style: theme.textTheme.bodySmall?.copyWith(
-                                  color: scheme.onSurfaceVariant,
+                                  color: onCard,
                                 ),
                               ),
                             ],
                           ),
                         ),
                         const SizedBox(width: AldiaSpace.s),
-                        Icon(
-                          Icons.chevron_right,
-                          color: scheme.onSurfaceVariant,
-                        ),
+                        Icon(Icons.chevron_right, color: onCard),
                       ],
                     ),
                   ),
