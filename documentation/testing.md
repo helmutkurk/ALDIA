@@ -298,12 +298,21 @@ Open http://localhost:5173 (or :8080 with Docker). Use a recent Chrome or Firefo
    The app needs no CORS entry (native apps send no `Origin`); a portal opened from another machine does need its
    origin in `CORS_ORIGINS`. Debug builds allow cleartext HTTP; a **release** build does not (see troubleshooting):
    use HTTPS for release.
-3. **First photo: EXIF check.** Send one report and note its ID. The API stores the photo without EXIF, so read what
-   the verifier saw instead (`API` as in section 3): `curl -s "$API/reports/<id>" | jq '.verification.checks'`.
-   - `exif_time` / `exif_gps` with detail `sin EXIF`: the photo reached the verifier without EXIF. Both checks pass.
-   - `exif_time` detail ending in `zona EXIF aplicada`: the camera wrote a time zone. Expected result.
-   - `exif_time` detail ending in `sin zona EXIF, se asume UTC`: the camera wrote local time without a zone. Outside
-     UTC this fails with `exif_time_outside`. Report it to the verifier owner with the phone model and camera app.
+3. **First photo: EXIF check.** Send one report and note its ID. Read the verifier result (`API` as in section 3):
+   `curl -s "$API/reports/<id>" | jq '.verification.checks'` (no login needed). Today `exif_time` and `exif_gps`
+   always show `sin EXIF`: the API removes EXIF before it calls the verifier
+   (`backend/api/app/services/report_creation.py:48-51`). To see what the phone's camera writes, copy the photo from the app's
+   cache in the same session (debug builds only; not executed yet, the file name varies):
+
+   ```bash
+   adb exec-out run-as org.aldia.aldia_app ls -t cache      # newest .jpg first
+   adb exec-out run-as org.aldia.aldia_app cat cache/<file>.jpg > /tmp/aldia-device-photo.jpg
+   exiftool -DateTimeOriginal -OffsetTimeOriginal -GPSLatitude -GPSLongitude /tmp/aldia-device-photo.jpg
+   ```
+
+   Record whether `OffsetTimeOriginal` and the GPS tags are present. If the verifier is ever given the original
+   bytes, a time without `OffsetTimeOriginal` is read as UTC and fails outside UTC with `exif_time_outside`.
+   Delete the copied photo afterwards.
 4. Repeat 4.2 steps 4 to 11 with the real camera and GPS. Extra checks outdoors: **Precisión GPS** under 50 m
    (otherwise **La precisión supera 50 m. Reintenta el GPS...**), photo taken from the sidewalk, no people or license
    plates in frame. Photos taken for testing stay on the local machine; never commit them.
