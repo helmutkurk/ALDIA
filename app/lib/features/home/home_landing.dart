@@ -126,8 +126,8 @@ class Landing extends StatelessWidget {
   }
 }
 
-/// Draft reminder on Inicio's blue hero: a translucent card on the bar color
-/// with the coral accent, so it reads as part of the page.
+/// Draft reminder on Inicio's blue hero: a white card with the coral accent,
+/// so it reads as part of the page.
 class DraftBanner extends StatelessWidget {
   const DraftBanner({super.key, required this.draft, required this.onTap});
   final DraftRecord draft;
@@ -136,7 +136,7 @@ class DraftBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    const onBar = AldiaColors.onBar;
+    final scheme = theme.colorScheme;
     final category = draft.categoryId == null
         ? null
         : categoryById(draft.categoryId!).label;
@@ -154,11 +154,9 @@ class DraftBanner extends StatelessWidget {
               0,
             ),
             child: Material(
-              // White at 12% on the bar keeps white text above 4.5:1.
-              color: onBar.withValues(alpha: 0.12),
+              color: scheme.surface,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(AldiaRadius.card),
-                side: BorderSide(color: onBar.withValues(alpha: 0.28)),
               ),
               clipBehavior: Clip.antiAlias,
               child: InkWell(
@@ -195,7 +193,7 @@ class DraftBanner extends StatelessWidget {
                               Text(
                                 S.continueDraft,
                                 style: theme.textTheme.titleMedium?.copyWith(
-                                  color: onBar,
+                                  color: scheme.onSurface,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -203,7 +201,7 @@ class DraftBanner extends StatelessWidget {
                               Text(
                                 S.draftBannerHelp,
                                 style: theme.textTheme.bodySmall?.copyWith(
-                                  color: onBar,
+                                  color: scheme.onSurfaceVariant,
                                 ),
                               ),
                               Text(
@@ -212,14 +210,17 @@ class DraftBanner extends StatelessWidget {
                                   S.age(draft.createdAt, DateTime.now()),
                                 ].join(' · '),
                                 style: theme.textTheme.bodySmall?.copyWith(
-                                  color: onBar,
+                                  color: scheme.onSurfaceVariant,
                                 ),
                               ),
                             ],
                           ),
                         ),
                         const SizedBox(width: AldiaSpace.s),
-                        const Icon(Icons.chevron_right, color: onBar),
+                        Icon(
+                          Icons.chevron_right,
+                          color: scheme.onSurfaceVariant,
+                        ),
                       ],
                     ),
                   ),
