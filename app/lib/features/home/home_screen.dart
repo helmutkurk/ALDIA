@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/strings.dart';
-import '../../core/theme.dart';
 import '../../data/clusters_api.dart';
 import '../../data/report.dart';
 import '../../data/report_repository.dart';
@@ -154,21 +153,11 @@ class _HomeScreenState extends State<HomeScreen> {
       // Explorar draws its own floating controls over a full-screen map.
       appBar: exploring
           ? null
-          : _tab == HomeTab.home
-          // Inicio's blue hero continues the blue bar.
-          ? AppBar(
-              backgroundColor: AldiaColors.barOf(context),
-              foregroundColor: AldiaColors.onBar,
-              iconTheme: const IconThemeData(color: AldiaColors.onBar),
-              shape: null,
-              title: const Text(
-                S.appName,
-                style: TextStyle(color: AldiaColors.onBar),
-              ),
-            )
-          // Other tabs: light header from the theme (decision 15, Figma).
+          // All tabs, Inicio included: light header from the theme
+          // (decision 15, Figma), matching Inicio's white hero.
           : AppBar(
               title: Text(switch (_tab) {
+                HomeTab.home => S.appName,
                 HomeTab.notices => 'Avisos',
                 HomeTab.mine => S.myReports,
                 _ => 'Perfil',
