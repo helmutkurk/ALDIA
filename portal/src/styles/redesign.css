@@ -1887,3 +1887,339 @@ body.landing-open {
     display: flex;
   }
 }
+
+/* ---------- UI audit: alignment, control heights, wrapping ---------- */
+
+/* One control height on desktop toolbars; phones keep 44px touch targets. */
+@media (min-width: 701px) {
+  .stat-periods button,
+  .queue-tabs button {
+    min-height: 0;
+    height: 30px;
+  }
+  .dash-export select,
+  .dash-export .csv-link,
+  .queue-assign input,
+  .queue-assign button,
+  .queue-quick,
+  .queue-more summary,
+  .queue-pager button {
+    box-sizing: border-box;
+    min-height: 0;
+    height: 36px;
+  }
+}
+.dash-export label {
+  font-weight: 400;
+  white-space: nowrap;
+}
+.dash-export select {
+  padding: 0 32px 0 12px;
+}
+.dash-export .export-box,
+.dash-tools {
+  align-items: center;
+}
+
+/* Triage: the table follows the card width, not the window, so zoom levels
+   and narrow windows switch to stacked rows before any column gets crushed. */
+.triage-card {
+  container-type: inline-size;
+}
+.queue-columns,
+.queue-list > li {
+  grid-template-columns:
+    64px minmax(220px, 1fr) 96px 150px minmax(240px, 300px)
+    auto;
+  column-gap: 20px;
+}
+.queue-columns > * {
+  white-space: nowrap;
+}
+.queue-title {
+  overflow-wrap: anywhere;
+}
+.queue-actions,
+.queue-assign .assignment-form {
+  align-items: center;
+}
+.queue-assign button {
+  flex: none;
+  padding: 0 12px;
+}
+.queue-quick {
+  white-space: nowrap;
+}
+@media (max-width: 1200px) {
+  /* Undo the window-based stacking; the container query below decides. */
+  .queue-columns {
+    display: grid;
+  }
+  .queue-list > li {
+    grid-template-columns:
+      64px minmax(220px, 1fr) 96px 150px minmax(240px, 300px)
+      auto;
+    grid-template-areas: none;
+  }
+  .queue-list > li > * {
+    grid-area: auto;
+  }
+}
+@container (max-width: 1080px) {
+  .queue-columns {
+    display: none;
+  }
+  .queue-list > li {
+    grid-template-columns: 64px minmax(0, 1fr) auto;
+    grid-template-areas:
+      'photo info age'
+      'photo verdict verdict'
+      'assign assign actions';
+    row-gap: 10px;
+  }
+  .queue-list > li > .queue-photo {
+    grid-area: photo;
+    align-self: start;
+  }
+  .queue-list > li > .queue-summary {
+    grid-area: info;
+  }
+  .queue-list > li > .queue-age {
+    grid-area: age;
+    align-self: start;
+  }
+  .queue-list > li > .queue-verdict {
+    grid-area: verdict;
+  }
+  .queue-list > li > .queue-assign {
+    grid-area: assign;
+    max-width: 360px;
+  }
+  .queue-list > li > .queue-actions {
+    grid-area: actions;
+    justify-self: end;
+  }
+}
+@container (max-width: 560px) {
+  .queue-list > li {
+    grid-template-areas:
+      'photo info age'
+      'photo verdict verdict'
+      'assign assign assign'
+      'actions actions actions';
+  }
+  .queue-list > li > .queue-assign {
+    max-width: none;
+  }
+  .queue-list > li > .queue-actions {
+    justify-self: start;
+  }
+}
+
+/* Account block: name and role on one row, "Cerrar sesión" as its own
+   full-width button below, so long names never collide with it. */
+.account-card:has(.account-logout) {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 10px;
+}
+.account-logout {
+  grid-column: 1 / -1;
+  justify-content: center;
+  width: 100%;
+  min-height: 34px;
+  margin-left: 0;
+  border: 1px solid rgb(255 255 255 / 16%);
+  white-space: nowrap;
+}
+.account-name {
+  font-size: 14px;
+}
+
+/* Map search: the help toggle is a real round button aligned with the field. */
+.search-hint > summary {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  list-style: none;
+  cursor: pointer;
+}
+.search-hint > summary::-webkit-details-marker {
+  display: none;
+}
+.search-controls {
+  align-items: center;
+}
+
+/* Report page: both columns start on the same line, primary actions look primary. */
+.report-handling > *:first-child,
+.report-handling .timeline:first-child {
+  margin-top: 0;
+}
+.report-layout {
+  margin-top: 12px;
+}
+.report-navigation {
+  margin-top: 8px;
+}
+.report-navigation button,
+.report-navigation a {
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.staff-actions button,
+.report-evidence .zoom-photo {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font-weight: 500;
+}
+.staff-actions button[type='submit'] {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.staff-actions button[type='submit']:hover:not(:disabled) {
+  background: var(--primary-dark);
+}
+.stub-warning {
+  border: 1px solid var(--warning-container);
+  border-left: 4px solid #d6a01d;
+  border-radius: 8px;
+  background: #fffaeb;
+}
+.report-metadata {
+  padding: 0;
+}
+
+/* Phones: title first, then the summary strip, then the sticky map toggle. */
+@media (max-width: 700px) {
+  .workspace:not(:has(.map-region.map-visible)) {
+    display: flex;
+    flex-direction: column;
+  }
+  .workspace:not(:has(.map-region.map-visible)) .panel {
+    display: contents;
+  }
+  .workspace:not(:has(.map-region.map-visible)) .panel > * {
+    order: 3;
+  }
+  .workspace:not(:has(.map-region.map-visible)) .panel > .panel-header {
+    order: 0;
+  }
+  .workspace:not(:has(.map-region.map-visible)) .map-kpis {
+    order: 1;
+    margin: 0 16px 12px;
+  }
+  .workspace:not(:has(.map-region.map-visible)) .map-toggle {
+    order: 2;
+  }
+  .workspace:not(:has(.map-region.map-visible)) .map-region {
+    order: 4;
+  }
+}
+.dash-export .csv-link {
+  margin: 0;
+}
+@media (max-width: 900px) {
+  .report-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* Summary strip on small screens: no sparklines, 2 x 2 on phones. */
+@media (max-width: 1000px) {
+  .kpi-spark {
+    display: none;
+  }
+}
+@media (max-width: 600px) {
+  .map-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .map-kpi + .map-kpi {
+    border-left: 0;
+  }
+  .map-kpi:nth-child(even) {
+    border-left: 1px solid #eaecf0;
+  }
+  .map-kpi:nth-child(n + 3) {
+    border-top: 1px solid #eaecf0;
+  }
+  .workspace:not(:has(.map-region.map-visible)) .map-toggle {
+    width: auto;
+    margin: 0 16px 12px;
+    border: 0;
+    border-radius: 10px;
+  }
+}
+/* Phones: the account block lives inside the open menu only. */
+@media (max-width: 700px) {
+  .site-header:not(.nav-open) .account-card {
+    display: none;
+  }
+}
+.search-hint > summary {
+  min-height: 0;
+  min-width: 0;
+  box-sizing: border-box;
+}
+/* Tablet top bar: avatar, name and "Cerrar sesión" in one compact row. */
+@media (min-width: 701px) and (max-width: 1000px) {
+  .account-card:has(.account-logout) {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .account-logout {
+    width: auto;
+    padding: 0 12px;
+  }
+  .account-who {
+    max-width: 140px;
+  }
+}
+/* Tablet map page: summary strip on top, list and map side by side below. */
+@media (min-width: 701px) and (max-width: 1000px) {
+  .workspace {
+    grid-template-columns: minmax(0, 44%) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      'kpis kpis'
+      'panel map';
+    gap: 12px;
+    padding: 12px 16px 16px;
+    box-sizing: border-box;
+    background: var(--background);
+  }
+  .map-kpis {
+    grid-area: kpis;
+  }
+  .workspace > .panel {
+    grid-area: panel;
+    min-height: 0;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+  }
+  .workspace > .map-region {
+    grid-area: map;
+    min-height: 0;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+  }
+}

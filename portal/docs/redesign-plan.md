@@ -48,3 +48,13 @@ cases, report page, triage, statistics).
 
 - Report page state stepper.
 - Dark mode.
+
+## UI audit (2026-11-25)
+
+- The map opens on Guatemala City. A linked view (`bbox` in the URL) is kept only when it is near the city and no wider than about one city; otherwise the default city view is used.
+- While the map is hidden (phones open on the list), the visible area uses the last real map size or a phone-sized viewport, so the list, summary strip and statistics are scoped to a real area instead of one point.
+- Triage switches between table and stacked rows by the card width (container query), so window zoom or a narrow window never crushes the "Reporte" column.
+- Account block: name and role on one row, "Cerrar sesión" as its own button below (one row on the tablet top bar; inside the open menu on phones).
+- Toolbar controls share one height (36 px on desktop, 44 px touch targets on phones): period buttons, CSV separator and download, triage inputs and buttons.
+- Report page: both columns start on the same line, primary actions ("Guardar", "Asignar") are filled buttons, the test-verification notice is a calm warning box, one column on phones.
+- Phones: title first, then a 2 x 2 summary strip, then the "Ver mapa" button. Tablets: summary strip on top, list and map side by side.

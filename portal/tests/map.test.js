@@ -162,3 +162,24 @@ it('enlarges the selected pin and flies to a row outside the hydrated markers', 
   const bounds = view.getBbox();
   expect((bounds[0] + bounds[2]) / 2).toBeCloseTo(-90.73, 3);
 });
+
+it('keeps a real area while the map starts hidden, as on phones', () => {
+  const region = document.createElement('section');
+  const container = document.createElement('div');
+  region.append(container);
+  document.body.append(region);
+  Object.defineProperties(container, {
+    clientWidth: { value: 0, configurable: true },
+    clientHeight: { value: 0, configurable: true },
+  });
+  view = createReportMap(container, {
+    onBoundsChange: vi.fn(),
+    onSelect: vi.fn(),
+  });
+  const [west, south, east, north] = view.getBbox();
+  expect(east - west).toBeGreaterThan(0.01);
+  expect(north - south).toBeGreaterThan(0.01);
+  expect((west + east) / 2).toBeCloseTo(-90.5069, 3);
+  view.setViewBounds([-90.6, 14.55, -90.45, 14.7]);
+  expect(view.getZoom()).toBeGreaterThan(9);
+});

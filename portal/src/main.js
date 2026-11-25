@@ -23,6 +23,27 @@ import { loadWorkspace } from './workspace-load.js';
 import { createMapKpis } from './map-kpis.js';
 import { createLanding } from './landing.js';
 
+// Guatemala City and its neighbours. A linked view outside this area, or wider
+// than about one city, opens on the default city view instead.
+const CITY_AREA = { west: -90.85, south: 14.35, east: -90.25, north: 14.95 };
+const MAX_SPAN = 0.6;
+
+/** @param {number[] | undefined} bbox @returns {number[] | undefined} */
+export function cityBounds(bbox) {
+  if (!bbox) return undefined;
+  const [west, south, east, north] = bbox;
+  const lon = (west + east) / 2;
+  const lat = (south + north) / 2;
+  const inside =
+    lon >= CITY_AREA.west &&
+    lon <= CITY_AREA.east &&
+    lat >= CITY_AREA.south &&
+    lat <= CITY_AREA.north;
+  return inside && east - west <= MAX_SPAN && north - south <= MAX_SPAN
+    ? bbox
+    : undefined;
+}
+
 /** Compose the retained workspace and cancellable pages. Factories avoid tiles in tests.
  * @param {object} options
  */
@@ -40,9 +61,8 @@ export function createPortal({
 }) {
   api ??= createApiClient({ staff });
   const store = createStore();
-  const { bbox: initialBounds, ...initial } = parseFilters(
-    window.location.hash,
-  );
+  const { bbox: linkedBounds, ...initial } = parseFilters(window.location.hash);
+  const initialBounds = cityBounds(linkedBounds);
   if (Object.keys(initial).length)
     store.setFilters({ category: '', status: '', resolution: '', ...initial });
   let timer, controller, page, returnFocus, router;

@@ -116,9 +116,15 @@ export function createReportMap(
   container.addEventListener('keydown', onKeyDown);
   // Hidden routes must never resize Leaflet to a zero-size viewport. Handle
   // both element and window resizes here instead of Leaflet's default listener.
+  const resize = () => {
+    const wasHidden = !map.getSize().x || !map.getSize().y;
+    const center = map.getCenter();
+    map.invalidateSize({ pan: false });
+    // A map first shown after starting hidden keeps the place it was given.
+    if (wasHidden) map.setView(center, map.getZoom(), { animate: false });
+  };
   const resizeIfVisible = () => {
-    if (container.clientWidth && container.clientHeight)
-      map.invalidateSize({ pan: false });
+    if (container.clientWidth && container.clientHeight) resize();
   };
   const observer =
     typeof ResizeObserver === 'undefined'
@@ -126,10 +132,33 @@ export function createReportMap(
       : new ResizeObserver(resizeIfVisible);
   observer?.observe(container);
   window.addEventListener('resize', resizeIfVisible);
+  // Phones open on the list with the map hidden, so Leaflet starts at 0x0 and
+  // its bounds collapse to one point. Until it is shown, use the last real
+  // size, or a phone-sized viewport, to keep the list scoped to a real area.
+  let lastSize = L.point(390, 640);
+  const viewSize = () => {
+    const size = map.getSize();
+    if (size.x && size.y) lastSize = size;
+    return lastSize;
+  };
+  const viewBounds = () => {
+    const size = map.getSize();
+    if (size.x && size.y) {
+      lastSize = size;
+      return map.getBounds();
+    }
+    const zoom = map.getZoom();
+    const half = viewSize().divideBy(2);
+    const middle = map.project(map.getCenter(), zoom);
+    return L.latLngBounds(
+      map.unproject(middle.add([-half.x, half.y]), zoom),
+      map.unproject(middle.add([half.x, -half.y]), zoom),
+    );
+  };
   return {
     /** @returns {import('./api.js').Bbox} */
     getBbox() {
-      const bounds = map.getBounds();
+      const bounds = viewBounds();
       // Do not send wrapped longitudes or latitudes outside the geographic range.
       return [
         Math.max(-180, bounds.getWest()),
@@ -140,13 +169,27 @@ export function createReportMap(
     },
     getZoom: () => map.getZoom(),
     setViewBounds(bounds) {
-      map.fitBounds(
-        [
-          [bounds[1], bounds[0]],
-          [bounds[3], bounds[2]],
-        ],
-        { animate: false },
+      const target = L.latLngBounds(
+        [bounds[1], bounds[0]],
+        [bounds[3], bounds[2]],
       );
+      const size = map.getSize();
+      if (size.x && size.y) {
+        map.fitBounds(target, { animate: false });
+        return;
+      }
+      // Hidden map: fitBounds would fall back to the minimum zoom (a whole
+      // continent), so pick the zoom for the size the map will have.
+      const room = viewSize();
+      let zoom = map.getMaxZoom();
+      while (zoom > map.getMinZoom()) {
+        const span = map
+          .project(target.getNorthEast(), zoom)
+          .subtract(map.project(target.getSouthWest(), zoom));
+        if (Math.abs(span.x) <= room.x && Math.abs(span.y) <= room.y) break;
+        zoom--;
+      }
+      map.setView(target.getCenter(), zoom, { animate: false });
     },
     /** Cluster markers contain counts only; singleton identities are hydrated through detail reads.
      * @param {object[]} items @param {object[]} [reports] */
@@ -268,7 +311,7 @@ export function createReportMap(
     },
     /** Recalculate dimensions after returning to the retained map view. */
     invalidateSize() {
-      map.invalidateSize({ pan: false });
+      resize();
     },
     /** @param {string} id */
     focusReport(id, report) {
