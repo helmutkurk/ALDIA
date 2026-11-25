@@ -122,6 +122,10 @@ class AldiaColors {
   /// Top bar color for the current theme.
   static Color barOf(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark ? darkBar : bar;
+
+  /// Coral accent for the current theme (key call to action, badges).
+  static Color accentOf(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? darkAccent : accent;
 }
 
 /// Corner radii (dp).
