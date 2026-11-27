@@ -23,11 +23,11 @@ class CapturingSms:
 
 
 @pytest.fixture
-def citizen_client(tmp_path):
+def citizen_client(tmp_path, database_url):
     app = create_app(
         Settings(
             env="dev",
-            database_url=f"sqlite:///{tmp_path / 'citizens.db'}",
+            database_url=database_url("citizens"),
             photo_dir=tmp_path / "photos",
             public_post_rate_limit=1000,
         ),
@@ -435,13 +435,13 @@ def test_limiter_window_recovers_and_bounds_keys(citizen_client, monkeypatch):
     assert len(limiter.buckets) == 10_000
 
 
-def test_populated_citizen_migration_round_trip(tmp_path, monkeypatch):
+def test_populated_citizen_migration_round_trip(tmp_path, monkeypatch, database_url):
     from alembic.config import Config
     from sqlalchemy import create_engine, inspect, text
 
     from alembic import command
 
-    url = f"sqlite:///{tmp_path / 'migration.db'}"
+    url = database_url("migration")
     monkeypatch.setenv("DATABASE_URL", url)
     config = Config("alembic.ini")
     command.upgrade(config, "0004")
@@ -464,12 +464,13 @@ def test_populated_citizen_migration_round_trip(tmp_path, monkeypatch):
             connection.execute(
                 text(
                     "INSERT INTO citizens (id,phone_hash,phone_last2,alias_public) "
-                    "VALUES (:id,:phone,:tail,0)"
+                    "VALUES (:id,:phone,:tail,:public)"
                 ),
                 {
                     "id": secrets.token_hex(32),
                     "phone": secrets.token_hex(32),
                     "tail": str(secrets.randbelow(100)).zfill(2),
+                    "public": False,
                 },
             )
             connection.execute(

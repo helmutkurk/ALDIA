@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from pathlib import Path
 from uuid import uuid4
 
@@ -9,9 +10,11 @@ from alembic import command
 
 
 def test_case_migration_backfill_and_downgrade(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    database_url: Callable[[str], str],
 ) -> None:
-    url = f"sqlite:///{tmp_path / 'cases.db'}"
+    url = database_url("cases")
     monkeypatch.setenv("DATABASE_URL", url)
     config = Config("alembic.ini")
     command.upgrade(config, "0002")

@@ -1,6 +1,7 @@
 """Text search on GET /api/reports (q) and pin fields on one-report clusters."""
 
 import re
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -191,9 +192,11 @@ def test_single_report_zoom_clusters_all_carry_pin_fields(client: TestClient) ->
 
 
 def test_migration_backfills_note_search(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    database_url: Callable[[str], str],
 ) -> None:
-    url = f"sqlite:///{tmp_path / 'search.db'}"
+    url = database_url("search")
     monkeypatch.setenv("DATABASE_URL", url)
     config = Config("alembic.ini")
     command.upgrade(config, "0005")
