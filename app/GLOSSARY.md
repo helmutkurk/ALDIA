@@ -2,6 +2,9 @@
 
 Domain terms used in the app code. UI words are Spanish; code names are English.
 
+Project-wide terms (reports, states, roles, verification) are in the [root glossary](../GLOSSARY.md); this file only
+adds Explorar detail.
+
 ## Explorar
 
 **Explorar** - The full-screen map of nearby reports, opened from Inicio with "Explorar mi ciudad". It has two modes,
