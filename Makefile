@@ -66,3 +66,13 @@ seed: ## Create synthetic demo reports (idempotent, migrates first)
 
 seed-reset: ## Delete the "[demo]" reports and create them again
 	cd backend/api && $(SEED_ENV) uv run alembic upgrade head && $(SEED_ENV) uv run python scripts/seed_demo.py --reset
+
+.PHONY: backup restore-check
+
+backup: ## Back up database and photo volume of the Docker stack: make backup BACKUP_DIR=/srv/aldia-backups
+	@test -n "$(BACKUP_DIR)" || { echo "set BACKUP_DIR (outside the repo)"; exit 2; }
+	@bash scripts/backup.sh "$(BACKUP_DIR)"
+
+restore-check: ## Timed restore drill in throwaway containers: make restore-check BACKUP=<dir>/<timestamp>
+	@test -n "$(BACKUP)" || { echo "set BACKUP to one backup directory"; exit 2; }
+	@bash scripts/restore-check.sh "$(BACKUP)"
