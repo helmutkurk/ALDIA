@@ -140,9 +140,13 @@ def test_invalid_image(client: TestClient, content: bytes) -> None:
     assert response.status_code == 422
 
 
-def test_model_is_explicitly_unimplemented() -> None:
-    with pytest.raises(NotImplementedError, match="trained model"):
-        create_app(Settings(verifier_mode="model"))
+def test_model_mode_needs_a_provider_and_its_key() -> None:
+    with pytest.raises(ValueError, match="EMBEDDING_PROVIDER"):
+        Settings(verifier_mode="model")
+    with pytest.raises(ValueError, match="GEMINI_API_KEY"):
+        Settings(verifier_mode="model", embedding_provider="google")
+    with pytest.raises(ValueError, match="AWS_BEARER_TOKEN_BEDROCK"):
+        Settings(verifier_mode="model", embedding_provider="amazon")
 
 
 def test_hash_is_64_bit_and_directional() -> None:

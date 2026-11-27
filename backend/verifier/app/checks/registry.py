@@ -38,8 +38,6 @@ def verify(
     *,
     now: datetime | None = None,
 ) -> VerifyResult:
-    if settings.verifier_mode == "model":
-        raise NotImplementedError("VERIFIER_MODE=model requires a trained model")
     decoded, metadata = decode_image(data)
     context = CheckContext(
         decoded,
@@ -53,7 +51,7 @@ def verify(
     category = classifier.classify(decoded, report.category)
     return VerifyResult(
         passed=all(check.passed for check in [*hard, category]),
-        mode="heuristic",
+        mode="model" if settings.verifier_mode == "model" else "heuristic",
         phash=dhash(decoded),
         checks=[*hard, screen_photo.run(context), category],
     )

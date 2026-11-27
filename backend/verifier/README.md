@@ -27,7 +27,7 @@ allows the API to send an image re-encoded from an upload of up to 8 MiB.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `VERIFIER_MODE` | `heuristic` | `heuristic`, legacy alias `stub`, or `model`; model mode fails clearly until a trained classifier is integrated. |
+| `VERIFIER_MODE` | `heuristic` | `heuristic`, legacy alias `stub`, or `model` (embedding category check, see below). |
 | `MAX_AGE_SECONDS` | `600` | Largest submitted/EXIF age, inclusive; timestamps up to 60 seconds ahead are accepted. |
 | `SHARPNESS_MIN` | `80` | Minimum signed Laplacian variance on the 320-pixel grayscale thumbnail. |
 | `EXPOSURE_MIN_MEAN` | `12` | Minimum mean grayscale luminance. |
@@ -60,9 +60,10 @@ Settings come from the process environment. No environment files are loaded.
   present metadata fails. EXIF is neither trusted attestation nor proof of place.
 - `screen_photo`: periodic-pattern hint on an independent 128-pixel grayscale
   thumbnail. Always passes; a suspected screen produces `possible_screen`.
-- `category`: `StubClassifier` accepts supported categories and always returns
-  `detail: "no clasificado (sin modelo)"`, `code: "category_stub"`.
-  A stub result is never evidence that a model recognized a street problem.
+- `category`: in heuristic mode `StubClassifier` accepts supported categories and
+  always returns `detail: "no clasificado (sin modelo)"`, `code: "category_stub"`;
+  a stub result is never evidence that a model recognized a street problem. In
+  model mode see "Model mode" below.
 
 `app/phash.py` computes a deterministic 64-bit difference hash: grayscale,
 9x8 LANCZOS resize, compare each pixel with its right neighbor (`left > right`),
@@ -77,25 +78,40 @@ Images are processed in memory and never persisted by this service. Application
 logs contain no coordinates, filenames or image contents. Supplied commands
 disable access logs; configure deployment proxies with the same privacy policy.
 
-## Plug in Lorenz's trained model
+## Model mode: embedding category check
 
-`app/checks/category.py` defines `Classifier.classify(image, category) -> Check`.
-The protocol and verifier entry points are exported from `app/checks/__init__.py`.
-Inputs are decoded, oriented RGB Pillow images and stable category IDs. Implement this
-Protocol in a new module under `app/`, returning `name="category"`, a Boolean
-`passed`, a machine-readable `code`, and a concise explanation in `detail`.
-Do not use the stub's success value as a model prediction. Set and document any
-trained confidence thresholds.
+`VERIFIER_MODE=model` replaces the stub with `EmbeddingClassifier`
+(`app/checks/embedding_classifier.py`): the photo and short texts per category
+(`app/checks/category_prompts.py`, Spanish plus one English line, and a
+"no problem" label with rooms, screenshots, intact streets and closed covers)
+are embedded in one vector space; each label scores its best cosine similarity.
+The check passes when the reported category is among the best `EMBEDDING_TOP_K`
+labels and reaches `EMBEDDING_MIN_SIMILARITY`.
 
-In `app/main.py`, replace the explicit `NotImplementedError` branch for
-`VERIFIER_MODE=model` with model initialization and assign that instance to the
-`Classifier` variable. Load weights once at startup, fail startup if unavailable,
-and update `app/checks/registry.py` to support model verification and emit
-`mode="model"` in responses and health. Keep `StubClassifier` for heuristic mode
-(including the `stub` configuration alias), and add deterministic tests for model
-preprocessing and decisions.
-Any required model runtime dependencies need the team's approval and exact uv
-pins. Never silently fall back to the stub when model mode was requested.
+Providers (`app/embeddings/`, plain `httpx`, no SDK):
+
+| `EMBEDDING_PROVIDER` | Model | Key variable |
+| --- | --- | --- |
+| `google` | `gemini-embedding-2` via the Gemini API (`x-goog-api-key`) | `GEMINI_API_KEY` |
+| `amazon` | `amazon.nova-2-multimodal-embeddings-v1:0` via Bedrock InvokeModel (Bearer API key) | `AWS_BEARER_TOKEN_BEDROCK` |
+
+Startup fails without provider or key, and when the category texts cannot be
+embedded. During `/verify`, a provider failure answers `503 classifier_unavailable`;
+the API then keeps the report pending. The provider receives a re-encoded JPEG
+of at most 512 px without metadata, never coordinates or notes. Keys are
+`SecretStr` and never logged. Check keys with `bash training/check_keys.sh`
+(asks without echo); measure a provider with `training/compare_embeddings.py`.
+
+```sh
+read -rsp "Gemini-Key: " GEMINI_API_KEY; echo; export GEMINI_API_KEY
+VERIFIER_MODE=model EMBEDDING_PROVIDER=google uv run uvicorn app.main:create_app \
+  --factory --host 127.0.0.1 --port 8001 --no-access-log
+```
+
+Privacy: in model mode every citizen photo leaves the server for Google or
+Amazon (US regions). That needs the team's data-protection decision and the
+app's consent text before real use; the Gemini API free tier may use content
+to improve Google products, so production needs a paid tier.
 
 Training notebooks, data preparation and training scripts belong in
 [`training/`](training/README.md). Runtime prediction code belongs in `app/`.
@@ -121,4 +137,5 @@ image, runs as UID/GID 10001, and checks `/health`. No public port is published 
 the example. `make test`, `make lint`, and `make fmt` provide local shortcuts.
 There is no database and no migration step for this service. Tests use synthetic
 images and exercise bounding boxes, freshness boundaries, invalid requests,
-hash direction, image size and explicit failure of unimplemented model mode.
+hash direction, image size, and model mode with fake provider responses
+(`tests/test_embeddings.py`; no test calls a real provider).
